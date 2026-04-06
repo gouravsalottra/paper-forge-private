@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PAPER-FORGE — Architecture Cockpit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #06070a;
+      --bg-elevated: #0c0e14;
+      --panel: #0f1219;
+      --panel-2: #121622;
+      --border: #1b2230;
+      --border-strong: #273045;
+      --text: #e8e9ed;
+      --muted: #8b93a7;
+      --faint: #5c657a;
+      --accent: #2ec4ff;
+      --accent-dim: rgba(46, 196, 255, 0.12);
+      --warn: #f59e0b;
+      --bad: #fb7185;
+      --good: #34d399;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+      --sans: "Inter", system-ui, -apple-system, sans-serif;
+      --radius: 12px;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(46, 196, 255, 0.06), transparent 55%),
+                  radial-gradient(900px 600px at 90% 0%, rgba(167, 139, 250, 0.05), transparent 50%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: var(--mono); font-size: 12.5px; }
+    .layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    aside {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      border-right: 1px solid var(--border);
+      background: linear-gradient(180deg, #0a0c12 0%, #07080c 100%);
+      padding: 22px 18px;
+      overflow-y: auto;
+    }
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      margin: 0 0 16px;
+    }
+    nav ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    nav li { margin: 0 0 6px; }
+    nav a {
+      display: block;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px solid transparent;
+    }
+    nav a:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.03);
+      border-color: var(--border);
+      text-decoration: none;
+    }
+    main { padding: 32px 36px 80px; max-width: 1180px; }
+    section {
+      margin-bottom: 56px;
+      scroll-margin-top: 24px;
+    }
+    h1 {
+      font-size: 34px;
+      letter-spacing: -0.03em;
+      margin: 0 0 12px;
+      line-height: 1.15;
+    }
+    h2 {
+      font-size: 20px;
+      margin: 0 0 14px;
+      letter-spacing: -0.02em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+    h3 { font-size: 15px; margin: 0 0 10px; color: var(--text); }
+    .lede {
+      font-size: 17px;
+      color: #c9cedd;
+      max-width: 72ch;
+      margin-bottom: 18px;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .hero-grid { grid-template-columns: 1fr; }
+      main { padding: 24px 18px 60px; }
+    }
+    .card {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 16px 14px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 { margin-top: 0; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .badge.cp { border-color: rgba(46, 196, 255, 0.35); color: #bfefff; background: var(--accent-dim); }
+    .badge.dp { border-color: rgba(52, 211, 153, 0.35); color: #b7f7d6; background: rgba(52, 211, 153, 0.08); }
+    .badge.ser { border-color: rgba(245, 158, 11, 0.35); color: #fde68a; background: rgba(245, 158, 11, 0.08); }
+    .badge.par { border-color: rgba(167, 139, 250, 0.35); color: #ddd6fe; background: rgba(167, 139, 250, 0.08); }
+    .badge.audit { border-color: rgba(251, 113, 133, 0.45); color: #fecdd3; background: rgba(251, 113, 133, 0.08); }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    @media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr; } }
+    .moat-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 12px 10px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .moat-card strong { display: block; font-size: 13px; margin-bottom: 6px; color: var(--text); }
+    .moat-card span { font-size: 12px; color: var(--muted); }
+    .summary-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+    table.summary {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    table.summary th, table.summary td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    table.summary th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 12px;
+    }
+    .agent-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .agent-card header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .agent-card h4 {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+    }
+    .agent-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 6px 10px;
+      font-size: 12px;
+    }
+    .agent-card dt { color: var(--faint); }
+    .agent-card dd { margin: 0; color: #cfd6e6; }
+    .matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .matrix th, .matrix td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      vertical-align: top;
+    }
+    .matrix th { background: rgba(255, 255, 255, 0.03); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .panel h3 { margin-top: 0; }
+    ul.tight { margin: 8px 0 0; padding-left: 18px; }
+    ul.tight li { margin: 6px 0; color: #c9cedd; }
+    .diagram-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin: 14px 0 10px;
+      background: #080a10;
+      overflow-x: auto;
+    }
+    .diagram-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .diagram-head h3 { margin: 0; font-size: 14px; }
+    button.copy {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      cursor: pointer;
+    }
+    button.copy:hover { border-color: rgba(46, 196, 255, 0.45); }
+    pre.mermaid-raw {
+      margin: 0;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #05060a;
+      overflow-x: auto;
+      white-space: pre;
+      color: #cbd5e1;
+    }
+    .footnote {
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .kbd {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background: rgba(255, 255, 255, 0.04);
+      color: #dbeafe;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand">Internal</div>
+      <div class="title">Architecture Cockpit</div>
+      <nav aria-label="Section navigation">
+        <ul>
+          <li><a href="#hero">Hero / thesis</a></li>
+          <li><a href="#architecture-summary">Architecture summary</a></li>
+          <li><a href="#daily-model">Daily mental model</a></li>
+          <li><a href="#agents">Agent overview</a></li>
+          <li><a href="#tools-matrix">Tools by agent</a></li>
+          <li><a href="#system-architecture">System architecture</a></li>
+          <li><a href="#infra-stack">Infrastructure</a></li>
+          <li><a href="#serial-parallel">Serial vs parallel</a></li>
+          <li><a href="#gpu-performance">GPU + performance</a></li>
+          <li><a href="#failure-modes">Failure modes</a></li>
+          <li><a href="#diagrams">Mermaid diagrams</a></li>
+          <li><a href="#raw-mermaid">Raw Mermaid</a></li>
+        </ul>
+      </nav>
+      <p class="muted" style="margin-top:18px;font-size:12px;line-height:1.45;">
+        Static cockpit. No backend. Edit <span class="kbd">docs/architecture/dashboard.html</span> or sync diagrams from <span class="kbd">diagrams.mmd</span>.
+      </p>
+    </aside>
+    <main>
+      <section id="hero">
+        <h1>PAPER-FORGE</h1>
+        <p class="lede">
+          An <strong>auditable</strong> autonomous research system for finance / fintech / quant papers:
+          commit hypotheses before consuming results, run bounded simulation research, and retain receipts that let you
+          <strong>prove</strong> whether the final paper matches the original plan.
+        </p>
+        <div class="pill-row" aria-label="Badges">
+          <span class="badge cp">control plane</span>
+          <span class="badge dp">data plane</span>
+          <span class="badge ser">serial</span>
+          <span class="badge par">parallel</span>
+          <span class="badge audit">audit-critical</span>
+        </div>
+        <div class="hero-grid">
+          <div class="card">
+            <h3>Moat stack (ordered)</h3>
+            <p class="muted" style="margin-top:0;">This is the defensibility spine—everything else is implementation detail.</p>
+            <div class="grid-3">
+              <div class="moat-card">
+                <strong>1 — PAP</strong>
+                <span>Pre-analysis plan committed and locked before FORGE can start. Prevents “result-driven” refactors.</span>
+              </div>
+              <div class="moat-card">
+                <strong>2 — DataPassport</strong>
+                <span>Signed manifest: source, query, rolls, adjustments, lineage—empirical claims become checkable.</span>
+              </div>
+              <div class="moat-card">
+                <strong>3 — CODEC</strong>
+                <span>Bidirectional audit: code→spec, then paper→code. Turns consistency into engineering, not vibes.</span>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Why this matters</h3>
+            <p class="muted" style="margin-top:0;">
+              Finance research fails in predictable ways: silent p-hacking, moving goalposts, irreproducible pulls, code that diverges from prose.
+              This cockpit documents an architecture that makes those failures <strong>expensive to commit</strong> and <strong>cheap to detect</strong>.
+            </p>
+            <h3 style="margin-top:14px;">Why this is defensible</h3>
+            <ul class="tight">
+              <li><strong>SQLite truth</strong> for orchestration beats “prompt memory.”</li>
+              <li><strong>Strict lanes</strong> prevent cross-contamination of artifacts.</li>
+              <li><strong>Gates</strong> encode discipline (PAP → seal → FORGE).</li>
+              <li><strong>Verification stack</strong> is a product moat, not a slide.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture-summary">
+        <h2>Architecture summary</h2>
+        <p class="muted" style="margin-top:-6px;">One screen: responsibilities, surfaces, and where truth lives.</p>
+        <div class="summary-table-wrap">
+          <table class="summary">
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>What it is</th>
+                <th>Source of truth</th>
+                <th>Non‑negotiables</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge cp">control plane</span><br/>ARIA</td>
+                <td>Parses <span class="kbd">PAPER.md</span>, builds task graph, routes work, enforces checkpoints.</td>
+                <td><strong>SQLite</strong> (<span class="kbd">state.db</span>): phases, routing, locks, hashes, approvals.</td>
+                <td>Transactional transitions; restart-safe checkpoints; audit trail.</td>
+              </tr>
+              <tr>
+                <td><span class="badge dp">data plane</span><br/>Agents</td>
+                <td>Bounded execution: literature, data, stats, sims, writing, review.</td>
+                <td>Artifact stores (paths) + manifests; referenced from SQLite.</td>
+                <td>Each agent writes <strong>only</strong> its lane.</td>
+              </tr>
+              <tr>
+                <td><span class="badge audit">verification</span><br/>PAP + DataPassport + CODEC + HAWK</td>
+                <td>Scientific discipline + adversarial pressure.</td>
+                <td>PAP rows + sealed lock; signed DataPassport; CODEC records; HAWK review artifacts.</td>
+                <td>No FORGE before PAP commit + <span class="kbd">pap_lock</span> seal.</td>
+              </tr>
+              <tr>
+                <td><span class="badge par">tooling</span><br/>MCP</td>
+                <td>Cross-cutting capabilities (arxiv, data, modal, latex).</td>
+                <td>Not the Day‑1 memory backbone—SQLite remains authoritative.</td>
+                <td>Every tool call should still land as routed steps + hashes where it matters.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="daily-model">
+        <h2>Daily mental model</h2>
+        <div class="card">
+          <p style="margin-top:0;" class="muted">The shortest way to think about the system every morning:</p>
+          <ul class="tight">
+            <li><strong>Control plane</strong> = <span class="kbd">ARIA + SQLite</span> — phases, locks, checkpoints, routing, hashes.</li>
+            <li><strong>Scientific discipline</strong> = <span class="kbd">PAP + DataPassport + CODEC</span> (+ HAWK as hostile pressure).</li>
+            <li><strong>Heavy work</strong> = literature + data + statistics + simulation + paper + review — each isolated by lane.</li>
+            <li><strong>deepagents</strong> may arrive later as delegation/runtime — <strong>not</strong> the Day‑1 memory backbone.</li>
+          </ul>
+          <p class="muted" style="margin-bottom:0;">
+            If you cannot point to what changed in <span class="kbd">state.db</span> and which artifact hash proves it, you are drifting out of the architecture.
+          </p>
+        </div>
+      </section>
+
+      <section id="agents">
+        <h2>Agent overview</h2>
+        <p class="muted" style="margin-top:-6px;">Purpose, I/O, tools, and lane—built for scanning.</p>
+        <div class="agent-grid">
+          <article class="agent-card">
+            <header><h4>ARIA</h4><span class="badge cp">control plane</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>Orchestrate: task graph, routing, checkpoints, locks.</dd>
+              <dt>Inputs</dt><dd><span class="kbd">PAPER.md</span>, statuses, artifact pointers.</dd>
+              <dt>Outputs</dt><dd>Routed work, phase transitions, audit records in SQLite.</dd>
+              <dt>Tools</dt><dd>Cursor/IDE, SQLite, MCP orchestration endpoints.</dd>
+              <dt>Writes</dt><dd><span class="kbd">state.db</span> orchestration tables only.</dd>
+              <dt>Why</dt><dd>Without ARIA, you have scripts—not a restart-safe system.</dd>
+            </dl>
+          </article>
+          <article class="agent-card">
+            <header><h4>SCOUT</h4><span class="badge dp">data plane</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>Literature map + novelty positioning.</dd>
+              <dt>Inputs</dt><dd>Topic brief, constraints, seed papers.</dd>
+              <dt>Outputs</dt><dd>Literature artifacts, bibliography map.</dd>
+              <dt>Tools</dt><dd>MCP arxiv, parsers, citation tooling.</dd>
+              <dt>Writes</dt><dd>Literature artifacts only.</dd>
+              <dt>Why</dt><dd>Finance moves fast; structured coverage precedes claims.</dd>
+            </dl>
+          </article>
+          <article class="agent-card">
+            <header><h4>MINER</h4><span class="badge dp">data plane</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>Retrieve, stitch, validate; emit DataPassport.</dd>
+              <dt>Inputs</dt><dd>Requirements, identifiers, windows.</dd>
+              <dt>Outputs</dt><dd>Datasets + signed manifest (lineage).</dd>
+              <dt>Tools</dt><dd>WRDS (if entitled), fallbacks, local secrets connectors.</dd>
+              <dt>Writes</dt><dd>Data + dataset manifest only.</dd>
+              <dt>Why</dt><dd>Empirical claims require anchored, explainable pulls.</dd>
+            </dl>
+          </article>
+          <article class="agent-card">
+            <header><h4>SIGMA</h4><span class="badge audit">audit-critical</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>PAP + statistics: preregister intent before peeking.</dd>
+              <dt>Inputs</dt><dd>Clean datasets, model specs.</dd>
+              <dt>Outputs</dt><dd>PAP rows; later tables/figures.</dd>
+              <dt>Tools</dt><dd>Stats stack, Colab prototypes, Modal hooks for batch jobs.</dd>
+              <dt>Writes</dt><dd>PAP rows, stats tables, figures.</dd>
+              <dt>Why</dt><dd>Separates planning from results—feeds the moat stack.</dd>
+            </dl>
+          </article>
+          <article class="agent-card">
+            <header><h4>FORGE</h4><span class="badge ser">gated</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>Simulation repo, environments, training/eval jobs.</dd>
+              <dt>Inputs</dt><dd>Sealed PAP + manifests + approved code sketches.</dd>
+              <dt>Outputs</dt><dd>Code bundle, logs, metrics, checkpoints.</dd>
+              <dt>Tools</dt><dd>Modal GPUs, vectorized sims, experiment runners.</dd>
+              <dt>Writes</dt><dd>Simulation code + sim outputs only.</dd>
+              <dt>Why</dt><dd>Heavy compute is where discipline is most often lost—gate it.</dd>
+            </dl>
+          </article>
+          <article class="agent-card">
+            <header><h4>CODEC</h4><span class="badge audit">audit-critical</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>Bidirectional audit: code→spec, paper→code.</dd>
+              <dt>Inputs</dt><dd>Code bundle, paper draft, tables.</dd>
+              <dt>Outputs</dt><dd>Spec artifacts, audits, fix requests.</dd>
+              <dt>Tools</dt><dd>Static analysis, tests, structured diffs.</dd>
+              <dt>Writes</dt><dd>Spec, audits, fix requests only.</dd>
+              <dt>Why</dt><dd>Makes “implementation matches prose” checkable.</dd>
+            </dl>
+          </article>
+          <article class="agent-card">
+            <header><h4>QUILL</h4><span class="badge dp">data plane</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>Compile LaTeX from controlled artifacts.</dd>
+              <dt>Inputs</dt><dd>Figures/tables/citations from pinned hashes.</dd>
+              <dt>Outputs</dt><dd>LaTeX sources + PDF.</dd>
+              <dt>Tools</dt><dd>LaTeX toolchain, MCP latex server.</dd>
+              <dt>Writes</dt><dd>LaTeX only.</dd>
+              <dt>Why</dt><dd>Paper is output—not the source of truth.</dd>
+            </dl>
+          </article>
+          <article class="agent-card">
+            <header><h4>HAWK</h4><span class="badge audit">audit-critical</span></header>
+            <dl>
+              <dt>Purpose</dt><dd>Hostile referee: attack claims and robustness.</dd>
+              <dt>Inputs</dt><dd>PDF + evidence bundle + passports.</dd>
+              <dt>Outputs</dt><dd>Review artifact, required revisions list.</dd>
+              <dt>Tools</dt><dd>Rubric scoring, red-team prompts.</dd>
+              <dt>Writes</dt><dd>Review artifacts only.</dd>
+              <dt>Why</dt><dd>Conferences reject for a reason—simulate it early.</dd>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section id="tools-matrix">
+        <h2>Tools by agent</h2>
+        <p class="muted" style="margin-top:-6px;">Explicit mapping: who uses what, and what it produces.</p>
+        <div class="summary-table-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Tool</th>
+                <th>Used for</th>
+                <th>Why that tool</th>
+                <th>Outputs</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>ARIA</td><td>SQLite (<span class="kbd">state.db</span>)</td>
+                <td>Phases, routing, checkpoints, locks, hashes</td>
+                <td>Deterministic, transactional, auditable system of record</td>
+                <td>Restart-safe orchestration state</td>
+              </tr>
+              <tr>
+                <td>ARIA</td><td>Cursor / IDE</td>
+                <td>Implement orchestration, task graph, policies</td>
+                <td>Tight loop on correctness of the control plane</td>
+                <td>Repo changes + migrations</td>
+              </tr>
+              <tr>
+                <td>SCOUT</td><td>MCP arxiv</td>
+                <td>Paper retrieval + structured literature sweeps</td>
+                <td>Fast, automatable literature acquisition</td>
+                <td>Literature artifacts + map</td>
+              </tr>
+              <tr>
+                <td>MINER</td><td>WRDS + fallbacks</td>
+                <td>Canonical pulls + replication paths</td>
+                <td>Institutional finance ground truth when entitled</td>
+                <td>Datasets + DataPassport manifest</td>
+              </tr>
+              <tr>
+                <td>MINER</td><td>Local secrets connectors</td>
+                <td>Contractually local-only data paths</td>
+                <td>Minimize exfil risk for sensitive entitlements</td>
+                <td>Staged files + signed lineage</td>
+              </tr>
+              <tr>
+                <td>SIGMA</td><td>Colab Pro</td>
+                <td>Interactive stats, diagnostics, prototype estimators</td>
+                <td>Speed for exploration (not authoritative by itself)</td>
+                <td>Notebooks → exported tables/figures (pinned)</td>
+              </tr>
+              <tr>
+                <td>FORGE</td><td>Modal</td>
+                <td>Remote GPU training + large batch simulations</td>
+                <td>Scale + reproducible remote jobs</td>
+                <td>Checkpoints, metrics, sim outputs</td>
+              </tr>
+              <tr>
+                <td>FORGE</td><td>MCP modal launcher</td>
+                <td>Submit/ monitor jobs from orchestrated runs</td>
+                <td>Keep heavy work out of ad-hoc shells</td>
+                <td>Job IDs + artifact pointers</td>
+              </tr>
+              <tr>
+                <td>CODEC</td><td>Tests + static analysis</td>
+                <td>Extract spec + detect drift vs prose</td>
+                <td>Makes mismatches mechanical</td>
+                <td>Audit records + fix requests</td>
+              </tr>
+              <tr>
+                <td>QUILL</td><td>MCP latex / TeX toolchain</td>
+                <td>Deterministic PDF compile from pinned sources</td>
+                <td>Repeatable builds; fewer “works on my machine” PDFs</td>
+                <td>LaTeX + PDF</td>
+              </tr>
+              <tr>
+                <td>HAWK</td><td>Structured review rubric</td>
+                <td>Dimension scoring + adversarial critique</td>
+                <td>Forces explicit failure modes before submission</td>
+                <td>Review artifact</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="system-architecture">
+        <h2>System architecture</h2>
+        <div class="split">
+          <div class="panel">
+            <h3>Control plane vs data plane</h3>
+            <p class="muted" style="margin-top:0;">
+              <span class="badge cp">control plane</span> owns <strong>what is allowed to happen next</strong> and proves it in SQLite.
+              <span class="badge dp">data plane</span> owns <strong>doing the work</strong> and emitting artifacts with stable references.
+            </p>
+            <ul class="tight">
+              <li><strong>ARIA</strong> schedules, routes context, and enforces gates.</li>
+              <li><strong>SQLite</strong> stores phases, <span class="kbd">pap_lock</span>, checkpoints, routing logs, hashes.</li>
+              <li><strong>Filesystem / object paths</strong> store bulky artifacts; SQLite stores pointers + content hashes.</li>
+              <li><strong>MCP servers</strong> are capability endpoints—not the memory backbone.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Artifact flow (conceptual)</h3>
+            <ul class="tight">
+              <li><strong>SCOUT</strong> → literature map</li>
+              <li><strong>MINER</strong> → datasets + <strong>DataPassport</strong></li>
+              <li><strong>SIGMA</strong> → <strong>PAP rows</strong> → <strong>commit + seal</strong> in SQLite</li>
+              <li><strong>FORGE</strong> → simulation repo + outputs (post‑gate)</li>
+              <li><strong>CODEC</strong> → spec + audits</li>
+              <li><strong>QUILL</strong> → LaTeX/PDF</li>
+              <li><strong>HAWK</strong> → review artifact</li>
+            </ul>
+            <p class="muted" style="margin-bottom:0;">
+              Checkpoints are restart-safe savepoints for orchestration state—use them before irreversible transitions.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="infra-stack">
+        <h2>Infrastructure stack</h2>
+        <p class="muted" style="margin-top:-6px;">Where work runs, and what must never be misplaced.</p>
+        <div class="summary-table-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>Surface</th>
+                <th>Used for</th>
+                <th>Why it exists</th>
+                <th>Never do this</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Cursor</td>
+                <td>Repo coding, ARIA/SQLite, architecture, docs</td>
+                <td>Fast correctness loop on the control plane</td>
+                <td>Don’t treat the IDE as authoritative state storage</td>
+              </tr>
+              <tr>
+                <td>SQLite</td>
+                <td>Authoritative orchestration + locks + hashes</td>
+                <td>Deterministic, embeddable, easy to audit</td>
+                <td>Don’t store huge blobs—store paths + hashes</td>
+              </tr>
+              <tr>
+                <td>WRDS</td>
+                <td>Institutional datasets (if entitled)</td>
+                <td>Canonical academic finance data</td>
+                <td>Don’t silently substitute without manifest updates</td>
+              </tr>
+              <tr>
+                <td>Fallback connectors</td>
+                <td>Replication when WRDS unavailable</td>
+                <td>Transparency beats pretending</td>
+                <td>Don’t hide lineage to save time</td>
+              </tr>
+              <tr>
+                <td>Modal</td>
+                <td>Long GPU training + big batch sims</td>
+                <td>Scale + remote reproducibility</td>
+                <td>Don’t fragment into thousands of tiny GPU kernels</td>
+              </tr>
+              <tr>
+                <td>Colab Pro</td>
+                <td>Notebooks, prototyping, debugging</td>
+                <td>Iteration speed</td>
+                <td>Don’t let notebooks become the signed manifest</td>
+              </tr>
+              <tr>
+                <td>Local machine</td>
+                <td>Secrets + local-only connectors</td>
+                <td>Risk minimization for sensitive data</td>
+                <td>Don’t run untracked “shadow pipelines”</td>
+              </tr>
+              <tr>
+                <td>LaTeX compiler</td>
+                <td>QUILL PDF builds</td>
+                <td>Deterministic typesetting from sources</td>
+                <td>Don’t edit PDFs as source of truth</td>
+              </tr>
+              <tr>
+                <td>MCP servers</td>
+                <td>arxiv, data, modal, latex capabilities</td>
+                <td>Composable tools without making them the brain</td>
+                <td>Don’t duplicate orchestration state outside SQLite</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="serial-parallel">
+        <h2>Serial vs parallel</h2>
+        <div class="split">
+          <div class="panel">
+            <h3><span class="badge ser">serial</span> Must be serial</h3>
+            <ul class="tight">
+              <li><strong>PAP commitment</strong> and ordering of planned analyses.</li>
+              <li><strong><span class="kbd">pap_lock</span> seal</strong> before FORGE.</li>
+              <li><strong>Phase transitions</strong> in <span class="kbd">state.db</span> (transactional + restart-safe).</li>
+              <li><strong>Final checkpoint approvals</strong> (release gates).</li>
+              <li><strong>CODEC mismatch adjudication</strong> (decide what truth is before rewriting narrative).</li>
+            </ul>
+            <p class="muted" style="margin-bottom:0;">Serialism here is the product: auditability requires a total order on authority.</p>
+          </div>
+          <div class="panel">
+            <h3><span class="badge par">parallel</span> Can parallelize</h3>
+            <ul class="tight">
+              <li>Literature query branches (bounded).</li>
+              <li>Data retrieval subjobs + validation shards.</li>
+              <li>Multi-seed experiments and hyperparameter sweeps.</li>
+              <li>Independent statistical diagnostics.</li>
+              <li>Review dimension scoring (structured).</li>
+            </ul>
+            <p class="muted" style="margin-bottom:0;">Parallelism is for throughput—never for bypassing gates.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="gpu-performance">
+        <h2>GPU + performance engineering</h2>
+        <div class="card">
+          <p class="muted" style="margin-top:0;">
+            FORGE is the primary GPU consumer. The enemy is <strong>fragmentation</strong>: tiny jobs, excessive host-device sync, and logging that dominates step time.
+          </p>
+          <div class="split" style="margin-top:12px;">
+            <div>
+              <h3>Utilization principles</h3>
+              <ul class="tight">
+                <li><strong>Batch rollouts</strong> to keep devices fed.</li>
+                <li><strong>Vectorize environments</strong> where possible (avoid per-step Python overhead).</li>
+                <li><strong>Stage data</strong> to minimize IO stalls before training.</li>
+                <li><strong>Mixed precision</strong> where numerically stable (reduce memory + increase throughput).</li>
+                <li><strong>Reduce host-device sync</strong>—measure how often you block on tiny tensors.</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Reliability + cost</h3>
+              <ul class="tight">
+                <li><strong>Separate training from heavy logging</strong> (log less frequently, aggregate metrics).</li>
+                <li><strong>Staged evaluation</strong>—don’t run full eval every step.</li>
+                <li><strong>Checkpoint smartly</strong>—durable progress without thrashing disks.</li>
+                <li><strong>Profile bottlenecks</strong> before scaling out (optimize single-worker first).</li>
+              </ul>
+            </div>
+          </div>
+          <p class="muted" style="margin-bottom:0;">
+            Likely bottlenecks: environment stepping, dataloader throughput, checkpoint IO, and accidental per-step Python callbacks.
+          </p>
+        </div>
+      </section>
+
+      <section id="failure-modes">
+        <h2>Failure modes &amp; defenses</h2>
+        <div class="split">
+          <div class="panel">
+            <h3>What breaks</h3>
+            <ul class="tight">
+              <li><strong>Ghost state</strong>: notebooks/MCP become implicit memory.</li>
+              <li><strong>Gate bypass</strong>: FORGE starts before seal.</li>
+              <li><strong>Data drift</strong>: queries change without DataPassport updates.</li>
+              <li><strong>Code–paper drift</strong>: prose outruns implementation.</li>
+              <li><strong>GPU waste</strong>: fragmented jobs + sync storms.</li>
+              <li><strong>“Friendly” review</strong>: HAWK becomes cheerleading.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>How the architecture defends</h3>
+            <ul class="tight">
+              <li><strong>SQLite SoT</strong> for orchestration + receipts.</li>
+              <li><strong>PAP + <span class="kbd">pap_lock</span></strong> hard-stop FORGE.</li>
+              <li><strong>DataPassport</strong> binds pulls to claims.</li>
+              <li><strong>CODEC</strong> two-pass audit loop + serial adjudication.</li>
+              <li><strong>Lanes</strong> prevent cross-write corruption.</li>
+              <li><strong>HAWK</strong> structured rubric + required revisions artifact.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="diagrams">
+        <h2>Mermaid diagrams</h2>
+        <p class="muted" style="margin-top:-6px;">Rendered in-browser. Sources live in <span class="kbd">docs/architecture/diagrams.mmd</span>—keep them in sync when iterating.</p>
+
+        <div class="diagram-head"><h3>1 — Full workflow</h3><button class="copy" type="button" data-copy="raw-1">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">flowchart TB
+  subgraph CP["Control plane — ARIA + SQLite"]
+    ARIA["ARIA orchestrator"]
+    DB[("state.db")]
+    ARIA --> DB
+  end
+
+  subgraph DP["Data plane — agents + artifacts"]
+    SCOUT["SCOUT\nliterature"]
+    MINER["MINER\ndata + DataPassport"]
+    SIGMA["SIGMA\nPAP + stats"]
+    FORGE["FORGE\nsimulation / training"]
+    CODEC["CODEC\naudit loop"]
+    QUILL["QUILL\nLaTeX"]
+    HAWK["HAWK\nreview"]
+  end
+
+  PAP["PAP commit + pap_lock seal\n(serial gate)"]
+  SCOUT --> MINER --> SIGMA
+  SIGMA --> PAP
+  PAP --> FORGE
+  FORGE --> CODEC
+  CODEC --> QUILL --> HAWK
+
+  ARIA -. routes .-> SCOUT &amp; MINER &amp; SIGMA &amp; FORGE &amp; CODEC &amp; QUILL &amp; HAWK
+  DB -. checkpoints / phases .- ARIA
+        </div></div>
+
+        <div class="diagram-head"><h3>2 — Mind map</h3><button class="copy" type="button" data-copy="raw-2">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">mindmap
+  root((PAPER-FORGE))
+    Moat
+      PAP pre-commitment
+      DataPassport lineage
+      CODEC bidirectional audit
+    Control plane
+      ARIA task graph
+      SQLite truth
+      phase locks
+    Methods
+      Market Ecology
+      Verification Stack
+    Agents
+      SCOUT literature
+      MINER data
+      SIGMA statistics
+      FORGE simulation
+      CODEC consistency
+      QUILL writing
+      HAWK referee
+        </div></div>
+
+        <div class="diagram-head"><h3>3 — Sequence</h3><button class="copy" type="button" data-copy="raw-3">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">sequenceDiagram
+  autonumber
+  participant U as Operator
+  participant A as ARIA
+  participant S as SQLite
+  participant SC as SCOUT
+  participant M as MINER
+  participant SI as SIGMA
+  participant F as FORGE
+  participant C as CODEC
+  participant Q as QUILL
+  participant H as HAWK
+
+  U->>A: PAPER.md / objectives
+  A->>S: init / checkpoint
+  A->>SC: literature brief
+  SC-->>A: literature artifacts
+  A->>M: data request
+  M-->>A: signed manifest + datasets
+  A->>SI: analysis plan + PAP rows
+  SI-->>A: PAP committed
+  A->>S: seal pap_lock
+  A->>F: bounded sim / training jobs
+  F-->>A: sim outputs + code bundle
+  A->>C: code + paper draft
+  C-->>A: spec + audit deltas
+  A->>Q: compile LaTeX from artifacts
+  Q-->>A: paper PDF
+  A->>H: hostile review
+  H-->>A: review artifact + required fixes
+        </div></div>
+
+        <div class="diagram-head"><h3>4 — System architecture graph</h3><button class="copy" type="button" data-copy="raw-4">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">flowchart LR
+  subgraph Control["Control plane"]
+    ARIA2["ARIA"]
+    ST["state.db\nphases • locks • hashes"]
+    RL["routing_log"]
+    CP["checkpoints"]
+    ARIA2 --> ST
+    ARIA2 --> RL
+    ARIA2 --> CP
+  end
+
+  subgraph Data["Data plane"]
+    ART["Artifact stores\n(files / object paths)"]
+    AG["Agents\n(SCOUT…HAWK)"]
+    AG --> ART
+  end
+
+  MCP["MCP servers\n(arxiv • data • modal • latex)"]
+  ARIA2 <--> MCP
+  AG <--> MCP
+        </div></div>
+
+        <div class="diagram-head"><h3>5 — Control plane vs data plane</h3><button class="copy" type="button" data-copy="raw-5">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">flowchart TB
+  subgraph CPlane["Control plane — authoritative orchestration"]
+    direction TB
+    A["ARIA parses intent\nbuilds task graph"]
+    B["SQLite: phases, pap_lock,\ncheckpoints, routing, hashes"]
+    A --> B
+  end
+
+  subgraph DPlane["Data plane — execution + artifacts"]
+    direction TB
+    X["Agents run bounded work"]
+    Y["Artifacts + manifests\n(DataPassport, figures, code)"]
+    X --> Y
+  end
+
+  CPlane -->|schedules / gates| DPlane
+  DPlane -->|status + artifact refs| CPlane
+        </div></div>
+
+        <div class="diagram-head"><h3>6 — Tool → agent mapping</h3><button class="copy" type="button" data-copy="raw-6">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">flowchart TB
+  Cursor["Cursor / IDE"] --> ARIA
+  Cursor --> SCOUT
+  Cursor --> FORGE
+  Cursor --> CODEC
+  Cursor --> QUILL
+  SQLite["SQLite state.db"] --> ARIA
+  WRDS["WRDS + fallbacks"] --> MINER
+  Modal["Modal GPUs"] --> FORGE
+  Colab["Colab Pro"] --> SIGMA
+  Colab --> FORGE
+  Local["Local secrets / private connectors"] --> MINER
+  MCP_arxiv["MCP arxiv"] --> SCOUT
+  MCP_data["MCP data connector"] --> MINER
+  MCP_modal["MCP modal launcher"] --> FORGE
+  MCP_latex["MCP latex"] --> QUILL
+        </div></div>
+
+        <div class="diagram-head"><h3>7 — Serial vs parallel</h3><button class="copy" type="button" data-copy="raw-7">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">flowchart TB
+  subgraph Serial["Must be serial — audit-critical"]
+    s1["Hypothesis / PAP commitment"]
+    s2["pap_lock seal"]
+    s3["Phase transitions in state.db"]
+    s4["Final approval checkpoints"]
+    s5["CODEC mismatch adjudication"]
+  end
+
+  subgraph Parallel["Can parallelize"]
+    p1["Literature branches"]
+    p2["Data subjobs"]
+    p3["Multi-seed runs"]
+    p4["Hyperparameter sweeps"]
+    p5["Independent diagnostics"]
+    p6["Review dimension scores"]
+  end
+        </div></div>
+
+        <div class="diagram-head"><h3>8 — Artifact flow</h3><button class="copy" type="button" data-copy="raw-8">Copy</button></div>
+        <div class="diagram-wrap"><div class="mermaid">flowchart LR
+  LIT["Literature map\n(SCOUT)"] --> MAN["Dataset manifest\nDataPassport (MINER)"]
+  MAN --> PAPR["PAP rows\n(SIGMA)"]
+  PAPR --> PCOMM["PAP commit + seal\n(ARIA/SQLite)"]
+  PCOMM --> SIM["Simulation repo +\noutputs (FORGE)"]
+  SIM --> AUD["CODEC spec +\naudit records"]
+  AUD --> TEX["LaTeX + PDF\n(QUILL)"]
+  TEX --> REV["Review artifact\n(HAWK)"]
+        </div></div>
+      </section>
+
+      <section id="raw-mermaid">
+        <h2>Raw Mermaid (copy/paste)</h2>
+        <p class="muted" style="margin-top:-6px;">Edit canonical sources in <span class="kbd">diagrams.mmd</span>, then mirror changes here or regenerate this section.</p>
+
+        <h3>1 — Full workflow</h3>
+        <pre class="mermaid-raw" id="raw-1">flowchart TB
+  subgraph CP["Control plane — ARIA + SQLite"]
+    ARIA["ARIA orchestrator"]
+    DB[("state.db")]
+    ARIA --> DB
+  end
+
+  subgraph DP["Data plane — agents + artifacts"]
+    SCOUT["SCOUT\nliterature"]
+    MINER["MINER\ndata + DataPassport"]
+    SIGMA["SIGMA\nPAP + stats"]
+    FORGE["FORGE\nsimulation / training"]
+    CODEC["CODEC\naudit loop"]
+    QUILL["QUILL\nLaTeX"]
+    HAWK["HAWK\nreview"]
+  end
+
+  PAP["PAP commit + pap_lock seal\n(serial gate)"]
+  SCOUT --> MINER --> SIGMA
+  SIGMA --> PAP
+  PAP --> FORGE
+  FORGE --> CODEC
+  CODEC --> QUILL --> HAWK
+
+  ARIA -. routes .-> SCOUT &amp; MINER &amp; SIGMA &amp; FORGE &amp; CODEC &amp; QUILL &amp; HAWK
+  DB -. checkpoints / phases .- ARIA</pre>
+
+        <h3>2 — Mind map</h3>
+        <pre class="mermaid-raw" id="raw-2">mindmap
+  root((PAPER-FORGE))
+    Moat
+      PAP pre-commitment
+      DataPassport lineage
+      CODEC bidirectional audit
+    Control plane
+      ARIA task graph
+      SQLite truth
+      phase locks
+    Methods
+      Market Ecology
+      Verification Stack
+    Agents
+      SCOUT literature
+      MINER data
+      SIGMA statistics
+      FORGE simulation
+      CODEC consistency
+      QUILL writing
+      HAWK referee</pre>
+
+        <h3>3 — Sequence</h3>
+        <pre class="mermaid-raw" id="raw-3">sequenceDiagram
+  autonumber
+  participant U as Operator
+  participant A as ARIA
+  participant S as SQLite
+  participant SC as SCOUT
+  participant M as MINER
+  participant SI as SIGMA
+  participant F as FORGE
+  participant C as CODEC
+  participant Q as QUILL
+  participant H as HAWK
+
+  U->>A: PAPER.md / objectives
+  A->>S: init / checkpoint
+  A->>SC: literature brief
+  SC-->>A: literature artifacts
+  A->>M: data request
+  M-->>A: signed manifest + datasets
+  A->>SI: analysis plan + PAP rows
+  SI-->>A: PAP committed
+  A->>S: seal pap_lock
+  A->>F: bounded sim / training jobs
+  F-->>A: sim outputs + code bundle
+  A->>C: code + paper draft
+  C-->>A: spec + audit deltas
+  A->>Q: compile LaTeX from artifacts
+  Q-->>A: paper PDF
+  A->>H: hostile review
+  H-->>A: review artifact + required fixes</pre>
+
+        <h3>4 — System architecture graph</h3>
+        <pre class="mermaid-raw" id="raw-4">flowchart LR
+  subgraph Control["Control plane"]
+    ARIA2["ARIA"]
+    ST["state.db\nphases • locks • hashes"]
+    RL["routing_log"]
+    CP["checkpoints"]
+    ARIA2 --> ST
+    ARIA2 --> RL
+    ARIA2 --> CP
+  end
+
+  subgraph Data["Data plane"]
+    ART["Artifact stores\n(files / object paths)"]
+    AG["Agents\n(SCOUT…HAWK)"]
+    AG --> ART
+  end
+
+  MCP["MCP servers\n(arxiv • data • modal • latex)"]
+  ARIA2 <--> MCP
+  AG <--> MCP</pre>
+
+        <h3>5 — Control plane vs data plane</h3>
+        <pre class="mermaid-raw" id="raw-5">flowchart TB
+  subgraph CPlane["Control plane — authoritative orchestration"]
+    direction TB
+    A["ARIA parses intent\nbuilds task graph"]
+    B["SQLite: phases, pap_lock,\ncheckpoints, routing, hashes"]
+    A --> B
+  end
+
+  subgraph DPlane["Data plane — execution + artifacts"]
+    direction TB
+    X["Agents run bounded work"]
+    Y["Artifacts + manifests\n(DataPassport, figures, code)"]
+    X --> Y
+  end
+
+  CPlane -->|schedules / gates| DPlane
+  DPlane -->|status + artifact refs| CPlane</pre>
+
+        <h3>6 — Tool → agent mapping</h3>
+        <pre class="mermaid-raw" id="raw-6">flowchart TB
+  Cursor["Cursor / IDE"] --> ARIA
+  Cursor --> SCOUT
+  Cursor --> FORGE
+  Cursor --> CODEC
+  Cursor --> QUILL
+  SQLite["SQLite state.db"] --> ARIA
+  WRDS["WRDS + fallbacks"] --> MINER
+  Modal["Modal GPUs"] --> FORGE
+  Colab["Colab Pro"] --> SIGMA
+  Colab --> FORGE
+  Local["Local secrets / private connectors"] --> MINER
+  MCP_arxiv["MCP arxiv"] --> SCOUT
+  MCP_data["MCP data connector"] --> MINER
+  MCP_modal["MCP modal launcher"] --> FORGE
+  MCP_latex["MCP latex"] --> QUILL</pre>
+
+        <h3>7 — Serial vs parallel</h3>
+        <pre class="mermaid-raw" id="raw-7">flowchart TB
+  subgraph Serial["Must be serial — audit-critical"]
+    s1["Hypothesis / PAP commitment"]
+    s2["pap_lock seal"]
+    s3["Phase transitions in state.db"]
+    s4["Final approval checkpoints"]
+    s5["CODEC mismatch adjudication"]
+  end
+
+  subgraph Parallel["Can parallelize"]
+    p1["Literature branches"]
+    p2["Data subjobs"]
+    p3["Multi-seed runs"]
+    p4["Hyperparameter sweeps"]
+    p5["Independent diagnostics"]
+    p6["Review dimension scores"]
+  end</pre>
+
+        <h3>8 — Artifact flow</h3>
+        <pre class="mermaid-raw" id="raw-8">flowchart LR
+  LIT["Literature map\n(SCOUT)"] --> MAN["Dataset manifest\nDataPassport (MINER)"]
+  MAN --> PAPR["PAP rows\n(SIGMA)"]
+  PAPR --> PCOMM["PAP commit + seal\n(ARIA/SQLite)"]
+  PCOMM --> SIM["Simulation repo +\noutputs (FORGE)"]
+  SIM --> AUD["CODEC spec +\naudit records"]
+  AUD --> TEX["LaTeX + PDF\n(QUILL)"]
+  TEX --> REV["Review artifact\n(HAWK)"]</pre>
+      </section>
+
+      <div class="footnote">
+        <strong>Open locally:</strong> double-click <span class="kbd">docs/architecture/dashboard.html</span> or run
+        <span class="kbd">open docs/architecture/dashboard.html</span> (macOS). For best results with clipboard APIs, use a local file served over HTTP
+        (some browsers restrict file:// clipboard writes)—a simple static server works.
+        <br /><br />
+        <strong>When architecture changes:</strong> edit Markdown in <span class="kbd">docs/architecture/*.md</span> for narrative truth; update
+        <span class="kbd">diagrams.mmd</span> first, then mirror diagram bodies into <span class="kbd">dashboard.html</span> (rendered <span class="kbd">div.mermaid</span> + raw <span class="kbd">pre#raw-*</span>).
+        <br /><br />
+        <strong>Add a diagram:</strong> append a new block to <span class="kbd">diagrams.mmd</span>, add a matching <span class="kbd">div.mermaid</span> in the diagrams section,
+        add a <span class="kbd">pre.mermaid-raw</span> with a new id, and wire the Copy button <span class="kbd">data-copy</span> to that id.
+      </div>
+    </main>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "dark",
+      securityLevel: "loose",
+      fontFamily: "JetBrains Mono, ui-monospace, monospace",
+      themeVariables: {
+        darkMode: true,
+        primaryColor: "#122433",
+        primaryTextColor: "#e8e9ed",
+        primaryBorderColor: "#2ec4ff",
+        lineColor: "#64748b",
+        secondaryColor: "#0f1219",
+        tertiaryColor: "#06070a",
+        edgeLabelBackground: "#0f1219"
+      }
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+      mermaid.run({ querySelector: ".mermaid" });
+    });
+
+    document.querySelectorAll("button.copy").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-copy");
+        var el = document.getElementById(id);
+        if (!el) return;
+        var text = el.textContent || "";
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            var prev = btn.textContent;
+            btn.textContent = "Copied";
+            setTimeout(function () { btn.textContent = prev; }, 1100);
+          });
+        } else {
+          var ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand("copy"); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+%% PAPER-FORGE — canonical Mermaid sources (edit here, sync into dashboard.html when changing diagrams)
+%% Diagram 1 — Full workflow flowchart
+
+flowchart TB
+  subgraph CP["Control plane — ARIA + SQLite"]
+    ARIA["ARIA orchestrator"]
+    DB[("state.db")]
+    ARIA --> DB
+  end
+
+  subgraph DP["Data plane — agents + artifacts"]
+    SCOUT["SCOUT\nliterature"]
+    MINER["MINER\ndata + DataPassport"]
+    SIGMA["SIGMA\nPAP + stats"]
+    FORGE["FORGE\nsimulation / training"]
+    CODEC["CODEC\naudit loop"]
+    QUILL["QUILL\nLaTeX"]
+    HAWK["HAWK\nreview"]
+  end
+
+  PAP["PAP commit + pap_lock seal\n(serial gate)"]
+  SCOUT --> MINER --> SIGMA
+  SIGMA --> PAP
+  PAP --> FORGE
+  FORGE --> CODEC
+  CODEC --> QUILL --> HAWK
+
+  ARIA -. routes .-> SCOUT & MINER & SIGMA & FORGE & CODEC & QUILL & HAWK
+  DB -. checkpoints / phases .- ARIA
+
+%% Diagram 2 — Mind map
+
+mindmap
+  root((PAPER-FORGE))
+    Moat
+      PAP pre-commitment
+      DataPassport lineage
+      CODEC bidirectional audit
+    Control plane
+      ARIA task graph
+      SQLite truth
+      phase locks
+    Methods
+      Market Ecology
+      Verification Stack
+    Agents
+      SCOUT literature
+      MINER data
+      SIGMA statistics
+      FORGE simulation
+      CODEC consistency
+      QUILL writing
+      HAWK referee
+
+%% Diagram 3 — Sequence diagram
+
+sequenceDiagram
+  autonumber
+  participant U as Operator
+  participant A as ARIA
+  participant S as SQLite
+  participant SC as SCOUT
+  participant M as MINER
+  participant SI as SIGMA
+  participant F as FORGE
+  participant C as CODEC
+  participant Q as QUILL
+  participant H as HAWK
+
+  U->>A: PAPER.md / objectives
+  A->>S: init / checkpoint
+  A->>SC: literature brief
+  SC-->>A: literature artifacts
+  A->>M: data request
+  M-->>A: signed manifest + datasets
+  A->>SI: analysis plan + PAP rows
+  SI-->>A: PAP committed
+  A->>S: seal pap_lock
+  A->>F: bounded sim / training jobs
+  F-->>A: sim outputs + code bundle
+  A->>C: code + paper draft
+  C-->>A: spec + audit deltas
+  A->>Q: compile LaTeX from artifacts
+  Q-->>A: paper PDF
+  A->>H: hostile review
+  H-->>A: review artifact + required fixes
+
+%% Diagram 4 — System architecture graph
+
+flowchart LR
+  subgraph Control["Control plane"]
+    ARIA2["ARIA"]
+    ST["state.db\nphases • locks • hashes"]
+    RL["routing_log"]
+    CP["checkpoints"]
+    ARIA2 --> ST
+    ARIA2 --> RL
+    ARIA2 --> CP
+  end
+
+  subgraph Data["Data plane"]
+    ART["Artifact stores\n(files / object paths)"]
+    AG["Agents\n(SCOUT…HAWK)"]
+    AG --> ART
+  end
+
+  MCP["MCP servers\n(arxiv • data • modal • latex)"]
+  ARIA2 <--> MCP
+  AG <--> MCP
+
+%% Diagram 5 — Control plane vs data plane
+
+flowchart TB
+  subgraph CPlane["Control plane — authoritative orchestration"]
+    direction TB
+    A["ARIA parses intent\nbuilds task graph"]
+    B["SQLite: phases, pap_lock,\ncheckpoints, routing, hashes"]
+    A --> B
+  end
+
+  subgraph DPlane["Data plane — execution + artifacts"]
+    direction TB
+    X["Agents run bounded work"]
+    Y["Artifacts + manifests\n(DataPassport, figures, code)"]
+    X --> Y
+  end
+
+  CPlane -->|schedules / gates| DPlane
+  DPlane -->|status + artifact refs| CPlane
+
+%% Diagram 6 — Tool-to-agent mapping
+
+flowchart TB
+  Cursor["Cursor / IDE"] --> ARIA
+  Cursor --> SCOUT
+  Cursor --> FORGE
+  Cursor --> CODEC
+  Cursor --> QUILL
+  SQLite["SQLite state.db"] --> ARIA
+  WRDS["WRDS + fallbacks"] --> MINER
+  Modal["Modal GPUs"] --> FORGE
+  Colab["Colab Pro"] --> SIGMA
+  Colab --> FORGE
+  Local["Local secrets / private connectors"] --> MINER
+  MCP_arxiv["MCP arxiv"] --> SCOUT
+  MCP_data["MCP data connector"] --> MINER
+  MCP_modal["MCP modal launcher"] --> FORGE
+  MCP_latex["MCP latex"] --> QUILL
+
+%% Diagram 7 — Serial vs parallel execution
+
+flowchart TB
+  subgraph Serial["Must be serial — audit-critical"]
+    s1["Hypothesis / PAP commitment"]
+    s2["pap_lock seal"]
+    s3["Phase transitions in state.db"]
+    s4["Final approval checkpoints"]
+    s5["CODEC mismatch adjudication"]
+  end
+
+  subgraph Parallel["Can parallelize"]
+    p1["Literature branches"]
+    p2["Data subjobs"]
+    p3["Multi-seed runs"]
+    p4["Hyperparameter sweeps"]
+    p5["Independent diagnostics"]
+    p6["Review dimension scores"]
+  end
+
+%% Diagram 8 — Artifact flow
+
+flowchart LR
+  LIT["Literature map\n(SCOUT)"] --> MAN["Dataset manifest\nDataPassport (MINER)"]
+  MAN --> PAPR["PAP rows\n(SIGMA)"]
+  PAPR --> PCOMM["PAP commit + seal\n(ARIA/SQLite)"]
+  PCOMM --> SIM["Simulation repo +\noutputs (FORGE)"]
+  SIM --> AUD["CODEC spec +\naudit records"]
+  AUD --> TEX["LaTeX + PDF\n(QUILL)"]
+  TEX --> REV["Review artifact\n(HAWK)"]
