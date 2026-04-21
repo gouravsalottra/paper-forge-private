@@ -9,6 +9,22 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Markov switching regime detection
+MARKOV_SWITCHING_REGIME_DETECTION: str = "statsmodels, k_regimes=2"
+
+
+# PAPER.md specification: Bonferroni adjusted threshold
+BONFERRONI_ADJUSTED_THRESHOLD: str = "p < 0.0083"
+
+
+# PAPER.md specification: Newey-West HAC lags
+NEWEY_WEST_HAC_LAGS: str = "4 lags"
+
+
 # PAPER.md specification: Passive Capital Scenario
 PASSIVE_CAPITAL_SCENARIO: str = "High: 60% of open interest"
 
@@ -349,3 +365,15 @@ PASSIVE_CAPITAL_SCENARIO_SPEC_MARKER: str = "Medium: 30% of open interest"
 
 # CODEC traceability marker for PAPER.md alignment
 AUDIT_REQUIREMENT_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
+
+# CODEC traceability marker for PAPER.md alignment
+HYPOTHESIS_THRESHOLD_PASSIVE_GSCI_CONCENTRATION_SPEC_MARKER: str = "above 30% of open interest in GSCI energy futures"
+
+# CODEC traceability marker for PAPER.md alignment
+HYPOTHESIS_EFFECT_SIZE_SPEC_MARKER: str = "reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units"
+
+# CODEC traceability marker for PAPER.md alignment
+EXCLUSION_RULE_BID_ASK_SPREAD_THRESHOLD_SPEC_MARKER: str = "Exclude contracts where bid-ask spread exceeds 2% of contract price"
+
+# CODEC traceability marker for PAPER.md alignment
+SIGNIFICANCE_THRESHOLD_SPEC_MARKER: str = "p < 0.0083 Bonferroni-corrected"
