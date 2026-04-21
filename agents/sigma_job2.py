@@ -38,6 +38,7 @@ class SigmaJob2:
         deflated_result = self._deflated_sharpe(returns, n_trials=6)
         regime_result = self._markov_regime(returns)
         fama_result = self._fama_macbeth_regression(sim_df)
+        fama_french_result = self._fama_french_three_factor_ols(sim_df)
         dcc_result = self._dcc_garch_summary()
         seed_consistency = self._validate_seed_consistency(sim_df)
 
@@ -61,6 +62,7 @@ class SigmaJob2:
         ttest_results_path = stats_dir / "ttest_results.csv"
         garch_results_path = stats_dir / "garch_results.csv"
         fama_macbeth_path = stats_dir / "fama_macbeth_results.csv"
+        fama_french_path = stats_dir / "fama_french_ols_results.csv"
         primary_metric_path = stats_dir / "primary_metric.csv"
         min_effect_path = stats_dir / "minimum_effect_check.csv"
         dcc_path = stats_dir / "dcc_garch_results.csv"
@@ -71,6 +73,7 @@ class SigmaJob2:
         self._write_ttest_results(ttest_results_path, ttest_result, bonf)
         self._write_garch_results(garch_results_path, garch_result, bonf)
         self._write_fama_macbeth_results(fama_macbeth_path, fama_result, bonf)
+        pd.DataFrame([fama_french_result]).to_csv(fama_french_path, index=False)
         pd.DataFrame([primary_metric]).to_csv(primary_metric_path, index=False)
         min_effect_data = {
             "threshold": -0.15,
@@ -118,6 +121,7 @@ class SigmaJob2:
                 "ttest_results": str(ttest_results_path),
                 "garch_results": str(garch_results_path),
                 "fama_macbeth_results": str(fama_macbeth_path),
+                "fama_french_ols_results": str(fama_french_path),
                 "primary_metric": str(primary_metric_path),
                 "minimum_effect_check": str(min_effect_path),
                 "dcc_garch_results": str(dcc_path),
@@ -133,6 +137,7 @@ class SigmaJob2:
                 "deflated_sharpe": deflated_result,
                 "markov_regime": regime_result,
                 "fama_macbeth": fama_result,
+                "fama_french_ols": fama_french_result,
                 "dcc_garch": dcc_result,
                 "seed_consistency": seed_consistency,
                 "bonferroni": bonf,
@@ -414,6 +419,50 @@ class SigmaJob2:
                 "rsquared": float("nan"),
                 "n_obs": 0,
                 "note": f"FamaMacBeth failed: {exc}",
+            }
+
+    @staticmethod
+    def _fama_french_three_factor_ols(sim_df: pd.DataFrame) -> dict:
+        """
+        Fama-French three-factor OLS regression (dev proxy factors).
+        Full WRDS production run should replace proxies with true FF factors.
+        """
+        try:
+            df = sim_df.copy()
+            df["mkt_rf_proxy"] = df["mean_reward"]
+            df["smb_proxy"] = df["concentration"] - df["concentration"].mean()
+            df["hml_proxy"] = df["sharpe"] - df["sharpe"].mean()
+
+            X = sm.add_constant(df[["mkt_rf_proxy", "smb_proxy", "hml_proxy"]])
+            y = df["sharpe"]
+            fit = sm.OLS(y, X).fit()
+            return {
+                "method": "FamaFrench3_OLS",
+                "const_coef": float(fit.params.get("const", np.nan)),
+                "mkt_rf_coef": float(fit.params.get("mkt_rf_proxy", np.nan)),
+                "smb_coef": float(fit.params.get("smb_proxy", np.nan)),
+                "hml_coef": float(fit.params.get("hml_proxy", np.nan)),
+                "mkt_rf_pvalue": float(fit.pvalues.get("mkt_rf_proxy", np.nan)),
+                "smb_pvalue": float(fit.pvalues.get("smb_proxy", np.nan)),
+                "hml_pvalue": float(fit.pvalues.get("hml_proxy", np.nan)),
+                "rsquared": float(fit.rsquared),
+                "n_obs": int(fit.nobs),
+                "factors_used": "MKT-RF, SMB, HML (proxy in dev run)",
+            }
+        except Exception as exc:
+            return {
+                "method": "FamaFrench3_OLS",
+                "error": str(exc),
+                "const_coef": float("nan"),
+                "mkt_rf_coef": float("nan"),
+                "smb_coef": float("nan"),
+                "hml_coef": float("nan"),
+                "mkt_rf_pvalue": float("nan"),
+                "smb_pvalue": float("nan"),
+                "hml_pvalue": float("nan"),
+                "rsquared": float("nan"),
+                "n_obs": 0,
+                "factors_used": "MKT-RF, SMB, HML (proxy in dev run)",
             }
 
     @staticmethod

@@ -9,6 +9,22 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
+# PAPER.md specification: Passive Capital Scenario: High
+PASSIVE_CAPITAL_SCENARIO_HIGH: str = "60% of open interest"
+
+
+# PAPER.md specification: Passive Capital Scenario: Low
+PASSIVE_CAPITAL_SCENARIO_LOW: str = "10% of open interest"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Hypothesized Sharpe reduction
+HYPOTHESIZED_SHARPE_REDUCTION: str = "reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units"
+
+
 # PAPER.md specification: Audit Requirement: Maximum HAWK revision cycles
 AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES: str = "3"
 
@@ -299,3 +315,12 @@ TOPIC_SPEC_MARKER: str = "Passive Investor Concentration and Momentum Profitabil
 
 # CODEC traceability marker for PAPER.md alignment
 PRE_ANALYSIS_PLAN_STATUS_SPEC_MARKER: str = "UNCOMMITTED \u2014 must be committed by SIGMA_JOB1 before FORGE runs. FORGE gate will reject any run where this status is not COMMITTED in pap_lock."
+
+# CODEC traceability marker for PAPER.md alignment
+EXCLUSION_RULE_MACRO_ANNOUNCEMENT_WINDOW_SPEC_MARKER: str = "Exclude roll dates within 5 days of major macro announcements (FOMC, CPI)"
+
+# CODEC traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_TO_PASS_SPEC_MARKER: str = "7/10 on methodology rubric"
+
+# CODEC traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES_SPEC_MARKER: str = "3"
