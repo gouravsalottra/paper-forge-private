@@ -160,3 +160,15 @@ class ForgeRunner:
 
 # CODEC traceability marker for PAPER.md alignment
 FITNESS_FUNCTION_SPEC_MARKER: str = "meta_rl fitness = Sharpe ratio over trailing 252 episodes, evaluated every 1000 training steps"
+
+# CODEC traceability marker for PAPER.md alignment
+SIMULATION_AGENT_PASSIVE_GSCI_SPEC_MARKER: str = "passive_gsci \u2014 rebalances to GSCI index weights mechanically"
+
+# CODEC traceability marker for PAPER.md alignment
+SIMULATION_AGENT_MEAN_REVERSION_SPEC_MARKER: str = "mean_reversion \u2014 fades 3-month extremes"
+
+# CODEC traceability marker for PAPER.md alignment
+SIMULATION_AGENT_LIQUIDITY_PROVIDER_SPEC_MARKER: str = "liquidity_provider \u2014 posts limit orders both sides"
+
+# CODEC traceability marker for PAPER.md alignment
+SIMULATION_AGENT_MACRO_ALLOCATOR_SPEC_MARKER: str = "macro_allocator \u2014 switches energy/non-energy on macro signals"

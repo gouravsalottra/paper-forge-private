@@ -1,16 +1,16 @@
 {
   "file": "outputs/commodity_returns.csv",
-  "sha256": "a9676f46030da41bfff76691e7396e259a891f283132c5ac73e5962102b09847",
-  "row_count": 5855,
+  "sha256": "1350b9e3bf2788cbd366d9639aa60e1ba32c9919337262c3a229eee62ffb432f",
+  "row_count": 153,
   "date_range": {
     "start": "2000-01-01",
     "end": "2023-12-31"
   },
   "actual_date_range": {
-    "start": "2000-08-31",
-    "end": "2023-12-29"
+    "start": "2001-02-16",
+    "end": "2021-06-09"
   },
-  "download_timestamp_utc": "2026-04-21T14:18:47+00:00",
+  "download_timestamp_utc": "2026-04-21T14:24:46+00:00",
   "tickers": {
     "CL=F": "crude_oil_wti",
     "NG=F": "natural_gas"
@@ -42,9 +42,26 @@
   },
   "codec_acknowledged": true,
   "macro_exclusion": {
-    "macro_exclusion_applied": false,
-    "reason": "yfinance continuous futures have no explicit roll dates. FOMC/CPI exclusion window applies to roll dates in the WRDS Compustat Futures data. This rule will be enforced in the full WRDS run.",
+    "macro_exclusion_applied": true,
+    "reason": "Applied \u00b15-day exclusion around known macro announcement dates.",
+    "rows_removed": 21,
+    "rows_remaining": 5834,
     "exclusion_window_days": 5,
     "fomc_cpi_dates_source": "Fed/BLS calendars (WRDS run)"
+  },
+  "bid_ask_spread_filter": {
+    "bid_ask_filter_applied": true,
+    "threshold": 0.02,
+    "proxy": "intraday_high_low_over_close",
+    "rows_removed": 5681,
+    "rows_remaining": 153
+  },
+  "history_filter": {
+    "minimum_trading_days_rule": 100,
+    "retained_series": [
+      "crude_oil_wti",
+      "natural_gas"
+    ],
+    "dropped_series": []
   }
 }
