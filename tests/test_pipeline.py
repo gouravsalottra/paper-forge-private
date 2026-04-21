@@ -131,6 +131,40 @@ def test_codec_passes_are_isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert "dummy.py" not in str(pass2)
 
 
+def test_codec_mismatch_report_contains_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    Path("agents").mkdir(parents=True, exist_ok=True)
+    Path("agents/dummy.py").write_text("momentum_signal = returns.rolling(252).mean()\n", encoding="utf-8")
+    Path("PAPER.md").write_text(
+        "## Methodology\nGARCH(1,1) volatility. Sharpe ratio momentum signal. Bonferroni correction.\n",
+        encoding="utf-8",
+    )
+
+    out_dir = tmp_path / "paper_memory"
+    run_id = "r-codec-meta"
+    run_dir = out_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    db_path = tmp_path / "state.db"
+    _init_agent_results_table(db_path)
+
+    agent = CodecAgent(
+        run_id=run_id,
+        db_path=str(db_path),
+        output_dir=str(out_dir),
+        llm_client=lambda p: f"CODEC output for pass {p.get('pass', '?')}: sharpe garch bonferroni momentum",
+    )
+    agent.run()
+
+    mismatch_path = run_dir / "codec_mismatch.md"
+    assert mismatch_path.exists()
+    content = mismatch_path.read_text()
+    assert "model:" in content
+    assert "temperature:" in content
+    assert "timestamp_utc:" in content
+
+
 def test_hawk_escalates_after_3_cycles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     pipeline = _make_pipeline(tmp_path, run_id="r-hawk")
 

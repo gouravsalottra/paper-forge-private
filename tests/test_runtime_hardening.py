@@ -160,3 +160,57 @@ def test_sigma_job2_markov_regime_aligns_lengths() -> None:
     returns = [0.01, -0.02, 0.03, 0.00, 0.01, -0.01, 0.02, -0.03, 0.01]
     out = SigmaJob2._markov_regime(np.asarray(returns, dtype=float))
     assert "regime_mean_diff_p_value" in out
+
+
+def test_miner_passport_sha256_matches_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import hashlib
+    import json
+
+    monkeypatch.chdir(tmp_path)
+
+    import agents.miner.miner as miner_mod
+
+    (tmp_path / "outputs").mkdir()
+    import pandas as pd
+
+    idx = pd.date_range("2020-01-01", periods=4, freq="D")
+    fake_returns = pd.DataFrame(
+        {
+            "crude_oil_wti": [0.01, -0.01, 0.0, 0.02],
+            "gold": [0.0, 0.001, -0.002, 0.003],
+            "corn": [0.003, -0.001, 0.002, 0.001],
+            "natural_gas": [0.02, -0.03, 0.01, 0.0],
+            "copper": [0.004, 0.005, -0.003, 0.002],
+        },
+        index=idx,
+    )
+    fake_returns.index.name = "date"
+    monkeypatch.setattr(miner_mod, "build_returns_frame", lambda: fake_returns, raising=True)
+
+    miner_mod.run_miner_pipeline(run_id="r-passport", output_dir=str(tmp_path), source="yfinance")
+
+    passport_path = Path("outputs/data_passport.json")
+    assert passport_path.exists(), "DataPassport not written"
+
+    passport = json.loads(passport_path.read_text())
+    returns_path = Path(passport["file"])
+    assert returns_path.exists(), f"Returns file not found: {returns_path}"
+
+    actual_sha = hashlib.sha256(returns_path.read_bytes()).hexdigest()
+    assert actual_sha == passport["sha256"], (
+        f"DataPassport SHA-256 mismatch: stored={passport['sha256']} actual={actual_sha}"
+    )
+    assert passport["row_count"] > 0, "DataPassport row count is zero"
+    assert "library_versions" in passport, "DataPassport missing library_versions"
+
+
+def test_forge_episodes_match_paper_md() -> None:
+    from agents.forge.full_run import run_full_sweep
+    import inspect
+
+    sig = inspect.signature(run_full_sweep)
+    default_episodes = sig.parameters["n_episodes"].default
+    assert default_episodes >= 500_000, (
+        f"run_full_sweep default n_episodes={default_episodes} is below "
+        f"PAPER.md requirement of 500,000"
+    )
