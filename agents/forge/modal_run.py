@@ -23,7 +23,7 @@ image = (
 
 
 @app.function(image=image, timeout=1800, secrets=[runtime_secret])
-def run_scenario(concentration: float, seed: int, n_episodes: int = 500) -> dict:
+def run_scenario(concentration: float, seed: int, n_episodes: int = 500_000) -> dict:
     sys.path.insert(0, "/root")
     from agents.forge.runner import ForgeRunner
 
@@ -39,7 +39,7 @@ def run_scenario(concentration: float, seed: int, n_episodes: int = 500) -> dict
 
 
 @app.function(image=image, timeout=3600, secrets=[runtime_secret])
-def run_all(n_episodes: int = 500) -> list[dict]:
+def run_all(n_episodes: int = 500_000) -> list[dict]:
     sys.path.insert(0, "/root")
 
     concentrations = [0.10, 0.30, 0.60]
@@ -52,7 +52,7 @@ def run_all(n_episodes: int = 500) -> list[dict]:
 
 
 @app.local_entrypoint()
-def main(n_episodes: int = 500) -> None:
+def main(n_episodes: int = 500_000) -> None:
     # Run in detached mode so local process exit does not terminate remote work:
     # modal run --detach agents/forge/modal_run.py
     concentrations = [0.10, 0.30, 0.60]

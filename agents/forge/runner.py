@@ -20,7 +20,7 @@ from agents.forge.env import CommodityFuturesEnv
 
 
 class ForgeRunner:
-    def __init__(self, passive_concentration: float, seed: int, n_episodes: int = 500) -> None:
+    def __init__(self, passive_concentration: float, seed: int, n_episodes: int = 500_000) -> None:
         self.passive_concentration = float(passive_concentration)
         self.seed = int(seed)
         self.n_episodes = int(n_episodes)

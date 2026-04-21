@@ -25,7 +25,7 @@ def _run_scenario(concentration: float, seed: int, n_episodes: int) -> dict:
     return result
 
 
-def run_full_sweep(n_episodes: int = 2000) -> dict:
+def run_full_sweep(n_episodes: int = 500_000) -> dict:
     concentrations = [0.10, 0.30, 0.60]
     seeds = [1337, 42, 9999]
     output_dir = Path("outputs")
@@ -64,7 +64,7 @@ def run_full_sweep(n_episodes: int = 2000) -> dict:
 
 
 def main() -> None:
-    run_full_sweep(n_episodes=2000)
+    run_full_sweep(n_episodes=500_000)
 
 
 if __name__ == "__main__":

@@ -155,7 +155,7 @@ class ARIAPipeline:
         if agent_name == "FORGE":
             from agents.forge.full_run import run_full_sweep
 
-            return run_full_sweep(n_episodes=500)
+            return run_full_sweep(n_episodes=500_000)
         if agent_name == "CODEC":
             from agents.codec.codec import CodecAgent
 

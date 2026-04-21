@@ -61,7 +61,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
             );
 
-            CREATE TABLE pap_lock (
+            CREATE TABLE IF NOT EXISTS pap_lock (
                 run_id           TEXT PRIMARY KEY,
                 locked_at        TIMESTAMP,
                 locked_by        TEXT,

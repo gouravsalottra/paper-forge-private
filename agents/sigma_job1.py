@@ -19,7 +19,16 @@ class SigmaJob1:
         self.client = OpenAI()
 
     def run(self) -> dict:
-        skills_text = Path("skills/sigma_job1_skills.md").read_text(encoding="utf-8")
+        _skills_candidates = [
+            Path("agents/sigma/skills.md"),
+            Path("skills/sigma_job1_skills.md"),
+            Path("agents/sigma_job1_skills.md"),
+        ]
+        _skills_path = next((p for p in _skills_candidates if p.exists()), None)
+        if _skills_path is None:
+            skills_text = "# SIGMA Job 1\nWrite a formal Pre-Analysis Plan as strict JSON."
+        else:
+            skills_text = _skills_path.read_text(encoding="utf-8")
 
         paper_sections = self._parse_paper(Path("PAPER.md"))
         hypothesis = self._require_section(paper_sections, "Hypothesis")

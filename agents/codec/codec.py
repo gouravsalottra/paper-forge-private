@@ -15,6 +15,7 @@ class CodecAgent:
         self.db_path = db_path
         self.output_dir = Path(output_dir)
         self.llm_client = llm_client
+        self._model_name: str = "gpt-5.4"
 
     def run(self) -> dict:
         pass1_spec = self._pass1_read_code()
@@ -75,7 +76,13 @@ class CodecAgent:
 
     def _compare(self, pass1: str, pass2: str) -> str:
         diff = list(difflib.unified_diff(pass1.splitlines(), pass2.splitlines(), lineterm=""))
-        mismatches = ["# CODEC mismatch report", ""]
+        mismatches = [
+            "# CODEC mismatch report",
+            f"model: {self._model_name}",
+            "temperature: 0",
+            f"timestamp_utc: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+            "",
+        ]
         if not diff:
             mismatches.append("No discrepancies detected.")
         else:
@@ -154,12 +161,12 @@ class CodecAgent:
                 f"CONTEXT:\n{json.dumps(payload.get('context', {}))}\n"
             )
             resp = client.chat.completions.create(
-                model="gpt-5.4",
+                model=self._model_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=0.1,
+                temperature=0,
             )
             return (resp.choices[0].message.content or "").strip()
         if callable(self.llm_client):
