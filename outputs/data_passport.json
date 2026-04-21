@@ -1,22 +1,19 @@
 {
   "file": "outputs/commodity_returns.csv",
-  "sha256": "0422ec5baff51d97eb533e467c5013eb11c2301cc5cf2cdc209717165510a70b",
-  "row_count": 3514,
+  "sha256": "a9676f46030da41bfff76691e7396e259a891f283132c5ac73e5962102b09847",
+  "row_count": 5855,
   "date_range": {
-    "start": "2010-01-01",
+    "start": "2000-01-01",
     "end": "2023-12-31"
   },
   "actual_date_range": {
-    "start": "2010-01-05",
+    "start": "2000-08-31",
     "end": "2023-12-29"
   },
-  "download_timestamp_utc": "2026-04-21T06:43:48+00:00",
+  "download_timestamp_utc": "2026-04-21T13:49:00+00:00",
   "tickers": {
     "CL=F": "crude_oil_wti",
-    "GC=F": "gold",
-    "ZC=F": "corn",
-    "NG=F": "natural_gas",
-    "HG=F": "copper"
+    "NG=F": "natural_gas"
   },
   "library_versions": {
     "pandas": "2.2.3",
@@ -24,5 +21,7 @@
     "yfinance": "0.2.66"
   },
   "roll_convention": "ratio_backward",
-  "adjustment_method": "ratio_backward"
+  "adjustment_method": "ratio_backward",
+  "adjustment_method_note": "yfinance auto_adjust=True used as proxy for ratio_backward. Full WRDS run will apply ratio_backward exactly as specified. Deviation acknowledged: auto_adjust applies split/dividend adjustments differently from ratio_backward for futures contracts.",
+  "data_source_note": "Dev run: yfinance proxy for WRDS Compustat Futures. Tickers CL=F (WTI crude) and NG=F (natural gas) approximate GSCI energy sector. Full run requires WRDS access."
 }

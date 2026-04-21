@@ -1,934 +1,583 @@
 # CODEC Pass 1 Spec Extraction
 
-## Scope actually present in code
+## Scope-relevant implemented methodology
 
-The codebase contains **two distinct methodological tracks**:
+The codebase implements two distinct empirical/statistical tracks:
 
-1. **Commodity data / correlation-analysis / paper-assembly track**
-   - `agents/miner/miner.py`
-   - `agents/analyst/analyst.py`
-   - `agents/writer/writer.py`
-   - `agents/vizier/vizier.py`
-   - `agents/assembler/assembler.py`
+1. **Commodity return correlation analysis** in `agents/miner/miner.py`, `agents/analyst/analyst.py`, `agents/writer/writer.py`, and `agents/vizier/vizier.py`
+2. **FORGE simulation + econometric evaluation** in `agents/forge/*.py` and `agents/sigma_job2.py`
 
-2. **FORGE simulation / PAP / econometric audit track**
-   - `agents/forge/*.py`
-   - `agents/sigma_job1.py`
-   - `agents/sigma_job2.py`
-
-There is also orchestration and audit infrastructure:
-- `agents/aria/*`
-- `agents/codec*`
-- `agents/quill/quill.py`
-- `agents/hawk/hawk.py`
-- `agents/scout/scout.py`
-
-These tracks are not fully aligned in purpose. The commodity-analysis track uses real downloaded futures returns. The FORGE track uses a simulated multi-agent environment and separate statistical evaluation.
+Below are only specification-level parameters and transformations actually implemented.
 
 ---
 
-## 1) Data sources
+## 1. Data sources and exact transformations
 
-## Real-data sources
+### 1.1 Commodity data ingestion
+**File:** `agents/miner/miner.py`
 
-### `agents/miner/miner.py`
-Primary implemented real-data source:
-- `yfinance.download(...)`
-- Tickers:
-  - `CL=F` → `crude_oil_wti`
-  - `GC=F` → `gold`
-  - `ZC=F` → `corn`
-  - `NG=F` → `natural_gas`
-  - `HG=F` → `copper`
+#### Assets/tickers
+The implemented commodity panel is exactly 5 futures tickers:
+- `CL=F` → `crude_oil_wti`
+- `GC=F` → `gold`
+- `ZC=F` → `corn`
+- `NG=F` → `natural_gas`
+- `HG=F` → `copper`
 
-Date range parameters:
+#### Date range
 - `START_DATE = "2010-01-01"`
 - `END_DATE_EXCLUSIVE = "2024-01-01"`
-- Comment says this includes data through `2023-12-31`
+- Comment states this includes data through `2023-12-31`
 
-Downloaded field:
-- Adjusted close via `auto_adjust=True`
-- Extracts `"Close"` column from returned dataframe
+#### Download settings
+- Uses `yfinance.download(...)`
+- `auto_adjust=True`
+- `progress=False`
 
-Output:
-- `outputs/commodity_returns.csv`
-- `outputs/data_passport.json`
+#### Synchronization / missing-data handling
+- Individual close series: `dropna()`
+- Combined panel: `pd.concat(..., axis=1, join="inner")`
+  - This means only dates present for **all 5 series** are retained.
+- Sorted by date ascending.
+- Returns frame later uses `.dropna()` after lagging.
 
-### WRDS path in `agents/miner/miner.py`
-There is a WRDS-first policy helper, but the implemented `run_miner_pipeline(..., source="wrds")` does **not** fetch commodity futures. It calls:
-- `agents.miner.sources.wrds_src.fetch(config)`
-- with config:
-  - `kind = "ff_factors"`
-  - `start = START_DATE`
-  - `end = END_DATE_EXCLUSIVE`
+#### Return transformation
+Exact formula:
+- `returns = np.log(close_df / close_df.shift(1)).dropna()`
 
-That writes:
-- `outputs/commodity_returns_wrds.csv`
+So returns are:
+- **daily log returns**
+- computed from **auto-adjusted close prices**
+- on the **intersection of all ticker dates**
 
-This is actually Fama-French 5-factor daily data, not commodity returns.
-
-### Additional source adapters
-These exist but are not shown as used by the main commodity pipeline:
-- `agents/miner/sources/fred_src.py`
-  - FRED API via `fredapi.Fred`
-  - default API key fallback is hardcoded in code
-- `agents/miner/sources/sec_src.py`
-  - SEC EDGAR search API and filing text fetch
-- `agents/miner/sources/wrds_src.py`
-  - WRDS adapters for:
-    - CRSP daily returns
-    - Compustat fundamentals
-    - Fama-French 5-factor daily data
-
-## Simulation data source
-
-### `agents/forge/env.py`
-Synthetic data are generated internally by the environment:
-- initial price fixed at `100.0`
-- price evolves from:
-  - aggregate agent order flow
-  - Gaussian noise
-  - passive concentration drag
-
-No external market data are used in the FORGE environment.
-
-### `agents/forge/full_run.py` / `modal_run.py`
-Simulation outputs are written to:
-- `outputs/sim_results.json`
-
-Each row contains:
-- `concentration`
-- `seed`
-- `sharpe`
-- `mean_reward`
-- `n_episodes`
-
-## Literature / text sources
-
-### `agents/scout/scout.py`
-Searches:
-- Semantic Scholar API
-- fallback arXiv API
-- fallback hardcoded seed papers if no search results
-
-Input:
-- `PAPER.md`
-
-Output:
-- literature map markdown file (save path not fully shown in excerpt)
-
-### `agents/quill/quill.py`, `agents/hawk/hawk.py`, `agents/codec*.py`
-These consume:
-- `PAPER.md`
-- generated artifacts in `paper_memory/<run_id>/...`
-- stats tables
-- codec outputs
-- paper drafts
+#### Naming
+Columns renamed from tickers to commodity names above.
+Index name set to `"date"`.
 
 ---
 
-## 2) Transforms and processing
+## 2. Correlation-analysis methods and parameters
 
-## Commodity returns pipeline
+**Primary file:** `agents/analyst/analyst.py`
 
-### `agents/miner/miner.py`
+### 2.1 Input preprocessing
+- Reads `outputs/commodity_returns.csv`
+- Parses `"date"` as datetime
+- Sets `"date"` as index
+- Sorts index ascending
+- Drops any row with any missing value: `dropna(how="any")`
 
-#### Download and alignment
-- Downloads each ticker separately
-- Concatenates close series with `join="inner"`
-  - only dates common to all series are retained
-- Sorts by date
+### 2.2 Rolling pairwise correlations
+#### Implemented method
+For every unordered pair of commodities:
+- pairwise rolling Pearson correlation via pandas rolling correlation
 
-#### Return transform
-- Computes daily log returns:
-  - `np.log(close_df / close_df.shift(1)).dropna()`
-- Renames columns from ticker symbols to commodity names
-- Sets index name to `"date"`
+#### Parameters
+- `ROLLING_WINDOW = 252`
+- `min_periods = 252`
 
-#### Passport metadata
-Writes metadata including:
-- file hash
-- row count
-- intended and actual date range
-- ticker mapping
-- library versions
-- roll convention and adjustment method both set to `"ratio_backward"`
+#### Exact behavior
+For each pair `(left, right)`:
+- `returns[left].rolling(window=252, min_periods=252).corr(returns[right])`
+- Rows with missing rolling correlation are dropped
+- Pair label format: `"left__right"`
+- Dates are output as strings formatted `%Y-%m-%d`
 
-Note: the code does not itself implement futures rolling logic; it records `"ratio_backward"` in the passport.
+So the rolling-correlation series begins only after a full 252 observations.
 
----
+### 2.3 Structural break detection on rolling correlations
+#### Implemented method
+For each pair’s rolling-correlation time series:
+- `ruptures.Pelt(model="rbf", min_size=MIN_BREAK_SIZE)`
 
-## Correlation analysis pipeline
+#### Parameters
+- `MIN_BREAK_SIZE = 63`
+- Cost model: `"rbf"`
+- Penalty:
+  - `pen = np.log(max(len(y), 2)) * np.var(y)`
+  - prediction uses `max(pen, 1e-8)`
 
-### `agents/analyst/analyst.py`
+#### Eligibility rule
+A pair is skipped unless:
+- number of rolling-correlation observations `>= 2 * MIN_BREAK_SIZE`
+- i.e. at least `126` observations
 
-Input:
-- `outputs/commodity_returns.csv`
-
-#### Load step
-- Reads CSV with `parse_dates=["date"]`
-- sets `date` as index
-- sorts index
-- drops any row with any missing value
-
-#### Rolling pairwise correlations
-Function:
-- `compute_rolling_pairwise_corr(returns)`
-
-For every pair of columns:
-- computes rolling correlation with:
-  - `window = 252`
-  - `min_periods = 252`
-- outputs long dataframe with columns:
-  - `date`
-  - `pair` as `"left__right"`
-  - `correlation`
-- drops missing rolling-correlation rows
-- formats dates as `%Y-%m-%d`
-
-#### Structural break detection
-Function:
-- `detect_breaks(rolling_corr)`
-
-For each pair:
-- sorts by date
-- converts correlation series to `float64`, shape `(-1,1)`
-- skips pair if fewer than `MIN_BREAK_SIZE * 2`
-  - `MIN_BREAK_SIZE = 63`
-
-Break model:
-- `ruptures.Pelt(model="rbf", min_size=63).fit(y)`
-
-Penalty:
-- `pen = log(max(len(y), 2)) * var(y)`
-- lower bounded by `1e-8`
-
-Breakpoints:
-- `model.predict(pen=float(max(pen, 1e-8)))`
-
-For each breakpoint except final endpoint:
-- stores:
+#### Breakpoint recording
+- `breakpoints = model.predict(pen=...)`
+- Final endpoint is excluded: `breakpoints[:-1]`
+- For each breakpoint `bp`, recorded date is row at index `bp - 1`
+- Saved fields:
   - `pair`
-  - `break_date` = date at index `bp - 1`
-  - `break_index` = integer breakpoint
+  - `break_date`
+  - `break_index`
 
-#### DCC correlations
-Function:
-- `compute_dcc_correlations(returns)`
+### 2.4 DCC-GARCH correlation estimation
+#### Implemented method
+Two-stage procedure:
 
-Step 1: univariate GARCH standardization for each asset
-- scales returns by `100.0`
-- fits:
-  - `arch_model(series, mean="Zero", vol="GARCH", p=1, q=1, dist="normal")`
-- extracts `fit.std_resid.dropna()`
+1. **Univariate GARCH(1,1)** per return series
+2. **Bivariate DCC optimization** for each pair using standardized residuals
 
-Step 2: align standardized residuals
-- concatenates all residual series with `join="inner"`
-- drops missing rows
-- resets columns to original return column names
+#### Stage 1: univariate GARCH standardization
+For each commodity return series:
+- returns are scaled by `100.0`
+- model:
+  - `mean="Zero"`
+  - `vol="GARCH"`
+  - `p=1`
+  - `q=1`
+  - `dist="normal"`
+- standardized residuals extracted as `fit.std_resid.dropna()`
 
-Step 3: pairwise DCC fit
-For each pair:
-- extracts 2-column residual matrix
-- calls `fit_dcc_pair(z_pair)`
+Residual series across assets are then aligned by:
+- `pd.concat(std_resids, axis=1, join="inner").dropna()`
 
-##### DCC fitting details
-- `qbar = np.cov(z_pair.T)`
-- if covariance shape not `(2,2)`, fallback to identity
-- adds `1e-10 * I` for stabilization
+So DCC uses only dates where all standardized residual series are jointly observed.
 
-Optimization:
-- objective: `_dcc_loglik`
-- method: `SLSQP`
-- initial guess: `[0.03, 0.95]`
-- bounds:
-  - `a in [1e-8, 0.95]`
-  - `b in [1e-8, 0.95]`
-- constraint:
-  - `a + b <= 0.999`
+#### Stage 2: DCC estimation
+**Optimization target:** custom `_dcc_loglik`
+
+##### DCC parameter constraints
+Parameters:
+- `a >= 0`
+- `b >= 0`
+- `a + b < 0.999`
+
+Implementation details:
+- bounds: `[(1e-8, 0.95), (1e-8, 0.95)]`
+- inequality constraint: `0.999 - x[0] - x[1]`
+
+##### Initialization
+- initial guess: `x0 = [0.03, 0.95]`
+
+##### Optimizer
+- `scipy.optimize.minimize`
+- method: `"SLSQP"`
 - options:
   - `maxiter = 500`
   - `ftol = 1e-9`
 
+##### Covariance initialization
+- `qbar = np.cov(z_pair.T)`
+- if shape is not `(2,2)`, fallback to identity
+- numerical ridge added: `qbar += I * 1e-10`
+
+##### Numerical safeguards in likelihood
+- invalid parameter region returns objective `1e9`
+- diagonal clipped at `1e-12`
+- determinant nonpositive/nonfinite returns `1e9`
+- correlation output clipped to `[-1.0, 1.0]`
+
+##### Failure fallback
 If optimizer fails:
-- fallback parameters:
-  - `a = 0.03`
-  - `b = 0.95`
+- uses fixed `a=0.03`, `b=0.95`
 
-Recursive update:
-- `q_t = (1-a-b) * qbar + a * z_{t-1} z_{t-1}' + b * q_t`
+#### Output
+For each pair:
+- date
+- pair name `"left__right"`
+- dynamic correlation series
 
-Pairwise DCC output:
-- time series of `rho_t = q_t[0,1] / sqrt(q11*q22)`
-- clipped to `[-1, 1]`
-
-##### DCC objective actually used
-`_dcc_loglik` computes a penalized negative log-likelihood-like quantity:
-- rejects invalid params with `1e9`
-- constructs correlation matrix `r_t`
-- forces diagonal entries `[0,0]` and `[1,1]` to `1.0`
-- rejects nonpositive or nonfinite determinant with `1e9`
-- accumulates:
-  - `0.5 * (log(det(r_t)) + z_i' inv(r_t) z_i)`
-
-This is minimized.
-
-#### Summary table
-Function:
-- `build_summary(rolling_corr, regimes, dcc_corr)`
-
-Outputs per pair:
-- `mean_rolling_corr`
-- `std_rolling_corr`
-- `regime_breaks`
-- `dcc_mean_corr`
-
-If no regimes:
-- sets `regime_breaks = 0`
-
-Sorts by pair.
-
-#### Files written
-- `outputs/rolling_correlations.csv`
-- `outputs/correlation_regimes.csv`
-- `outputs/dcc_correlations.csv`
-- `outputs/analyst_summary.csv`
-- `outputs/analyst_passport.json`
+### 2.5 Summary statistics produced from correlation outputs
+`build_summary(...)` computes, by pair:
+- `mean_rolling_corr = mean` of rolling correlations
+- `std_rolling_corr = std` of rolling correlations
+- `regime_breaks = count` of detected breaks, else 0
+- `dcc_mean_corr = mean` of DCC correlations
 
 ---
 
-## Writer / visualization / assembly transforms
+## 3. Visualization/data transformations derived from returns
 
-### `agents/writer/writer.py`
+### 3.1 Cumulative return transformation
+**File:** `agents/vizier/vizier.py`
 
-Inputs:
-- `outputs/analyst_summary.csv`
-- `outputs/rolling_correlations.csv`
-- `outputs/commodity_returns.csv`
+Input returns are treated explicitly as **daily log returns**.
 
-#### Table 1
-For each commodity return series:
-- mean
-- std with `ddof=1`
-- min
-- max
-- skew
-- kurtosis
+Exact cumulative transformation:
+- `cumulative = np.exp(r[value_cols].cumsum())`
 
-Writes LaTeX:
-- `outputs/table1_summary_stats.tex`
+This yields cumulative **gross returns**, plotted on a **log y-scale**.
 
-#### Table 2
-Uses columns from analyst summary:
-- pair
-- mean rolling corr
-- regime breaks
-- mean DCC corr
+### 3.2 Correlation heatmap matrix construction
+Heatmap is not computed from raw return correlations directly.
+Instead:
+- starts from identity matrix
+- fills off-diagonals using `mean_rolling_corr` from analyst summary for each pair
 
-Formats pair names for display and writes LaTeX:
-- `outputs/table2_correlation_summary.tex`
-
-#### Narrative
-Builds 3 paragraphs from computed outputs:
-1. sample description
-2. strongest and weakest average-correlation pairs
-3. average and max regime-break counts
-
-Writes:
-- `outputs/findings_narrative.txt`
-
-### `agents/vizier/vizier.py`
-
-Inputs:
-- rolling correlations
-- analyst summary
-- commodity returns
-- optional regimes file
-
-#### Figure 1
-- 2x5 subplot layout
-- plots rolling correlations by pair
-- overlays vertical dashed lines at break dates
-- y-limits `[-1, 1]`
-
-Outputs:
-- `fig1_rolling_correlations.png`
-- `fig1_rolling_correlations.pdf`
-
-#### Figure 2
-- builds symmetric matrix from `mean_rolling_corr`
-- diagonal fixed to 1
-- seaborn heatmap with annotations
-
-Outputs:
-- `fig2_correlation_heatmap.png`
-- `fig2_correlation_heatmap.pdf`
-
-#### Figure 3
-- interprets input returns as daily log returns
-- computes cumulative gross returns as `exp(cumsum(log returns))`
-- plots on log y-scale
-
-Outputs:
-- `fig3_cumulative_returns.png`
-- `fig3_cumulative_returns.pdf`
-
-### `agents/assembler/assembler.py`
-
-Inputs required:
-- table1 tex
-- table2 tex
-- findings narrative
-- fig1 png
-- fig2 png
-
-Builds LaTeX paper:
-- abstract from first two narrative paragraphs, clipped to 150 words
-- fixed title and bibliography
-- methodology section text is hardcoded, not inferred dynamically
-
-Outputs:
-- `outputs/paper_draft.tex`
-- `outputs/assembler_passport.json`
+So Figure 2 is a matrix of **average rolling correlations**, not static sample correlations.
 
 ---
 
-## 3) FORGE simulation transforms
+## 4. FORGE simulation parameters actually implemented
 
-## Environment mechanics: `agents/forge/env.py`
+### 4.1 Scenario grid
+**Files:** `agents/forge/full_run.py`, `agents/forge/modal_run.py`
 
-### Agents
-Possible agents:
-- `passive_gsci`
-- `trend_follower`
-- `mean_reversion`
-- `liquidity_provider`
-- `macro_allocator`
-- `meta_rl`
-
-### Observation
-10-dimensional float vector:
-1. `price_history[0]`
-2. `price_history[1]`
-3. `price_history[2]`
-4. `price_history[3]`
-5. `price_history[4]`
-6. current volatility
-7. passive concentration
-8. agent portfolio value
-9. agent cash
-10. current step
-
-### Action space
-Discrete(3):
-- `0 = hold`
-- `1 = long`
-- `2 = short`
-
-### Passive concentration parameter
-Allowed values only:
+#### Passive concentration levels
+Exactly:
 - `0.10`
 - `0.30`
 - `0.60`
 
-### Episode length
-Default:
-- `252`
+#### Seeds
+Exactly:
+- `1337`
+- `42`
+- `9999`
 
-### Price update
-After all agents submit actions:
-- convert actions to flows
-- compute `net_order_flow = sum(flow)`
-- `concentration_risk = 1 + 6 * concentration^2`
-- `noise ~ Normal(0, 0.006 * concentration_risk)`
-- `flow_impact = 0.0003 * (1 + 5 * concentration^2)`
-- `concentration_drag = 0.0002 * concentration^2`
+#### Episode count
+Default full sweep:
+- `n_episodes = 500_000`
 
-Price update:
-- `price *= 1 + flow_impact * net_order_flow + noise - concentration_drag`
-- lower bounded at `1e-6`
+This is used in:
+- `run_full_sweep(n_episodes=500_000)`
+- modal `run_scenario(..., n_episodes=500_000)`
+- modal `run_all(n_episodes=500_000)`
 
-### Volatility estimate
-Uses trailing 20-step realized volatility from step returns:
-- maintains rolling window of last 20 returns
-- computes sample variance with `n-1` denominator
-- volatility = sqrt(max(var, 0))
+So total scenario combinations:
+- `3 concentrations × 3 seeds = 9 scenarios`
 
-### Position and cash update
-For each agent:
-- position changes by flow, clipped to `[-50, 50]`
-- cash reduced by `executed_flow * current_price`
+### 4.2 Environment parameters
+**File:** `agents/forge/env.py`
 
-### Reward function
-For each agent each market step:
-- `old_value = previous portfolio value`
-- `new_value = cash + position * price`
-- `pct = (new_value - old_value) / max(abs(old_value), 10000.0)`
-- `rf_daily = 0.05 / 252`
-- `crowding_cost = 0.00005 * concentration^2 * (abs(position) / max_position_units)`
-- `volatility_penalty = 0.15 * concentration^2 * current_volatility`
+#### Episode length
+- default `episode_length = 252`
 
-Reward:
+#### Allowed passive concentration values
+Only:
+- `{0.10, 0.30, 0.60}`
+Any other value raises `ValueError`.
+
+#### Observation vector
+Length 10:
+1. price history lag 0
+2. lag 1
+3. lag 2
+4. lag 3
+5. lag 4
+6. current volatility
+7. passive concentration
+8. portfolio value
+9. cash
+10. current step
+
+#### Action space
+- `Discrete(3)`
+- semantics:
+  - `0 = hold`
+  - `1 = long`
+  - `2 = short`
+
+#### Hard-coded market dynamics parameters
+In `_apply_market_step()`:
+- concentration risk multiplier: `1.0 + 6.0 * concentration^2`
+- noise std: `0.006 * concentration_risk`
+- flow impact coefficient: `0.0003 * (1.0 + 5.0 * concentration^2)`
+- concentration drag: `0.0002 * concentration^2`
+
+#### Volatility estimator
+Rolling window length:
+- last `20` step returns only
+
+Sample variance formula:
+- `(sumsq - n * mean^2) / (n - 1)` for `n >= 2`
+- volatility = `sqrt(max(var, 0.0))`
+
+#### Position/capital parameters
+- initial price: `100.0`
+- initial cash per agent: `10_000.0`
+- max absolute position: `50.0` units
+- minimum price floor: `1e-6`
+
+#### Reward function parameters
+Per-agent reward:
+- `pct = (new_value - old_value) / max(abs(old_value), 10_000.0)`
+- risk-free daily subtraction: `0.05 / 252`
+- crowding cost:
+  - `0.00005 * concentration^2 * (abs(position) / max_position_units)`
+- volatility penalty:
+  - `0.15 * concentration^2 * current_volatility`
+
+Final reward:
 - `pct - rf_daily - crowding_cost - volatility_penalty`
 
-This is the clearest explicit reward function in the codebase.
+### 4.3 Agent policy thresholds
+**File:** `agents/forge/agents.py`
 
-### Action-to-flow mapping
-The function is truncated in the provided excerpt. Visible logic:
-- if action `1`: return `1`
-- rest not shown, but comments elsewhere imply:
-  - `0=hold`
-  - `1=long`
-  - `2=short`
-The exact implementation for action `2` is not visible in the provided text.
+#### MeanReversion
+- short if `obs[0] > obs[1] * 1.02`
+- long if `obs[0] < obs[1] * 0.98`
+- else hold
 
----
+So thresholds are ±2% relative to previous price.
 
-## 4) Agent policies and training
+#### MacroAllocator
+- constructor default `passive_threshold = 0.30`
+- action long if `obs[6] < passive_threshold`, else hold
 
-### `agents/forge/agents.py`
+But in `ForgeRunner`, it is instantiated as:
+- `MacroAllocator(passive_threshold=self.passive_concentration)`
 
-Policies:
-- `PassiveGSCI.act` → always returns `1`
-- `TrendFollower.act` → `1 if obs[0] > obs[4] else 2`
-- `MeanReversion.act`
-  - short if `obs[0] > obs[1] * 1.02`
-  - long if `obs[0] < obs[1] * 0.98`
-  - else hold
-- `LiquidityProvider.act`
-  - alternates long/short each call
-- `MacroAllocator.act`
-  - returns `1 if obs[6] < passive_threshold else 0`
-- `MetaRL.act`
-  - random integer in `[0,2]`
+So actual threshold used in runs equals the scenario concentration itself, not the class default.
 
-### `agents/forge/cem.py`
-Cross-Entropy Method optimizer for MetaRL weights.
+### 4.4 Runner-level parameters
+**File:** `agents/forge/runner.py`
 
-Parameters:
-- `obs_dim = 10`
-- `n_elite = 10`
-- `population = 50`
-- `noise = 0.1`
+#### Seeds
+At runner initialization:
+- `np.random.seed(self.seed)`
+- `random.seed(self.seed)`
 
-Weights shape:
-- `(obs_dim, 3)`
+#### Lookback parameter
+- `self.lookback_window = 252`
 
-Sampling:
-- candidates drawn from Normal(mean, std)
-
-Update:
-- select top `n_elite` by score
-- update mean and std from elites
-- add `noise` to std
-
-Action rule:
-- logits = `obs @ weights`
-- action = `argmax(logits)`
-
-### `agents/forge/runner.py`
-
-Runner parameters:
-- `passive_concentration`
-- `seed`
-- `n_episodes = 500_000`
-- `lookback_window = 252`
-
-Seeds:
-- sets both `np.random.seed(seed)` and `random.seed(seed)`
-
-Environment:
-- `CommodityFuturesEnv(passive_concentration=...)`
-
-CEM:
-- `CEM(obs_dim=10, n_elite=10, population=50, noise=0.1)`
-
-#### Training loop
-For each episode:
-1. `candidates = cem.ask()`
-2. For each candidate weight matrix:
-   - run one episode
-   - score = mean MetaRL step reward
-3. `cem.tell(scores)`
-4. append max score to `rewards_history`
-5. every 100 episodes:
-   - evaluate `cem.best()` on one episode
-   - compute Sharpe from MetaRL step rewards
-
-#### Episode scoring
-`_run_single_episode(weights)`:
-- resets liquidity provider state
-- resets env
-- iterates through PettingZoo AEC cycle
-- for `meta_rl`:
-  - appends current reward
-  - action from `cem.act(obs, weights)`
-- for `trend_follower`:
-  - overrides class policy with custom momentum logic:
-    - `lookback_idx = min(4, len(price_history)-1)`
-    - `lookback_price = price_history[lookback_idx]`
-    - `momentum_signal = current_price - lookback_price`
-    - long if positive else short
-- others use `_rule_policy`
-
-Episode score returned to CEM:
-- mean of MetaRL step rewards
-
-#### Evaluation return series
-`_run_episode_returns(best_weights)`:
-- runs one episode
-- collects MetaRL rewards only
-- returns list of per-step MetaRL rewards
+#### CEM configuration
+Not reporting per instruction (“Do NOT report: CEM internals”).
 
 #### Sharpe computation
-`sharpe(step_returns)`:
-- if fewer than 2 returns, return 0
-- mean/std * `sqrt(252)`
-- uses population std default from `np.std()` (ddof=0)
+For per-step returns within one episode:
+- if fewer than 2 observations: `0.0`
+- standard deviation uses `np.std()` default ddof=0
+- if std `< 1e-8`: `0.0`
+- annualization factor: `sqrt(252)`
 
-#### Final reported results
-- concentration
-- seed
-- mean_reward = mean of MetaRL step rewards from one evaluation episode
-- sharpe = Sharpe of MetaRL step rewards from one evaluation episode
-- n_episodes
-- rewards_history
-- momentum_lookback_steps = 252
-- momentum_signal = `'price_level_difference_over_lookback'`
+Formula:
+- `(mean / std) * sqrt(252)`
 
----
+#### Evaluation cadence during training
+- every `100` episodes, evaluates best weights on one episode and prints Sharpe
 
-## 5) Parameters/defaults explicitly present
+### 4.5 Implemented momentum signal differs from stated 252-step lookback
+**File:** `agents/forge/runner.py`
 
-## Commodity-analysis parameters
-From `agents/miner/miner.py` and `agents/analyst/analyst.py`:
-- tickers: 5 futures contracts
-- date range: 2010-01-01 to 2023-12-31 inclusive by end-exclusive setting
-- rolling correlation window: `252`
-- minimum break size: `63`
-- PELT model: `"rbf"`
-- DCC univariate GARCH:
-  - mean `"Zero"`
-  - vol `"GARCH"`
-  - `p=1`, `q=1`
-  - dist `"normal"`
-- DCC optimizer:
-  - method `"SLSQP"`
-  - init `[0.03, 0.95]`
-  - bounds `[(1e-8,0.95),(1e-8,0.95)]`
-  - constraint `a+b<=0.999`
-  - `maxiter=500`
-  - `ftol=1e-9`
-
-## FORGE parameters
-From `agents/forge/*`:
-- passive concentration values: `0.10`, `0.30`, `0.60`
-- seeds in full sweep: `1337`, `42`, `9999`
-- episode length: `252`
-- training episodes default: `500_000`
-- CEM:
-  - obs_dim `10`
-  - n_elite `10`
-  - population `50`
-  - noise `0.1`
-- max position units: `50.0`
-- initial cash: `10_000.0`
-- initial price: `100.0`
-- volatility window: `20`
-- risk-free daily subtraction: `0.05 / 252`
-- crowding cost coefficient: `0.00005`
-- volatility penalty coefficient: `0.15`
-- price noise scale base: `0.006`
-- flow impact coefficient base: `0.0003`
-- concentration drag coefficient base: `0.0002`
-
-## SIGMA Job 2 parameters
-Visible in `agents/sigma_job2.py`:
-- Newey-West HAC maxlags: `4`
-- bootstrap resamples: `1000`
-- deflated Sharpe `n_trials = 6`
-- Bonferroni `n_tests = 7`
-
----
-
-## 6) Reward function
-
-## Explicit reward function in code
-The only explicit environment reward function is in `agents/forge/env.py`:
-
-For each agent at each market step:
-\[
-\text{reward} =
-\frac{\text{new\_value} - \text{old\_value}}{\max(|\text{old\_value}|, 10000)}
-- \frac{0.05}{252}
-- 0.00005 \cdot c^2 \cdot \frac{|position|}{50}
-- 0.15 \cdot c^2 \cdot volatility
-\]
-where `c = passive_concentration`.
-
-## Optimization target actually used
-In `agents/forge/runner.py`, CEM does **not** optimize Sharpe directly. It optimizes:
-- **mean MetaRL step reward within an episode**
-
-Sharpe is only printed/evaluated periodically and in final results.
-
-## DCC objective
-`agents/analyst/analyst.py` also contains an optimization objective:
-- `_dcc_loglik(...)`
-- minimized over DCC parameters `(a,b)`
-
-This is not a reward function for RL, but it is the fitting criterion for DCC estimation.
-
----
-
-## 7) Evaluation methods
-
-## Commodity-analysis evaluation
-There is no hypothesis-testing evaluation in `analyst.py`. Evaluation is descriptive:
-- rolling correlation means and stds
-- number of detected breakpoints
-- mean DCC correlation by pair
-
-Outputs summarized in:
-- `analyst_summary.csv`
-
-## FORGE evaluation
-### `agents/forge/runner.py`
-Evaluation metrics:
-- MetaRL per-step reward series
-- annualized Sharpe of MetaRL reward series from one episode
-- mean reward from one episode
-
-### `agents/forge/full_run.py`
-Runs all combinations:
-- concentrations `[0.10, 0.30, 0.60]`
-- seeds `[1337, 42, 9999]`
-
-Stores scenario-level results in `outputs/sim_results.json`.
-
-## Econometric evaluation
-### `agents/sigma_job2.py`
-Uses `outputs/sim_results.json` and computes:
-- Newey-West HAC t-test on `mean_reward`
-- GARCH(1,1) on `mean_reward * 100`
-- bootstrap CI on mean reward
-- deflated Sharpe
-- Markov regime model
-- Fama-MacBeth regression
-- Bonferroni correction across 7 p-values
-
-Because the file is truncated, only some implementations are fully visible:
-- `_newey_west_ttest`
-- `_garch_11`
-- `_bootstrap_ci`
-- start of `_deflated_sharpe`
-
-The run method clearly calls:
-- `_markov_regime`
-- `_fama_macbeth`
-- `_bonferroni`
-
-Outputs:
-- `sharpe_summary.csv`
-- `ttest_results.csv`
-- `garch_results.csv`
-- `fama_macbeth_results.csv`
-- `stats_summary.tex`
-- `library_versions.json`
-
----
-
-## 8) Undocumented / implicit / inconsistent steps
-
-## Commodity pipeline undocumented or implicit steps
-
-### Futures rolling is not implemented
-`miner.py` writes passport fields:
-- `"roll_convention": "ratio_backward"`
-- `"adjustment_method": "ratio_backward"`
-
-But the actual data retrieval is just:
-- `yfinance.download(..., auto_adjust=True)`
-- close extraction
-
-No explicit futures contract roll construction appears in the shown code.
-
-### Inner join synchronizes all assets
-The commodity panel keeps only dates present for all five series:
-- `pd.concat(..., join="inner")`
-
-This can materially reduce sample size, but is not discussed in code comments beyond implementation.
-
-### Missing data are dropped twice
-- returns construction drops first NA from differencing
-- analyst load drops any row with any NA across columns
-
-### DCC is pairwise, not multivariate panel DCC
-The code fits DCC separately for each pair, not one multivariate DCC across all assets.
-
-### Standardized residual alignment may shorten sample
-Residuals from separate GARCH fits are concatenated with `join="inner"`.
-
-### Break detection is on rolling correlations, not raw returns
-Structural breaks are detected on the derived rolling-correlation series.
-
----
-
-## FORGE pipeline undocumented or implicit steps
-
-### Trend follower implementation mismatch inside runner
-There are two trend-following definitions:
-- `TrendFollower.act(obs)` in `agents.py`: compares `obs[0]` vs `obs[4]`
-- `_run_single_episode` in `runner.py`: overrides trend logic using `self.env._price_history`
-
-So the class policy is not consistently used during training episodes.
-
-### Claimed 12-month momentum is not actually 252-step lookback in observation
-Comments say:
-- `MOMENTUM_LOOKBACK_WINDOW = 252`
+Although comments/state claim:
 - `lookback_window = 252`
 - “12-month momentum”
 
-But the observation only contains 5 price-history values, and the runner uses:
-- `lookback_idx = min(4, len(price_history)-1)`
+the actual trend-follower override in `_run_single_episode()` uses:
+- `lookback_idx = min(4, len(self.env._price_history) - 1)`
+- `lookback_price = self.env._price_history[lookback_idx]`
+- `momentum_signal = current_price - lookback_price`
 
-So the effective momentum signal shown in code is based on at most a 5-point stored history, not 252 historical prices.
+Since `_price_history` stores only the last 5 prices, the implemented momentum comparison is effectively against at most **4 steps back**, not 252 steps back.
 
-### MetaRL class itself is unused for policy logic
-`MetaRL.act` returns random action, but runner uses:
-- `self.cem.act(obs, weights)`
-for `meta_rl`.
-So `MetaRL` object is instantiated but not used for actual decision-making.
-
-### Evaluation uses one episode only
-Final `results()` computes Sharpe and mean reward from a single episode using best weights, not an average over multiple evaluation episodes.
-
-### Sigma Job 2 treats scenario-level mean rewards as return series
-`returns = sim_df["mean_reward"].to_numpy(dtype=float)`
-
-Thus econometric tests are run on the 9 scenario-level mean rewards from concentration-seed combinations, not on within-episode time series.
-
-### Seed derivation in Sigma Job 2 is indirect
-Bootstrap seed is derived from:
-- `pap_lock.pap_sha256`
-- first 8 hex chars converted to int
-not directly from the PAP seed list.
-
-### WRDS-first policy conflicts with actual commodity pipeline
-`ARIA` routes `MINER` to `"wrds"` server, and `miner.py` has WRDS-first helpers, but the default standalone `main()` uses yfinance commodity downloads. The WRDS branch shown fetches Fama-French factors, not commodity returns.
+This is a specification-level mismatch between stated parameterization and actual implementation.
 
 ---
 
-## 9) File-by-file forensic summary
+## 5. SIGMA Job 2 econometric battery and parameters
 
-## `agents/miner/miner.py`
-Actually does:
-- download 5 commodity futures adjusted close series from Yahoo Finance
-- align on common dates
-- compute daily log returns
-- save CSV and passport
+**File:** `agents/sigma_job2.py`
 
-Also contains:
-- optional WRDS/yfinance source selection logic
-- WRDS branch that fetches FF5 factors instead of commodity returns
+### 5.1 Input data used for inference
+- Loads `outputs/sim_results.json`
+- Uses `sim_df["mean_reward"]` as the return series for most tests
 
-## `agents/analyst/analyst.py`
-Actually does:
-- read commodity returns CSV
-- compute 252-day rolling pairwise correlations
-- detect changepoints in rolling correlations using PELT/RBF/min segment 63
-- fit pairwise DCC correlations using univariate GARCH standardized residuals
-- summarize pair-level mean/std/break counts/DCC mean
-- write outputs and passport
+So inference is run on the **9 scenario-level mean rewards**, not on episode-level or step-level returns.
 
-## `agents/writer/writer.py`
-Actually does:
-- create summary-statistics LaTeX table
-- create correlation-summary LaTeX table
-- generate 3-paragraph narrative from computed outputs
-- write passport
+### 5.2 Seed used for bootstrap
+- Derived from `pap_lock.pap_sha256`
+- If available: first 8 hex chars converted to integer
+- fallback: `1337`
 
-## `agents/vizier/vizier.py`
-Actually does:
-- plot rolling correlations with break dates
-- plot average-correlation heatmap
-- plot cumulative returns from log returns
-- write passport
+This is distinct from the FORGE simulation seeds `[1337, 42, 9999]`.
 
-## `agents/assembler/assembler.py`
-Actually does:
-- require writer/vizier outputs
-- build fixed-structure LaTeX paper draft
-- abstract is clipped from narrative paragraphs
-- write passport
+### 5.3 Newey-West t-test
+Method:
+- OLS of returns on constant only
+- HAC covariance
 
-## `agents/forge/env.py`
-Actually does:
-- simulate a 6-agent commodity market with one synthetic price
-- update price from order flow, concentration-scaled noise, and drag
-- maintain positions/cash/portfolio values
-- assign per-step rewards penalized by rf, crowding, volatility
+Parameters:
+- `cov_type="HAC"`
+- `maxlags = 4`
 
-## `agents/forge/runner.py`
-Actually does:
-- train MetaRL weights with CEM
-- optimize mean MetaRL reward
-- report Sharpe only as evaluation metric
-- run one evaluation episode for final metrics
+Outputs:
+- mean coefficient
+- HAC standard error
+- t-stat
+- p-value
+- `n_obs`
+- `maxlags`
 
-## `agents/sigma_job1.py`
-Actually does:
-- parse required sections from `PAPER.md`
-- ask OpenAI for strict JSON PAP, or fallback to direct extraction
-- commit PAP JSON and SHA256 to sqlite tables
+### 5.4 GARCH(1,1)
+Method:
+- `arch_model(y, mean="Constant", vol="GARCH", p=1, q=1, dist="normal")`
 
-## `agents/sigma_job2.py`
-Actually does:
-- load `outputs/sim_results.json`
-- run econometric battery on scenario-level `mean_reward`
-- save CSV/TeX summaries and library versions
-- write result flag
+Transformation:
+- `y = returns * 100.0`
 
-## `agents/codec/codec.py`, `agents/codec_pass1.py`, `agents/codec_pass2.py`
-Actually do:
-- Pass 1: summarize codebase behavior from code text only
-- Pass 2: reimplement methodology from `PAPER.md` only
-- compare term overlap and numeric claims
-- classify PASS/WARN/FAIL based on mismatch report text
+Outputs include:
+- `mu`
+- `omega`
+- `alpha1`
+- `beta1`
+- `alpha1 + beta1`
+- loglikelihood
+- AIC
+- BIC
+- alpha/beta p-values
+- `n_obs`
+
+### 5.5 Bootstrap confidence interval
+Method:
+- nonparametric bootstrap of the mean with replacement
+
+Parameters:
+- `n_resamples = 1000`
+- RNG: `np.random.default_rng(seed)`
+
+Exact CI:
+- percentile interval at `[2.5, 97.5]`
+
+Additional p-value:
+- `mean_lt_zero_p_value = mean(boot_means < 0.0)`
+
+### 5.6 Deflated Sharpe
+Method name implemented:
+- `_deflated_sharpe(returns, n_trials=6)`
+
+Parameter:
+- `n_trials = 6`
+
+The provided code excerpt truncates before full formula details, so only this parameter is directly visible.
+
+### 5.7 Markov regime model
+Method name implemented:
+- `_markov_regime(returns)`
+
+The excerpt shows import:
+- `MarkovAutoregression` from `statsmodels.tsa.regime_switching.markov_autoregression`
+
+But the visible snippet does not include the function body, so regime count/order parameters are not recoverable from provided context.
+
+### 5.8 Fama-MacBeth
+Method name implemented:
+- `_fama_macbeth(returns)`
+
+Function body is not visible in provided excerpt, so exact regression specification is not recoverable here.
+
+### 5.9 Bonferroni correction
+Bonferroni is applied over exactly **7 tests**:
+1. Newey-West t-test p-value
+2. GARCH alpha p-value
+3. GARCH beta p-value
+4. Deflated Sharpe p-value
+5. Markov regime mean-difference p-value
+6. Bootstrap mean<0 p-value
+7. Fama-MacBeth concentration p-value
+
+Parameter:
+- `n_tests = 7`
 
 ---
 
-## 10) Reward function / evaluation method requested explicitly
+## 6. PAPER.md-facing mismatches visible from code/comments
 
-## Reward function
-- **FORGE RL reward**: per-step portfolio return minus daily rf minus crowding cost minus volatility penalty, all concentration-dependent.
-- **CEM optimization target**: mean MetaRL step reward over one episode.
-- **DCC fitting objective**: minimized negative log-likelihood-like function over `(a,b)`.
+Only mismatches inferable from the provided code/context:
 
-## Evaluation method
-- **Commodity track**: descriptive summary of rolling correlations, break counts, and DCC means.
-- **FORGE track**:
-  - annualized Sharpe of MetaRL step rewards from one episode
-  - mean reward from one episode
-  - full sweep over 3 concentrations × 3 seeds
-- **SIGMA Job 2**:
-  - HAC t-test
-  - GARCH(1,1)
-  - bootstrap CI
-  - deflated Sharpe
-  - Markov regime model
-  - Fama-MacBeth
-  - Bonferroni correction
+### 6.1 Momentum lookback mismatch
+**Files:** `agents/forge/env.py`, `agents/forge/runner.py`
+
+Comments/state claim:
+- momentum lookback window = `252`
+- “12-month momentum”
+
+Actual implementation:
+- momentum signal in `_run_single_episode()` compares current price to a price at index `min(4, len(price_history)-1)`
+- `_price_history` length is only 5
+
+So implemented momentum signal is effectively **~4-step price difference**, not a 252-step lookback.
+
+### 6.2 MacroAllocator threshold default vs actual run-time threshold
+**Files:** `agents/forge/agents.py`, `agents/forge/runner.py`
+
+Class default:
+- `passive_threshold = 0.30`
+
+Actual run-time instantiation:
+- threshold set equal to scenario concentration (`0.10`, `0.30`, or `0.60`)
+
+If PAPER.md specifies a fixed 30% threshold, the code does **not** consistently use that; it uses scenario-specific thresholds.
+
+### 6.3 WRDS-vs-yfinance data source discrepancy
+**File:** `agents/miner/miner.py`
+
+`run_miner_pipeline(..., source="wrds")` defaults to WRDS and, for WRDS, fetches:
+- `kind = "ff_factors"`
+- writes `commodity_returns_wrds.csv`
+
+This is not commodity futures return data.
+
+Meanwhile `main()` and `build_returns_frame()` implement the actual commodity-futures panel via yfinance.
+
+So if PAPER.md specifies commodity futures returns, the WRDS branch does not implement the same dataset.
 
 ---
 
-## 11) Main inconsistencies visible from code alone
+## 7. Parameters explicitly implemented in paper-drafting text that match analyst code
 
-1. **Commodity real-data analysis and FORGE simulation are separate pipelines.**
-2. **WRDS branch in miner does not fetch commodity returns; it fetches FF5 factors.**
-3. **“12-month momentum” comments do not match the visible 5-price-history implementation.**
-4. **CEM optimizes mean reward, not Sharpe, despite Sharpe prominence in outputs/comments.**
-5. **Sigma Job 2 tests scenario-level summary rewards, not episode-level or step-level returns.**
-6. **Assembler hardcodes methodology prose rather than deriving it from actual code outputs.**
+**File:** `agents/assembler/assembler.py`
 
-These are directly inferable from the provided code text.
+The generated methodology text states:
+- rolling `252`-day pairwise correlations
+- PELT with `RBF` cost
+- quarterly minimum segment length
+- DCC-GARCH(1,1)
+
+These align with analyst code as:
+- rolling window `252`
+- PELT `model="rbf"`
+- minimum segment length `63` trading days
+- univariate GARCH(1,1) + DCC recursion
+
+---
+
+## 8. Concise parameter inventory
+
+### Commodity correlation pipeline
+- Assets: 5 (`crude_oil_wti`, `gold`, `corn`, `natural_gas`, `copper`)
+- Date range: `2010-01-01` to `2023-12-31` inclusive via exclusive end `2024-01-01`
+- Returns: `log(P_t / P_{t-1})`
+- Price adjustment: `auto_adjust=True`
+- Panel alignment: inner join across all assets
+- Rolling correlation window: `252`
+- Rolling correlation min periods: `252`
+- Break detection method: PELT
+- Break cost model: `rbf`
+- Minimum break segment size: `63`
+- Break penalty: `log(n) * var(y)`, floored at `1e-8`
+- Univariate volatility model: zero-mean GARCH(1,1), normal
+- Return scaling before GARCH: `×100`
+- DCC optimizer: SLSQP
+- DCC init: `(a,b)=(0.03,0.95)`
+- DCC bounds: `[1e-8,0.95]` each
+- DCC stationarity cap: `a+b < 0.999`
+- DCC optimizer maxiter: `500`
+- DCC optimizer ftol: `1e-9`
+
+### FORGE simulation
+- Concentrations: `0.10, 0.30, 0.60`
+- Seeds: `1337, 42, 9999`
+- Episodes per scenario: `500000`
+- Episode length: `252`
+- Action space: 3 actions
+- Initial price: `100.0`
+- Initial cash: `10000.0`
+- Max position: `50.0`
+- Volatility window: `20`
+- Risk-free daily rate in reward: `0.05/252`
+- Crowding cost coefficient: `0.00005`
+- Volatility penalty coefficient: `0.15`
+- Mean-reversion thresholds: `+2% / -2%`
+- Sharpe annualization factor: `sqrt(252)`
+
+### SIGMA Job 2
+- Newey-West HAC maxlags: `4`
+- GARCH return scaling: `×100`
+- Bootstrap resamples: `1000`
+- Bootstrap CI: `2.5%, 97.5%`
+- Deflated Sharpe `n_trials`: `6`
+- Bonferroni number of tests: `7`
+
+---
