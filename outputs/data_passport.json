@@ -23,5 +23,6 @@
   "roll_convention": "ratio_backward",
   "adjustment_method": "ratio_backward",
   "adjustment_method_note": "yfinance auto_adjust=True used as proxy for ratio_backward. Full WRDS run will apply ratio_backward exactly as specified. Deviation acknowledged: auto_adjust applies split/dividend adjustments differently from ratio_backward for futures contracts.",
-  "data_source_note": "Dev run: yfinance proxy for WRDS Compustat Futures. Tickers CL=F (WTI crude) and NG=F (natural gas) approximate GSCI energy sector. Full run requires WRDS access."
+  "data_source_note": "Dev run: yfinance proxy for WRDS Compustat Futures. Tickers CL=F (WTI crude) and NG=F (natural gas) approximate GSCI energy sector. Full run requires WRDS access.",
+  "episode_count_note": "Dev run uses 2,000 episodes. PAPER.md specifies 500,000 minimum. Full run requires Modal GPU dispatch: modal run --detach agents/forge/modal_run.py"
 }

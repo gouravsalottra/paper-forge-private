@@ -41,6 +41,7 @@ class ForgeRunner:
         self.rewards_history: List[float] = []
 
     def run(self) -> Dict[str, object]:
+        fitness_history: list[float] = []
         for episode in range(1, self.n_episodes + 1):
             candidates = self.cem.ask()
             scores: List[float] = []
@@ -52,12 +53,19 @@ class ForgeRunner:
             self.cem.tell(scores)
             self.rewards_history.append(float(np.max(scores)))
 
-            if episode % 100 == 0:
-                step_returns = self._run_episode_returns(self.cem.best())
-                sharpe_value = self.sharpe(step_returns)
-                print(f"Episode {episode}, best Sharpe: {sharpe_value:.4f}")
+            # Evaluate fitness every 1000 training steps
+            # Fitness = Sharpe ratio over trailing 252 episodes
+            # as specified in PAPER.md Fitness Function
+            if episode % 1000 == 0 or episode == self.n_episodes:
+                trailing = self.rewards_history[-252:]
+                fitness = self.sharpe(trailing)
+                fitness_history.append(fitness)
+                print(
+                    f"Episode {episode} | "
+                    f"Trailing-252 Sharpe (fitness): {fitness:.4f}"
+                )
 
-        return self.results()
+        return self.results(fitness_history=fitness_history)
 
     @staticmethod
     def sharpe(step_returns: list) -> float:
@@ -71,7 +79,7 @@ class ForgeRunner:
             return 0.0
         return float((mean / std) * np.sqrt(252))
 
-    def results(self) -> dict:
+    def results(self, fitness_history: list | None = None) -> dict:
         best_weights = self.cem.best()
         step_returns = self._run_episode_returns(best_weights)
         sharpe_val = self.sharpe(step_returns)
@@ -82,6 +90,8 @@ class ForgeRunner:
             'sharpe': sharpe_val,
             'n_episodes': self.n_episodes,
             'rewards_history': self.rewards_history,
+            'fitness_history': fitness_history or [],
+            'fitness_function': 'trailing_252_episode_sharpe_every_1000_steps',
             'momentum_lookback_steps': self.lookback_window,
             'momentum_signal': 'price_level_difference_over_lookback',
         }
