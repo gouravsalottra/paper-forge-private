@@ -47,6 +47,7 @@ class FixerAgent:
         "bonferroni correction",
         "fama-french three-factor ols regression",
         "fama-french regression",
+        "fama-macbeth",
         "exclusion rule: fewer than 100 trading days of history",
         "exclusion rule: bid-ask spread exceeds 2% of contract price",
         "exclusion rule: bid-ask spread threshold",

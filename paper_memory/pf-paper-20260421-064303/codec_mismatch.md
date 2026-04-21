@@ -1,35 +1,40 @@
 # CODEC mismatch report
 model: gpt-5.4
 temperature: 0
-timestamp_utc: 2026-04-21T14:33:19+00:00
+timestamp_utc: 2026-04-21T14:37:20+00:00
 
 ## parameter_comparison (PAPER.md-specified only)
-total_specified_params: 34
-matched: 11
-mismatched: 13
-not_found_in_code: 10
-match_ratio: 0.324
+total_specified_params: 43
+matched: 15
+mismatched: 20
+not_found_in_code: 8
+match_ratio: 0.349
 
 ## mismatched_parameters
-- Primary metric: paper=Sharpe ratio differential: high-concentration periods minus low-concentration periods, annualized over rolling 252-day windows | code=_bonferroni(..., primary_metric=primary_metric) mentioned, but exact primary metric implementation/value not visible
-- Two-tailed t-test: paper=Two-tailed t-test, p < 0.05, Newey-West HAC correction (4 lags) | code=_newey_west_ttest(returns) invoked; exact two-tailed and 4-lag implementation not visible
-- Data source: paper=WRDS Compustat Futures — GSCI energy sector (crude oil, natural gas), 2000–2024 | code=yfinance via yf.download(...); tickers CL=F and NG=F; START_DATE=2000-01-01; END_DATE_EXCLUSIVE=2024-01-01
-- Adjustment Method: paper=ratio_backward | code=yf.download(..., auto_adjust=True, ...)
-- Seed Policy: paper=seeds = [1337, 42, 9999] | code=bootstrap uses seed=1337; full seed list [1337, 42, 9999] not visible
-- Exclusion Rule: macro announcement window: paper=Exclude roll dates within 5 days of major macro announcements (FOMC, CPI) | code=apply_macro_exclusion_window(df, exclusion_days=5); visible dates are approximate FOMC only, comment says FOMC/CPI
-- Simulation agent: paper=passive_gsci — rebalances to GSCI index weights mechanically | code=PassiveGSCI always returns action 1 (always long)
-- Simulation agent: paper=mean_reversion — fades 3-month extremes | code=acts on ~2% deviations using obs[0] vs obs[1]; no visible 3-month extreme logic
-- Simulation agent: paper=liquidity_provider — posts limit orders both sides | code=alternates long/short each action, resetting each episode
-- Simulation agent: paper=macro_allocator — switches energy/non-energy on macro signals | code=MacroAllocator exists with passive_threshold=0.30; switching energy/non-energy on macro signals not visible in provided excerpt
-- Simulation agent: paper=meta_rl — learns optimal allocation across all strategies | code=agent exists by name in env.py; learning optimal allocation across all strategies not visible
-- Passive Capital Scenario: paper=Medium: 30% of open interest | code=MacroAllocator passive_threshold=0.30; scenario value itself not otherwise visible
-- Significance Threshold: paper=p < 0.05 two-tailed (primary) | code=PAPER/env spec strings mention p < 0.05, but exact enforcement in code not visible
+- Hypothesis threshold (passive GSCI concentration): paper=above 30% of open interest in GSCI energy futures | code=Passive capital scenarios include Medium = 30% of open interest; no explicit hypothesis comparison implementation shown beyond scenario levels
+- Hypothesis effect size: paper=reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units | code=Minimum effect size = -0.15 Sharpe units referenced in spec/context; no explicit code enforcement shown
+- Primary Metric: paper=Sharpe ratio differential: high-concentration periods minus low-concentration periods, annualized over rolling 252-day windows | code=Returns tested are sim_df["mean_reward"]; no explicit rolling 252-day annualized Sharpe differential implementation shown
+- Newey-West HAC lags: paper=4 lags | code=Helper body not shown; context states paper-level parameter is 4 lags
+- Bonferroni adjusted threshold: paper=p < 0.0083 | code=Threshold stated in context for Bonferroni; explicit helper-body threshold not shown
+- Fama-MacBeth: paper=linearmodels, Fama-MacBeth | code=_fama_macbeth_regression(sim_df); linearmodels not imported in shown code, only recorded in library_versions.json
+- Markov switching regime detection: paper=statsmodels, k_regimes=2 | code=_markov_regime(returns); statsmodels MarkovAutoregression; k_regimes=2 stated only in context/spec, helper body not shown
+- Minimum Effect Size: paper=-0.15 Sharpe units | code=No explicit code enforcement shown
+- Data Source: paper=WRDS Compustat Futures — GSCI energy sector (crude oil, natural gas), 2000–2024 | code=yfinance using CL=F and NG=F, 2000-01-01 to 2023-12-31/2024-01-01 exclusive
+- Adjustment Method: paper=ratio_backward | code=yfinance auto_adjust=True
+- Seed Policy: paper=seeds = [1337, 42, 9999] | code=Bootstrap call uses seed=1337; no evidence all three seeds are run/enforced
+- Exclusion Rule: macro announcement window: paper=Exclude roll dates within 5 days of major macro announcements (FOMC, CPI) | code=apply_macro_exclusion_window(df, exclusion_days=5) around approximate FOMC dates only
+- Exclusion Rule: bid-ask spread threshold: paper=Exclude contracts where bid-ask spread exceeds 2% of contract price | code=apply_bid_ask_spread_filter(..., threshold=0.02) using spread proxy abs(high-low)/close
+- Simulation Agent: paper=passive_gsci — rebalances to GSCI index weights mechanically | code=passive_gsci implemented; always returns action 1 (long)
+- Simulation Agent: paper=mean_reversion — fades 3-month extremes | code=mean_reversion implemented using ±2% relative to obs[1]; no explicit 3-month extreme logic shown
+- Simulation Agent: paper=liquidity_provider — posts limit orders both sides | code=liquidity_provider listed as environment possible agent; behavior not shown in provided context
+- Simulation Agent: paper=macro_allocator — switches energy/non-energy on macro signals | code=macro_allocator listed as environment possible agent; behavior not shown in provided context
+- Simulation Agent: paper=meta_rl — learns optimal allocation across all strategies | code=meta_rl listed as environment possible agent; learning/allocation behavior not shown in provided context
+- Significance Threshold: paper=p < 0.0083 Bonferroni-corrected | code=Bonferroni with n_tests=6; explicit threshold not shown in helper body
+- Audit Requirement: paper=DataPassport SHA-256 signature required on all MINER outputs | code=Passport writes are mentioned, but SHA-256 signature requirement not evidenced
 
 ## not_found_in_code
-- Minimum effect size (paper specifies: -0.15 Sharpe units)
 - Roll Convention (paper specifies: ratio_backward)
-- Passive Capital Scenario (paper specifies: Low: 10% of open interest)
-- Passive Capital Scenario (paper specifies: High: 60% of open interest)
+- Seed consistency requirement (paper specifies: All three seeds must produce qualitatively consistent results; finding valid only if it holds across all three seeds)
 - Fitness Function (paper specifies: meta_rl fitness = Sharpe ratio over trailing 252 episodes, evaluated every 1000 training steps)
 - Training Episodes (paper specifies: 500,000 minimum across all scenarios and seeds)
 - Pre-Analysis Plan Status (paper specifies: UNCOMMITTED — must be committed by SIGMA_JOB1 before FORGE runs; FORGE gate rejects if not COMMITTED in pap_lock)
@@ -39,4 +44,4 @@ match_ratio: 0.324
 
 ## verdict: FAIL
 severity: Major
-issue: code_deviates: 13 specified parameters differ between code and PAPER.md
+issue: code_deviates: 20 specified parameters differ between code and PAPER.md
