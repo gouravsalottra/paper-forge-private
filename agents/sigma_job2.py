@@ -36,6 +36,7 @@ class SigmaJob2:
         bootstrap_result = self._bootstrap_ci(returns, seed=seed, n_resamples=1000)
         deflated_result = self._deflated_sharpe(returns, n_trials=6)
         regime_result = self._markov_regime(returns)
+        fama_macbeth_result = self._fama_macbeth(returns)
 
         bonf = self._bonferroni(
             [
@@ -45,8 +46,9 @@ class SigmaJob2:
                 deflated_result["p_value"],
                 regime_result["regime_mean_diff_p_value"],
                 bootstrap_result["mean_lt_zero_p_value"],
+                fama_macbeth_result.get("concentration_pvalue", 1.0),
             ],
-            n_tests=6,
+            n_tests=7,
         )
 
         stats_dir = Path(self.output_dir) / self.run_id / "stats_tables"
@@ -55,11 +57,13 @@ class SigmaJob2:
         sharpe_summary_path = stats_dir / "sharpe_summary.csv"
         ttest_results_path = stats_dir / "ttest_results.csv"
         garch_results_path = stats_dir / "garch_results.csv"
+        fama_macbeth_path = stats_dir / "fama_macbeth_results.csv"
         latex_path = stats_dir / "stats_summary.tex"
 
         self._write_sharpe_summary(sharpe_summary_path, sim_df, deflated_result, bootstrap_result, bonf)
         self._write_ttest_results(ttest_results_path, ttest_result, bonf)
         self._write_garch_results(garch_results_path, garch_result, bonf)
+        self._write_fama_macbeth_results(fama_macbeth_path, fama_macbeth_result, bonf)
         self._write_stats_summary_tex(
             latex_path,
             ttest_result=ttest_result,
@@ -67,6 +71,7 @@ class SigmaJob2:
             bootstrap_result=bootstrap_result,
             deflated_result=deflated_result,
             regime_result=regime_result,
+            fama_macbeth_result=fama_macbeth_result,
             bonf=bonf,
         )
         versions_path = stats_dir / "library_versions.json"
@@ -86,6 +91,7 @@ class SigmaJob2:
                 "sharpe_summary": str(sharpe_summary_path),
                 "ttest_results": str(ttest_results_path),
                 "garch_results": str(garch_results_path),
+                "fama_macbeth_results": str(fama_macbeth_path),
                 "stats_summary_tex": str(latex_path),
                 "library_versions": str(versions_path),
             },
@@ -95,6 +101,7 @@ class SigmaJob2:
                 "bootstrap": bootstrap_result,
                 "deflated_sharpe": deflated_result,
                 "markov_regime": regime_result,
+                "fama_macbeth": fama_macbeth_result,
                 "bonferroni": bonf,
             },
         }
@@ -267,6 +274,53 @@ class SigmaJob2:
         }
 
     @staticmethod
+    def _fama_macbeth(returns: np.ndarray) -> dict:
+        """Fama-MacBeth two-pass cross-sectional regression.
+
+        Pass 1: Time-series regression of each asset on factors.
+        Pass 2: Cross-sectional regression of average returns on betas.
+        Uses linearmodels.FamaMacBeth.
+        """
+        del returns
+        try:
+            from linearmodels import FamaMacBeth
+
+            sim_path = Path("outputs") / "sim_results.json"
+            rows = json.loads(sim_path.read_text())
+            df = pd.DataFrame(rows)
+            df["entity"] = df["seed"].astype(str)
+            df["time"] = pd.Categorical(df["concentration"]).codes
+            df["concentration_factor"] = df["concentration"]
+            df["passive_dummy"] = (df["concentration"] >= 0.30).astype(float)
+
+            panel = df.set_index(["entity", "time"])
+            mod = FamaMacBeth(panel["sharpe"], panel[["concentration_factor", "passive_dummy"]])
+            fit = mod.fit(cov_type="kernel", bandwidth=4)
+
+            params = fit.params.to_dict()
+            pvals = fit.pvalues.to_dict()
+            return {
+                "concentration_coef": float(params.get("concentration_factor", float("nan"))),
+                "concentration_pvalue": float(pvals.get("concentration_factor", float("nan"))),
+                "passive_dummy_coef": float(params.get("passive_dummy", float("nan"))),
+                "passive_dummy_pvalue": float(pvals.get("passive_dummy", float("nan"))),
+                "rsquared": float(fit.rsquared),
+                "n_obs": int(fit.nobs),
+                "method": "FamaMacBeth",
+            }
+        except Exception as exc:
+            return {
+                "error": str(exc),
+                "method": "FamaMacBeth",
+                "concentration_coef": float("nan"),
+                "concentration_pvalue": float("nan"),
+                "passive_dummy_coef": float("nan"),
+                "passive_dummy_pvalue": float("nan"),
+                "rsquared": float("nan"),
+                "n_obs": 0,
+            }
+
+    @staticmethod
     def _bonferroni(p_values: list[float], n_tests: int) -> dict:
         threshold = 0.05 / float(n_tests)
         clean = [float(p) for p in p_values if np.isfinite(p)]
@@ -308,6 +362,15 @@ class SigmaJob2:
             w.writerow(row)
 
     @staticmethod
+    def _write_fama_macbeth_results(path: Path, fm: dict, bonf: dict) -> None:
+        with path.open("w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=[*fm.keys(), "bonferroni_threshold"])
+            w.writeheader()
+            row = dict(fm)
+            row["bonferroni_threshold"] = bonf["adjusted_threshold"]
+            w.writerow(row)
+
+    @staticmethod
     def _write_stats_summary_tex(
         path: Path,
         *,
@@ -316,6 +379,7 @@ class SigmaJob2:
         bootstrap_result: dict,
         deflated_result: dict,
         regime_result: dict,
+        fama_macbeth_result: dict,
         bonf: dict,
     ) -> None:
         rows = [
@@ -328,6 +392,7 @@ class SigmaJob2:
             ("Deflated Sharpe z", f"{deflated_result['deflated_sharpe_z']:.6f}"),
             ("Deflated Sharpe p", f"{deflated_result['p_value']:.6f}"),
             ("Markov regime p", f"{regime_result['regime_mean_diff_p_value']:.6f}"),
+            ("Fama-MacBeth concentration p", f"{fama_macbeth_result.get('concentration_pvalue', float('nan')):.6f}"),
             ("Bonferroni threshold", f"{bonf['adjusted_threshold']:.4f}"),
         ]
 

@@ -9,6 +9,9 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
+MOMENTUM_LOOKBACK_WINDOW: int = 252  # 12-month momentum per PAPER.md
+ROLLING_CORRELATION_WINDOW: int = 252  # matches PAPER.md primary metric
+
 
 class CommodityFuturesEnv(AECEnv):
     """Six-agent commodity futures market simulator using the AEC pattern."""

@@ -1,9 +1,9 @@
 {
-  "contribution_novelty": 4,
-  "identification_validity": 4,
-  "methodology_correctness": 4,
-  "robustness_evidence": 4,
-  "internal_consistency": 4,
-  "economic_significance": 4,
-  "presentation_quality": 4
+  "contribution_novelty": 2,
+  "identification_validity": 1,
+  "methodology_correctness": 1,
+  "robustness_evidence": 1,
+  "internal_consistency": 1,
+  "economic_significance": 2,
+  "presentation_quality": 2
 }
