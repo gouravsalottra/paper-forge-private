@@ -64,7 +64,11 @@ def test_aria_never_reads_artifact_content(tmp_path: Path, monkeypatch: pytest.M
     pipeline = _make_pipeline(tmp_path)
 
     # Keep orchestration local and deterministic.
-    monkeypatch.setattr(pipeline, "_dispatch", lambda *args, **kwargs: {"result_flag": "DONE"})
+    monkeypatch.setattr(
+        pipeline,
+        "_dispatch",
+        lambda agent_name, *args, **kwargs: {"result_flag": "PASS" if agent_name == "CODEC" else "DONE"},
+    )
     monkeypatch.setattr(pipeline, "_run_hawk_loop", lambda max_cycles=3: pipeline._advance_phase("HAWK", "done"))
     monkeypatch.setattr(pipeline, "_check_forge_gate", lambda: None)
 
@@ -181,7 +185,7 @@ def test_hawk_escalates_after_3_cycles(tmp_path: Path, monkeypatch: pytest.Monke
             """
             SELECT result_flag
             FROM agent_results
-            WHERE run_id=? AND agent='HAWK' AND job='REV3'
+            WHERE run_id=? AND agent='HAWK' AND job='CYCLE3'
             ORDER BY id DESC
             LIMIT 1
             """,
@@ -189,7 +193,7 @@ def test_hawk_escalates_after_3_cycles(tmp_path: Path, monkeypatch: pytest.Monke
         ).fetchone()
 
     assert row is not None
-    assert row[0] == "ESCALATE"
+    assert row[0] == "REVISION_REQUESTED"
 
 
 def test_quill_raises_on_forbidden_words(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -248,6 +252,8 @@ def test_full_pipeline_smoke_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
             out.mkdir(parents=True, exist_ok=True)
             (out / "paper_draft_v1.tex").write_text("\\section*{Draft}", encoding="utf-8")
             return {"result_flag": "DONE"}
+        if agent_name == "CODEC":
+            return {"result_flag": "PASS"}
         return {"result_flag": "DONE"}
 
     monkeypatch.setattr(pipeline, "_dispatch", fake_dispatch)

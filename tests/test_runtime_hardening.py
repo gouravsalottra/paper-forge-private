@@ -143,8 +143,10 @@ def test_pipeline_dry_through_enforces_quill_quality_gate(tmp_path: Path, monkey
     original_dispatch = pipeline._dispatch
 
     def selective_dispatch(agent_name: str, server_name: str, context_config: dict) -> dict:
-        if agent_name in {"SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC"}:
+        if agent_name in {"SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2"}:
             return {"result_flag": "DONE"}
+        if agent_name == "CODEC":
+            return {"result_flag": "PASS"}
         if agent_name == "HAWK":
             return {"result_flag": "APPROVED"}
         return original_dispatch(agent_name, server_name, context_config)
