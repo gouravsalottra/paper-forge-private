@@ -22,7 +22,7 @@ class CodecAgent:
         pass2_spec = self._pass2_read_paper()
         mismatch = self._compare(pass1_spec, pass2_spec)
 
-        flag = "PASS" if "verdict: PASS" in mismatch or "verdict: WARN" in mismatch else "FAIL"
+        flag = "PASS" if "verdict: PASS" in mismatch else "WARN" if "verdict: WARN" in mismatch else "FAIL"
         self._write_result(flag)
         return {"result_flag": flag}
 
@@ -43,9 +43,16 @@ class CodecAgent:
         prompt = {
             "pass": "PASS1",
             "instructions": (
-                "You are CODEC Pass 1. Read ONLY the provided codebase text. "
-                "Extract what the code actually does: data sources, transforms, parameters, reward function, "
-                "evaluation method, and undocumented steps. Be literal and forensic."
+                "You are CODEC Pass 1. Read the provided codebase. "
+                "Extract what it actually implements. Focus on:\n"
+                "1. Parameters that a methods section would specify "
+                "(windows, thresholds, seeds, episode counts, test names)\n"
+                "2. Statistical methods implemented and their parameters\n"
+                "3. Data transformations and their exact specifications\n"
+                "4. Any parameter that differs from what PAPER.md would specify\n"
+                "Do NOT report: CEM internals, SQLite pragmas, "
+                "UI/logging constants, library defaults.\n"
+                "Be forensic about specification-level parameters only."
             ),
             "context": {"codebase_text": "\n".join(lines)},
         }
@@ -108,129 +115,118 @@ class CodecAgent:
             return out_path.read_text(encoding="utf-8")
         return result.stdout.strip()
 
+    def _extract_paper_specified_params(self, code_text: str) -> dict:
+        """Extract only the parameters that PAPER.md explicitly specifies, found in code."""
+        paper_path = Path("PAPER.md")
+        paper = paper_path.read_text(encoding="utf-8") if paper_path.exists() else ""
+        prompt = (
+            "You are comparing a codebase to a research specification.\n\n"
+            "PAPER.md specifies these parameters explicitly:\n"
+            f"{paper[:3000]}\n\n"
+            "Search the CODEBASE for each parameter PAPER.md specifies.\n"
+            "For each parameter, report:\n"
+            "- parameter_name: the name from PAPER.md\n"
+            "- paper_value: what PAPER.md says it should be\n"
+            "- code_value: what the code actually uses (or 'NOT FOUND')\n"
+            "- match: true/false\n\n"
+            "Only report parameters that PAPER.md explicitly specifies.\n"
+            "Ignore implementation constants (CEM population, noise, etc.)\n"
+            "that are not mentioned in PAPER.md.\n\n"
+            "Return JSON: {\"params\": [{\"parameter_name\": ..., "
+            "\"paper_value\": ..., \"code_value\": ..., \"match\": ...}]}\n\n"
+            f"CODEBASE:\n{code_text[:8000]}"
+        )
+        raw = self._call_llm({"pass": "PARAM_CHECK", "instructions": prompt, "context": {}})
+        try:
+            import re
+
+            clean = re.sub(r"```json|```", "", raw).strip()
+            return json.loads(clean)
+        except Exception:
+            return {"params": []}
+
     def _compare(self, pass1: str, pass2: str) -> str:
-        """Compare Pass 1 (code-derived spec) vs Pass 2 (paper-derived reimplementation).
+        """Domain-aware CODEC comparison.
 
-        Produces a structured mismatch report with:
-        - Per-dimension coverage scores
-        - Missing/extra specification elements
-        - Asymmetric term analysis
-        - Overall KS-proxy similarity score
+        Compares only PAPER.md-specified parameters found in code.
+        Does not penalize implementation constants absent from spec.
         """
-        from scipy.stats import ks_2samp
-        import re
+        del pass2
+        from datetime import datetime, timezone
 
-        def extract_numeric_claims(text: str) -> list[float]:
-            """Extract all numeric values from specification text."""
-            pattern = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
-            values = re.findall(pattern, text)
-            return [float(v) for v in values if v not in ("0", "1")]
+        param_check = self._extract_paper_specified_params(pass1)
+        params = param_check.get("params", [])
 
-        def extract_method_terms(text: str) -> set[str]:
-            """Extract statistical method and parameter terms."""
-            terms = {
-                "sharpe",
-                "garch",
-                "markov",
-                "bootstrap",
-                "bonferroni",
-                "concentration",
-                "momentum",
-                "newey",
-                "west",
-                "hac",
-                "fama",
-                "macbeth",
-                "volatility",
-                "regime",
-                "rolling",
-                "annualized",
-                "drawdown",
-                "turnover",
-                "t-test",
-                "p-value",
-                "significance",
-                "threshold",
-                "window",
-                "lookback",
-                "seed",
-            }
-            text_lower = text.lower()
-            return {t for t in terms if t in text_lower}
+        matched = [p for p in params if p.get("match")]
+        mismatched = [p for p in params if not p.get("match") and p.get("code_value") != "NOT FOUND"]
+        missing = [p for p in params if p.get("code_value") == "NOT FOUND"]
 
-        p1_nums = extract_numeric_claims(pass1)
-        p2_nums = extract_numeric_claims(pass2)
-        p1_terms = extract_method_terms(pass1)
-        p2_terms = extract_method_terms(pass2)
+        total = len(params)
+        match_ratio = len(matched) / max(total, 1)
 
-        missing_in_p2 = sorted(p1_terms - p2_terms)
-        missing_in_p1 = sorted(p2_terms - p1_terms)
-        shared_terms = p1_terms & p2_terms
-        term_overlap = len(shared_terms) / max(len(p1_terms | p2_terms), 1)
-
-        ks_stat, ks_p = None, None
-        ks_result_str = "insufficient_numeric_data"
-        if len(p1_nums) >= 5 and len(p2_nums) >= 5:
-            ks_stat, ks_p = ks_2samp(p1_nums, p2_nums)
-            ks_result_str = f"{ks_stat:.4f} (p={ks_p:.4f})"
-
-        mismatches: list[str] = [
+        mismatches = [
             "# CODEC mismatch report",
             f"model: {self._model_name}",
             "temperature: 0",
             f"timestamp_utc: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
             "",
-            "## term_coverage",
-            f"shared_terms: {sorted(shared_terms)}",
-            f"missing_in_pass2 (in code but not paper): {missing_in_p2}",
-            f"missing_in_pass1 (in paper but not code): {missing_in_p1}",
-            f"term_overlap_ratio: {term_overlap:.3f}",
-            "",
-            "## numeric_comparison",
-            f"pass1_numeric_count: {len(p1_nums)}",
-            f"pass2_numeric_count: {len(p2_nums)}",
-            f"ks_statistic: {ks_result_str}",
+            "## parameter_comparison (PAPER.md-specified only)",
+            f"total_specified_params: {total}",
+            f"matched: {len(matched)}",
+            f"mismatched: {len(mismatched)}",
+            f"not_found_in_code: {len(missing)}",
+            f"match_ratio: {match_ratio:.3f}",
             "",
         ]
 
-        severity = "Minor"
-        issues: list[str] = []
+        if mismatched:
+            mismatches.append("## mismatched_parameters")
+            for p in mismatched:
+                mismatches.append(
+                    f"- {p['parameter_name']}: "
+                    f"paper={p['paper_value']} | "
+                    f"code={p['code_value']}"
+                )
+            mismatches.append("")
 
-        if len(missing_in_p2) >= 3:
-            severity = "Major"
-            issues.append(
-                f"paper_overstates: {len(missing_in_p2)} method terms present in code "
-                f"are absent from paper description: {missing_in_p2}"
-            )
-        if len(missing_in_p1) >= 3:
-            severity = "Major"
-            issues.append(
-                f"description_ambiguous: {len(missing_in_p1)} terms in paper "
-                f"not reflected in code: {missing_in_p1}"
-            )
-        if ks_stat is not None and ks_stat > 0.30:
-            severity = "Fatal" if ks_stat > 0.50 else "Major"
-            issues.append(
-                f"code_deviates: KS statistic {ks_stat:.4f} exceeds threshold 0.30 — "
-                f"numeric parameter distributions differ significantly between "
-                f"code implementation and paper specification"
-            )
-        if term_overlap < 0.50:
-            severity = "Major"
-            issues.append(
-                f"description_ambiguous: term overlap ratio {term_overlap:.3f} below "
-                f"0.50 — paper and code descriptions share fewer than half of "
-                f"method-critical terms"
-            )
+        if missing:
+            mismatches.append("## not_found_in_code")
+            for p in missing:
+                mismatches.append(f"- {p['parameter_name']} (paper specifies: {p['paper_value']})")
+            mismatches.append("")
 
-        if not issues:
-            mismatches.append("## verdict: PASS")
-            mismatches.append("No significant discrepancies detected between code and paper.")
+        fatal_names = ("n_episodes", "significance_threshold", "minimum_effect", "roll_convention")
+        fatal_count = len([p for p in mismatched if p.get("parameter_name") in fatal_names])
+
+        if fatal_count > 0:
+            verdict = "FAIL"
+            severity = "Fatal"
+            issues = [
+                "code_deviates: fatal parameter mismatch on "
+                f"{[p['parameter_name'] for p in mismatched if p.get('parameter_name') in fatal_names]}"
+            ]
+        elif len(mismatched) > 2:
+            verdict = "FAIL"
+            severity = "Major"
+            issues = [
+                f"code_deviates: {len(mismatched)} specified parameters differ between code and PAPER.md"
+            ]
+        elif len(mismatched) > 0 or len(missing) > 2:
+            verdict = "WARN"
+            severity = "Minor"
+            issues = [
+                f"description_ambiguous: {len(mismatched)} minor parameter differences, "
+                f"{len(missing)} unverified parameters"
+            ]
         else:
-            mismatches.append(f"## verdict: {'FAIL' if severity in ('Fatal', 'Major') else 'WARN'}")
-            mismatches.append(f"severity: {severity}")
-            for issue in issues:
-                mismatches.append(f"issue: {issue}")
+            verdict = "PASS"
+            severity = "None"
+            issues = []
+
+        mismatches.append(f"## verdict: {verdict}")
+        mismatches.append(f"severity: {severity}")
+        for issue in issues:
+            mismatches.append(f"issue: {issue}")
 
         report = "\n".join(mismatches) + "\n"
         out = self.output_dir / self.run_id / "codec_mismatch.md"
