@@ -27,32 +27,59 @@ class CodecAgent:
         return {"result_flag": flag}
 
     def _pass1_read_code(self) -> str:
-        files = sorted(Path("agents").rglob("*.py"))
-        lines = ["# CODEC Pass 1 Spec", ""]
-        for p in files:
-            rel = p.as_posix()
-            text = p.read_text(encoding="utf-8", errors="ignore")
-            if not text.strip():
+        PRIORITY_FILES = [
+            Path("agents/sigma_job2.py"),
+            Path("agents/forge/agents.py"),
+            Path("agents/forge/runner.py"),
+            Path("agents/forge/env.py"),
+            Path("agents/miner/miner.py"),
+            Path("PAPER.md"),
+        ]
+
+        SECONDARY_DIRS = [
+            Path("agents/sigma"),
+            Path("agents/forge"),
+            Path("agents/miner"),
+        ]
+
+        lines = ["# CODEC Pass 1 — Specification-level code analysis", ""]
+        lines.append("## PRIORITY FILES (specification-level implementations)")
+        for p in PRIORITY_FILES:
+            if p.exists() and p.stat().st_size > 0:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+                lines.append(f"\n### FILE: {p.as_posix()}")
+                lines.append(text[:6000])
+
+        lines.append("\n## SECONDARY FILES (supporting implementations)")
+        seen = {p.resolve() for p in PRIORITY_FILES if p.exists()}
+        for d in SECONDARY_DIRS:
+            if not d.exists():
                 continue
-            lines.append(f"## {rel}")
-            lines.append(f"- lines: {len(text.splitlines())}")
-            lines.append("```python")
-            lines.append(text[:8000])
-            lines.append("```")
+            for p in sorted(d.rglob("*.py")):
+                if p.resolve() in seen:
+                    continue
+                if "__pycache__" in p.parts or p.stat().st_size == 0:
+                    continue
+                seen.add(p.resolve())
+                text = p.read_text(encoding="utf-8", errors="ignore")
+                lines.append(f"\n### FILE: {p.as_posix()} ({len(text.splitlines())} lines)")
+                lines.append(text[:2000])
 
         prompt = {
             "pass": "PASS1",
             "instructions": (
-                "You are CODEC Pass 1. Read the provided codebase. "
-                "Extract what it actually implements. Focus on:\n"
-                "1. Parameters that a methods section would specify "
-                "(windows, thresholds, seeds, episode counts, test names)\n"
-                "2. Statistical methods implemented and their parameters\n"
-                "3. Data transformations and their exact specifications\n"
-                "4. Any parameter that differs from what PAPER.md would specify\n"
-                "Do NOT report: CEM internals, SQLite pragmas, "
-                "UI/logging constants, library defaults.\n"
-                "Be forensic about specification-level parameters only."
+                "You are CODEC Pass 1. Read ONLY the provided codebase.\n"
+                "Extract what it actually implements at specification level:\n"
+                "1. Statistical tests: name each test, its parameters, library\n"
+                "2. Data: source, tickers, date range, adjustment method\n"
+                "3. Simulation: agent names and their behaviors\n"
+                "4. Seeds: exact values used\n"
+                "5. Thresholds: significance levels, minimum effects\n"
+                "6. Windows: lookback periods, rolling windows\n"
+                "7. Fitness function: exact formula used for MetaRL\n"
+                "Do NOT report: CEM internals, SQLite settings, "
+                "health check timeouts, logging constants.\n"
+                "Be exhaustive on specification-level parameters."
             ),
             "context": {"codebase_text": "\n".join(lines)},
         }

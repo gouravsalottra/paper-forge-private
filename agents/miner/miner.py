@@ -14,13 +14,10 @@ import yfinance as yf
 
 TICKERS = {
     "CL=F": "crude_oil_wti",
-    "GC=F": "gold",
-    "ZC=F": "corn",
     "NG=F": "natural_gas",
-    "HG=F": "copper",
 }
 
-START_DATE = "2010-01-01"
+START_DATE = "2000-01-01"
 END_DATE_EXCLUSIVE = "2024-01-01"  # includes data through 2023-12-31
 START = START_DATE
 END = END_DATE_EXCLUSIVE
@@ -75,6 +72,17 @@ def write_data_passport(returns: pd.DataFrame) -> dict:
         },
         "roll_convention": "ratio_backward",
         "adjustment_method": "ratio_backward",
+        "adjustment_method_note": (
+            "yfinance auto_adjust=True used as proxy for ratio_backward. "
+            "Full WRDS run will apply ratio_backward exactly as specified. "
+            "Deviation acknowledged: auto_adjust applies split/dividend "
+            "adjustments differently from ratio_backward for futures contracts."
+        ),
+        "data_source_note": (
+            "Dev run: yfinance proxy for WRDS Compustat Futures. "
+            "Tickers CL=F (WTI crude) and NG=F (natural gas) approximate "
+            "GSCI energy sector. Full run requires WRDS access."
+        ),
     }
     PASSPORT_JSON.write_text(json.dumps(passport, indent=2), encoding="utf-8")
     return passport
