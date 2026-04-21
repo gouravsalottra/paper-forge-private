@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-from math import sqrt
 from typing import Dict, List
 
 import numpy as np
@@ -53,7 +52,8 @@ class ForgeRunner:
             self.rewards_history.append(float(np.max(scores)))
 
             if episode % 100 == 0:
-                sharpe_value = self.sharpe(self.rewards_history)
+                step_returns = self._run_episode_returns(self.cem.best())
+                sharpe_value = self.sharpe(step_returns)
                 print(f"Episode {episode}, best Sharpe: {sharpe_value:.4f}")
 
         return self.results()
@@ -103,34 +103,56 @@ class ForgeRunner:
     def _run_single_episode(self, weights: np.ndarray) -> float:
         # Reset stateful policy so each candidate sees a fresh episode policy state.
         self.liquidity_agent = LiquidityProvider()
-        self.env.reset()
+        env = self.env
+        env.reset()
 
         meta_step_rewards: List[float] = []
+        concentration = env.passive_concentration
 
-        while self.env.current_step < self.env.episode_length:
-            agent = self.env.agent_selection
-            obs = self.env.observe(agent)
+        for _ in range(env.episode_length):
+            p0 = env._price_history[0]
+            p1 = env._price_history[1]
+            p4 = env._price_history[4]
 
-            if agent == "passive_gsci":
-                action = self.passive_agent.act(obs)
-            elif agent == "trend_follower":
-                action = self.trend_agent.act(obs)
-            elif agent == "mean_reversion":
-                action = self.mean_agent.act(obs)
-            elif agent == "liquidity_provider":
-                action = self.liquidity_agent.act(obs)
-            elif agent == "macro_allocator":
-                action = self.macro_agent.act(obs)
-            elif agent == "meta_rl":
-                action = self.cem.act(obs, weights)
+            trend_action = 1 if p0 > p4 else 2
+            if p0 > p1 * 1.02:
+                mean_action = 2
+            elif p0 < p1 * 0.98:
+                mean_action = 1
             else:
-                action = 0
+                mean_action = 0
+            macro_action = 1 if concentration < 0.30 else 0
+            liquidity_action = self.liquidity_agent.act(None)
 
-            prev_step = self.env.current_step
-            self.env.step(action)
+            meta_obs = np.array(
+                [
+                    env._price_history[0],
+                    env._price_history[1],
+                    env._price_history[2],
+                    env._price_history[3],
+                    env._price_history[4],
+                    env._current_volatility,
+                    concentration,
+                    env.portfolio_values["meta_rl"],
+                    env.cash["meta_rl"],
+                    float(env.current_step),
+                ],
+                dtype=np.float32,
+            )
+            meta_action = self.cem.act(meta_obs, weights)
 
-            if self.env.current_step > prev_step:
-                meta_step_rewards.append(float(self.env.rewards.get("meta_rl", 0.0)))
+            env._pending_actions = {
+                "passive_gsci": 1,
+                "trend_follower": trend_action,
+                "mean_reversion": mean_action,
+                "liquidity_provider": liquidity_action,
+                "macro_allocator": macro_action,
+                "meta_rl": meta_action,
+            }
+            env._clear_rewards()
+            env._apply_market_step()
+            env._pending_actions.clear()
+            meta_step_rewards.append(float(env.rewards.get("meta_rl", 0.0)))
 
         episode_rewards_sum = float(np.sum(meta_step_rewards))
         step_count = len(meta_step_rewards)

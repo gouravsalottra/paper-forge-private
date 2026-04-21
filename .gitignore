@@ -1,3 +1,13 @@
 .env
 state.db
 paper_memory/
+
+# Python cache/artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+outputs/
+data/
+paper_memory/

@@ -68,10 +68,14 @@ class CommodityFuturesEnv(AECEnv):
         self.current_step = 0
         self.price = 100.0
         self._returns_window: List[float] = []
+        self._returns_sum = 0.0
+        self._returns_sumsq = 0.0
+        self._current_volatility = 0.0
         self._price_history = [self.price] * 5
 
         self.positions = {agent: 0.0 for agent in self.agents}
         self.cash = {agent: 10_000.0 for agent in self.agents}
+        self.max_position_units = 50.0
         self.portfolio_values = {
             agent: self.cash[agent] + self.positions[agent] * self.price
             for agent in self.agents
@@ -81,7 +85,6 @@ class CommodityFuturesEnv(AECEnv):
         self.agent_selection = self.agents[0]
 
     def observe(self, agent: str) -> np.ndarray:
-        vol = self._rolling_volatility()
         obs = np.array(
             [
                 self._price_history[0],
@@ -89,7 +92,7 @@ class CommodityFuturesEnv(AECEnv):
                 self._price_history[2],
                 self._price_history[3],
                 self._price_history[4],
-                vol,
+                self._current_volatility,
                 self.passive_concentration,
                 self.portfolio_values[agent],
                 self.cash[agent],
@@ -139,28 +142,59 @@ class CommodityFuturesEnv(AECEnv):
         old_price = self.price
 
         net_order_flow = float(sum(self._action_to_flow(a) for a in self._pending_actions.values()))
-        noise = np.random.normal(0.0, 0.01)
-        self.price = self.price * (1.0 + 0.0005 * net_order_flow + noise)
+        concentration = self.passive_concentration
+        # Economic mechanism:
+        # 1) Larger passive concentration increases common-factor shock variance.
+        # 2) Crowded positioning amplifies market-impact and imposes a drag term.
+        concentration_risk = 1.0 + 6.0 * (concentration**2)
+        noise = np.random.normal(0.0, 0.006 * concentration_risk)
+        flow_impact = 0.0003 * (1.0 + 5.0 * (concentration**2))
+        concentration_drag = 0.0002 * (concentration**2)
+        self.price = self.price * (1.0 + flow_impact * net_order_flow + noise - concentration_drag)
+        self.price = max(self.price, 1e-6)
 
         step_return = (self.price / old_price) - 1.0
         self._returns_window.append(step_return)
+        self._returns_sum += step_return
+        self._returns_sumsq += step_return * step_return
         if len(self._returns_window) > 20:
-            self._returns_window = self._returns_window[-20:]
+            removed = self._returns_window.pop(0)
+            self._returns_sum -= removed
+            self._returns_sumsq -= removed * removed
+
+        n = len(self._returns_window)
+        if n < 2:
+            self._current_volatility = 0.0
+        else:
+            mean = self._returns_sum / n
+            var = (self._returns_sumsq - n * mean * mean) / (n - 1)
+            self._current_volatility = float(np.sqrt(max(var, 0.0)))
 
         self._price_history.append(self.price)
         self._price_history = self._price_history[-5:]
 
         for agent, action in self._pending_actions.items():
-            flow = self._action_to_flow(action)
-            self.positions[agent] += flow
+            flow = float(self._action_to_flow(action))
+            next_pos = self.positions[agent] + flow
+            if next_pos > self.max_position_units:
+                next_pos = self.max_position_units
+            elif next_pos < -self.max_position_units:
+                next_pos = -self.max_position_units
+            executed_flow = next_pos - self.positions[agent]
+            self.positions[agent] = next_pos
+            # Pay/receive for executed trade so PnL is not generated from free leverage.
+            self.cash[agent] -= executed_flow * self.price
 
         for agent in self.agents:
             old_value = prev_values[agent]
             new_value = self.cash[agent] + self.positions[agent] * self.price
             self.portfolio_values[agent] = new_value
-            pct = (new_value - old_value) / (old_value + 1e-8)
+            denom = max(abs(old_value), 10_000.0)
+            pct = (new_value - old_value) / denom
             rf_daily = 0.05 / 252
-            self.rewards[agent] = float(pct - rf_daily)
+            crowding_cost = 0.00005 * (concentration**2) * (abs(self.positions[agent]) / self.max_position_units)
+            volatility_penalty = 0.15 * (concentration**2) * self._current_volatility
+            self.rewards[agent] = float(pct - rf_daily - crowding_cost - volatility_penalty)
             self._cumulative_rewards[agent] = self.rewards[agent]
 
         self.current_step += 1
