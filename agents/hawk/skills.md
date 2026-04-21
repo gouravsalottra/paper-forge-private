@@ -23,6 +23,8 @@ You are the last defense against a paper that is not good enough leaving the pip
 6. Economic significance: is the result meaningful beyond statistical significance?
 7. Presentation quality: is the paper written to journal standard?
 
+Minimum passing score: 4/5 per dimension.
+
 ## Comment Protocol
 For each fatal flaw or major weakness:
 ```

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import importlib.metadata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -67,6 +68,29 @@ def write_data_passport(returns: pd.DataFrame) -> dict:
         },
         "download_timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tickers": TICKERS,
+        "library_versions": {
+            "pandas": pd.__version__,
+            "numpy": np.__version__,
+            "yfinance": _get_version("yfinance"),
+        },
+        "roll_convention": "ratio_backward",
+        "adjustment_method": "ratio_backward",
+    }
+    PASSPORT_JSON.write_text(json.dumps(passport, indent=2), encoding="utf-8")
+    return passport
+
+
+def write_data_passport_generic(df: pd.DataFrame, path: Path, source: str) -> dict:
+    passport = {
+        "file": str(path),
+        "sha256": sha256_file(path),
+        "row_count": int(len(df)),
+        "source": source,
+        "download_timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "library_versions": {
+            "pandas": pd.__version__,
+            "numpy": np.__version__,
+        },
     }
     PASSPORT_JSON.write_text(json.dumps(passport, indent=2), encoding="utf-8")
     return passport
@@ -83,23 +107,45 @@ def select_data_source(require_wrds: bool = True, wrds_available: bool = False) 
 
 
 def run_miner_pipeline(run_id: str, output_dir: str = "paper_memory", source: str = "wrds") -> dict:
-    """Run miner stage with explicit source contract.
-
-    Current production fallback supports yfinance output generation.
-    """
-    del run_id, output_dir  # contract placeholders for pipeline integration
+    """Run miner stage with explicit source contract."""
     if source not in {"wrds", "yfinance"}:
         raise ValueError("source must be 'wrds' or 'yfinance'")
 
+    out_dir = Path(output_dir) / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
     if source == "wrds":
-        # WRDS-first policy: fail loudly unless explicit yfinance mode is requested.
-        raise RuntimeError("WRDS runtime path not configured in this process. Use source='yfinance' explicitly.")
+        try:
+            from agents.miner.sources.wrds_src import fetch as wrds_fetch
+
+            config = {
+                "kind": "ff_factors",
+                "start": START_DATE,
+                "end": END_DATE_EXCLUSIVE,
+            }
+            df = wrds_fetch(config)
+            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            returns_path = OUTPUT_DIR / "commodity_returns_wrds.csv"
+            df.to_csv(returns_path, index=False)
+            write_data_passport_generic(df, returns_path, source="wrds")
+            return {"result_flag": "DONE", "source": "wrds", "path": str(returns_path)}
+        except Exception as exc:
+            raise RuntimeError(
+                f"WRDS fetch failed: {exc}. "
+                "Set PAPER_FORGE_MINER_SOURCE=yfinance to use the yfinance fallback."
+            ) from exc
 
     returns = build_returns_frame()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     returns.to_csv(RETURNS_CSV)
     write_data_passport(returns)
     return {"result_flag": "DONE", "source": source, "path": str(RETURNS_CSV)}
+
+
+def _get_version(pkg: str) -> str:
+    try:
+        return importlib.metadata.version(pkg)
+    except Exception:
+        return "unknown"
 
 
 def main() -> None:

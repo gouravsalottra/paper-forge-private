@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import difflib
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,7 +22,7 @@ class CodecAgent:
         pass2_spec = self._pass2_read_paper()
         mismatch = self._compare(pass1_spec, pass2_spec)
 
-        flag = "PASS" if "severity: Fatal" not in mismatch and "severity: Major" not in mismatch else "FAIL"
+        flag = "PASS" if "verdict: PASS" in mismatch or "verdict: WARN" in mismatch else "FAIL"
         self._write_result(flag)
         return {"result_flag": flag}
 
@@ -56,39 +56,79 @@ class CodecAgent:
         return str(llm_out)
 
     def _pass2_read_paper(self) -> str:
-        paper_path = Path("PAPER.md")
-        paper = paper_path.read_text(encoding="utf-8", errors="ignore") if paper_path.exists() else ""
+        """Run CODEC Pass 2 in an isolated subprocess with separate environment."""
+        if self.llm_client is not None:
+            paper_path = Path("PAPER.md")
+            paper = paper_path.read_text(encoding="utf-8", errors="ignore") if paper_path.exists() else ""
+            prompt = {
+                "pass": "PASS2",
+                "instructions": (
+                    "You have not seen the codebase. You have not seen any prior analysis.\n"
+                    "You are CODEC Pass 2. Read ONLY PAPER.md content. Reimplement the methodology from spec alone, "
+                    "flag underspecified details, and rate reproducibility 1-5."
+                ),
+                "context": {"methods_text": paper},
+            }
+            llm_out = self._call_llm(prompt)
+            out = self.output_dir / self.run_id / "codec_pass2.md"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(str(llm_out), encoding="utf-8")
+            return str(llm_out)
 
-        prompt = {
-            "pass": "PASS2",
-            "instructions": (
-                "You have not seen the codebase. You have not seen any prior analysis.\n"
-                "You are CODEC Pass 2. Read ONLY PAPER.md content. Reimplement the methodology from spec alone, "
-                "flag underspecified details, and rate reproducibility 1-5."
-            ),
-            "context": {"methods_text": paper},
-        }
-        llm_out = self._call_llm(prompt)
-        out = self.output_dir / self.run_id / "codec_pass2.md"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(str(llm_out), encoding="utf-8")
-        return str(llm_out)
+        import subprocess
+        import sys
+
+        script_path = Path(__file__).resolve().parents[1] / "codec_pass2.py"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(script_path),
+                "--run-id",
+                self.run_id,
+                "--db-path",
+                self.db_path,
+                "--output-dir",
+                str(self.output_dir),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,
+            env={
+                **os.environ,
+                "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY_PASS2", os.environ.get("OPENAI_API_KEY", "")),
+            },
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"CODEC Pass 2 subprocess failed (returncode={result.returncode}):\n"
+                f"stdout: {result.stdout[:2000]}\nstderr: {result.stderr[:2000]}"
+            )
+        out_path = self.output_dir / self.run_id / "codec_pass2.md"
+        if out_path.exists():
+            return out_path.read_text(encoding="utf-8")
+        return result.stdout.strip()
 
     def _compare(self, pass1: str, pass2: str) -> str:
-        diff = list(difflib.unified_diff(pass1.splitlines(), pass2.splitlines(), lineterm=""))
-        mismatches = [
-            "# CODEC mismatch report",
-            f"model: {self._model_name}",
-            "temperature: 0",
-            f"timestamp_utc: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
-            "",
-        ]
-        if not diff:
-            mismatches.append("No discrepancies detected.")
-        else:
-            p1 = pass1.lower()
-            p2 = pass2.lower()
-            critical_terms = [
+        """Compare Pass 1 (code-derived spec) vs Pass 2 (paper-derived reimplementation).
+
+        Produces a structured mismatch report with:
+        - Per-dimension coverage scores
+        - Missing/extra specification elements
+        - Asymmetric term analysis
+        - Overall KS-proxy similarity score
+        """
+        from scipy.stats import ks_2samp
+        import re
+
+        def extract_numeric_claims(text: str) -> list[float]:
+            """Extract all numeric values from specification text."""
+            pattern = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
+            values = re.findall(pattern, text)
+            return [float(v) for v in values if v not in ("0", "1")]
+
+        def extract_method_terms(text: str) -> set[str]:
+            """Extract statistical method and parameter terms."""
+            terms = {
                 "sharpe",
                 "garch",
                 "markov",
@@ -96,33 +136,101 @@ class CodecAgent:
                 "bonferroni",
                 "concentration",
                 "momentum",
-            ]
-            missing = [t for t in critical_terms if (t in p1) != (t in p2)]
-            intersection = sum(1 for t in critical_terms if t in p1 and t in p2)
-            similarity = intersection / max(len(critical_terms), 1)
+                "newey",
+                "west",
+                "hac",
+                "fama",
+                "macbeth",
+                "volatility",
+                "regime",
+                "rolling",
+                "annualized",
+                "drawdown",
+                "turnover",
+                "t-test",
+                "p-value",
+                "significance",
+                "threshold",
+                "window",
+                "lookback",
+                "seed",
+            }
+            text_lower = text.lower()
+            return {t for t in terms if t in text_lower}
 
-            mismatches.append("section: methodology")
-            if len(missing) >= 2:
-                mismatches.append(
-                    "issue: critical specification terms are asymmetric across code and paper-derived passes"
-                )
-                mismatches.append("severity: Major")
-            elif len(missing) == 1:
-                mismatches.append("issue: one critical term is asymmetric across passes")
-                mismatches.append("severity: Minor")
-            elif similarity < 0.5:
-                mismatches.append("issue: weak semantic overlap between implementation and specification text")
-                mismatches.append("severity: Major")
-            else:
-                mismatches.append("issue: wording differences detected but core terms align")
-                mismatches.append("severity: Minor")
-            mismatches.append("code_location: agents/*")
-            mismatches.append("paper_location: PAPER.md methods/statistical sections")
-            if missing:
-                mismatches.append(f"missing_terms: {', '.join(missing)}")
-            mismatches.append(f"term_overlap_ratio: {similarity:.2f}")
-            mismatches.append("")
-            mismatches.extend(diff[:40])
+        p1_nums = extract_numeric_claims(pass1)
+        p2_nums = extract_numeric_claims(pass2)
+        p1_terms = extract_method_terms(pass1)
+        p2_terms = extract_method_terms(pass2)
+
+        missing_in_p2 = sorted(p1_terms - p2_terms)
+        missing_in_p1 = sorted(p2_terms - p1_terms)
+        shared_terms = p1_terms & p2_terms
+        term_overlap = len(shared_terms) / max(len(p1_terms | p2_terms), 1)
+
+        ks_stat, ks_p = None, None
+        ks_result_str = "insufficient_numeric_data"
+        if len(p1_nums) >= 5 and len(p2_nums) >= 5:
+            ks_stat, ks_p = ks_2samp(p1_nums, p2_nums)
+            ks_result_str = f"{ks_stat:.4f} (p={ks_p:.4f})"
+
+        mismatches: list[str] = [
+            "# CODEC mismatch report",
+            f"model: {self._model_name}",
+            "temperature: 0",
+            f"timestamp_utc: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+            "",
+            "## term_coverage",
+            f"shared_terms: {sorted(shared_terms)}",
+            f"missing_in_pass2 (in code but not paper): {missing_in_p2}",
+            f"missing_in_pass1 (in paper but not code): {missing_in_p1}",
+            f"term_overlap_ratio: {term_overlap:.3f}",
+            "",
+            "## numeric_comparison",
+            f"pass1_numeric_count: {len(p1_nums)}",
+            f"pass2_numeric_count: {len(p2_nums)}",
+            f"ks_statistic: {ks_result_str}",
+            "",
+        ]
+
+        severity = "Minor"
+        issues: list[str] = []
+
+        if len(missing_in_p2) >= 3:
+            severity = "Major"
+            issues.append(
+                f"paper_overstates: {len(missing_in_p2)} method terms present in code "
+                f"are absent from paper description: {missing_in_p2}"
+            )
+        if len(missing_in_p1) >= 3:
+            severity = "Major"
+            issues.append(
+                f"description_ambiguous: {len(missing_in_p1)} terms in paper "
+                f"not reflected in code: {missing_in_p1}"
+            )
+        if ks_stat is not None and ks_stat > 0.30:
+            severity = "Fatal" if ks_stat > 0.50 else "Major"
+            issues.append(
+                f"code_deviates: KS statistic {ks_stat:.4f} exceeds threshold 0.30 — "
+                f"numeric parameter distributions differ significantly between "
+                f"code implementation and paper specification"
+            )
+        if term_overlap < 0.50:
+            severity = "Major"
+            issues.append(
+                f"description_ambiguous: term overlap ratio {term_overlap:.3f} below "
+                f"0.50 — paper and code descriptions share fewer than half of "
+                f"method-critical terms"
+            )
+
+        if not issues:
+            mismatches.append("## verdict: PASS")
+            mismatches.append("No significant discrepancies detected between code and paper.")
+        else:
+            mismatches.append(f"## verdict: {'FAIL' if severity in ('Fatal', 'Major') else 'WARN'}")
+            mismatches.append(f"severity: {severity}")
+            for issue in issues:
+                mismatches.append(f"issue: {issue}")
 
         report = "\n".join(mismatches) + "\n"
         out = self.output_dir / self.run_id / "codec_mismatch.md"

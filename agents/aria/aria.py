@@ -257,32 +257,79 @@ class ARIAPipeline:
             conn.commit()
 
     def _health_check_or_raise(self, server_name: str) -> None:
-        start = time.perf_counter()
-        healthy = server_name != "unhealthy"
-        detail = "ok" if healthy else "server marked unhealthy"
-        latency_ms = (time.perf_counter() - start) * 1000
+        import time as _time
+        start = _time.perf_counter()
+        healthy = True
+        detail = "ok"
 
-        if not healthy:
-            with sqlite3.connect(self.db_path) as conn:
-                cols = set(self._table_columns(conn, "server_health_log"))
-                now = self._now()
-                if {"run_id", "server_name", "status", "detail", "latency_ms", "created_at"}.issubset(cols):
+        try:
+            if server_name == "llm":
+                from openai import OpenAI
+
+                client = OpenAI(timeout=10)
+                client.models.list()
+                detail = "llm reachable"
+
+            elif server_name == "wrds":
+                if not os.environ.get("WRDS_USERNAME") and not os.environ.get("WRDS_CLOUD_USERNAME"):
+                    detail = "WRDS_USERNAME env var not set (connectivity deferred to MINER runtime)"
+
+            elif server_name == "forge_cluster":
+                try:
+                    import modal
+
+                    detail = f"modal sdk version {modal.__version__} available"
+                except ImportError:
+                    healthy = False
+                    detail = "modal package not installed"
+
+            elif server_name == "semantic_scholar":
+                import urllib.request
+
+                req = urllib.request.Request(
+                    "https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1",
+                    headers={"User-Agent": "paper-forge-health/1.0"},
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    healthy = resp.status == 200
+                    detail = f"semantic_scholar status={resp.status}"
+
+            else:
+                detail = f"local server '{server_name}' assumed healthy"
+
+        except Exception as exc:
+            healthy = False
+            detail = f"{type(exc).__name__}: {str(exc)[:200]}"
+
+        latency_ms = (_time.perf_counter() - start) * 1000
+
+        with sqlite3.connect(self.db_path) as conn:
+            cols = set(self._table_columns(conn, "server_health_log"))
+            now = self._now()
+            status_str = "OK" if healthy else "FAILED"
+            if {"run_id", "server_name", "status", "detail", "latency_ms", "created_at"}.issubset(cols):
+                conn.execute(
+                    """
+                    INSERT INTO server_health_log
+                    (run_id, server_name, status, detail, latency_ms, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (self.run_id, server_name, status_str, detail, latency_ms, now),
+                )
+            else:
+                checked_col = "checked_at" if "checked_at" in cols else "created_at"
+                if {"server_name", "status", checked_col, "latency_ms", "detail"}.issubset(cols):
                     conn.execute(
-                        """
-                        INSERT INTO server_health_log (run_id, server_name, status, detail, latency_ms, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
-                        (self.run_id, server_name, "FAILED", detail, latency_ms, now),
-                    )
-                else:
-                    conn.execute(
-                        """
-                        INSERT INTO server_health_log (server_name, status, checked_at, latency_ms, detail)
+                        f"""
+                        INSERT INTO server_health_log
+                        (server_name, status, {checked_col}, latency_ms, detail)
                         VALUES (?, ?, ?, ?, ?)
                         """,
-                        (server_name, "FAILED", now, latency_ms, detail),
+                        (server_name, status_str, now, latency_ms, detail),
                     )
-                conn.commit()
+            conn.commit()
+
+        if not healthy:
             raise ServerUnavailableError(server_name=server_name, detail=detail, latency_ms=latency_ms)
 
     def _context_config_for_phase(self, phase: str) -> dict[str, Any]:
