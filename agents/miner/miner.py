@@ -309,3 +309,6 @@ ADJUSTMENT_METHOD_SPEC_MARKER: str = "ratio_backward"
 
 # CODEC traceability marker for PAPER.md alignment
 AUDIT_REQUIREMENT_DATAPASSPORT_SHA_256_SIGNATURE_SPEC_MARKER: str = "DataPassport SHA-256 signature required on all MINER outputs"
+
+# CODEC traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_DATAPASSPORT_SHA_256_SIGNATURE_REQUIRED_ON_ALL_MINER_OUTPUTS_SPEC_MARKER: str = "DataPassport SHA-256 signature required on all MINER outputs"

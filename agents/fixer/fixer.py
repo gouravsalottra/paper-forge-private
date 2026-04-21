@@ -46,8 +46,11 @@ class FixerAgent:
         "hypothesis",
         "bonferroni correction",
         "fama-french three-factor ols regression",
+        "fama-french regression",
         "exclusion rule: fewer than 100 trading days of history",
         "exclusion rule: bid-ask spread exceeds 2% of contract price",
+        "exclusion rule: bid-ask spread threshold",
+        "seed policy",
         "audit requirement: hawk minimum score",
         "audit requirement: maximum hawk revision cycles",
     }
@@ -384,7 +387,7 @@ class FixerAgent:
         if "data source" in param_l or "roll convention" in param_l or "adjustment method" in param_l:
             target = Path("agents/miner/miner.py")
             affects_miner, affects_sigma = True, True
-        elif "primary metric" in param_l or "seed consistency" in param_l:
+        elif "primary metric" in param_l or "seed consistency" in param_l or "seed policy" in param_l:
             target = Path("agents/sigma_job2.py")
             affects_miner, affects_sigma = False, True
         elif "fitness function" in param_l or "simulation agent" in param_l:

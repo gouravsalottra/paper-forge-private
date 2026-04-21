@@ -9,6 +9,10 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
 # PAPER.md specification: Passive Capital Scenario: High
 PASSIVE_CAPITAL_SCENARIO_HIGH: str = "60% of open interest"
 
@@ -324,3 +328,6 @@ AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_TO_PASS_SPEC_MARKER: str = "7/10 on methodo
 
 # CODEC traceability marker for PAPER.md alignment
 AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES_SPEC_MARKER: str = "3"
+
+# CODEC traceability marker for PAPER.md alignment
+HYPOTHESIS_SHARPE_RATIO_REDUCTION_THRESHOLD_SPEC_MARKER: str = "reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units"

@@ -696,3 +696,6 @@ AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_SPEC_MARKER: str = "CODEC bidirectio
 
 # CODEC traceability marker for PAPER.md alignment
 AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_BEFORE_QUILL_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
+
+# CODEC traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_REQUIRED_BEFORE_QUILL_WRITES_PAPER_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"

@@ -4,715 +4,638 @@ Below is a methodology-only reimplementation plan derived strictly from the prov
 
 # Reimplementation Plan
 
-## 0) Overall objective
+## 0. Scope of what is being implemented
+Implement an empirical study testing:
 
-Test whether **passive GSCI investor concentration above 30% of open interest** in **GSCI energy futures** is associated with a **reduction of at least 0.15 annualized Sharpe units** in a **12-month momentum strategy**, relative to periods below 30%, while incorporating:
+> Whether passive GSCI index investor concentration above 30% of open interest in GSCI energy futures reduces 12-month momentum strategy Sharpe ratios by at least 0.15 relative to periods below 30%, while controlling for GARCH(1,1) volatility clustering and Fama-French momentum factor exposure.
 
-- GARCH(1,1) volatility modeling
-- Fama-French momentum-related factor control as specified
-- Markov switching regime detection
-- DCC-GARCH cross-asset correlation
-- multiple-testing correction
-- simulation scenarios with specified agents and seeds
-
-The covered market is:
-
-- WRDS Compustat Futures
-- GSCI energy sector
-- crude oil and natural gas
-- 2000–2024
-
----
-
-# 1) Full implementation steps in order
-
-## Step 1: Define the study design and lock assumptions
-
-1. Define the study universe as:
-   - commodity futures in the GSCI energy sector
-   - explicitly including crude oil and natural gas
-   - sample period 2000-01-01 through 2024-12-31 unless data availability truncates endpoints
-
-2. Define the primary comparison:
-   - **high concentration periods**: passive GSCI concentration strictly above 30% of open interest
-   - **low concentration periods**: passive GSCI concentration below 30% of open interest
-   - note that the spec also defines “medium = 30%” and “high = 60%”; these should be used in simulation scenarios, while the hypothesis threshold is 30%
-
-3. Define the primary outcome:
-   - annualized Sharpe ratio differential
-   - computed over rolling 252-trading-day windows
-   - differential = Sharpe during high-concentration windows minus Sharpe during low-concentration windows
-
-4. Define the decision rule:
-   - statistical significance: two-tailed p < 0.05
-   - simultaneous-test significance: Bonferroni-adjusted p < 0.0083 for 6 tests
-   - economic significance: effect must be ≤ -0.15 Sharpe units
-   - valid finding must hold qualitatively across seeds [1337, 42, 9999]
-
-5. Record all assumptions required by underspecification before implementation begins.
+The implementation must cover:
+- data construction
+- exclusions
+- futures rolling/adjustment
+- momentum strategy construction
+- concentration regime definition
+- rolling Sharpe computation
+- statistical testing
+- GARCH / factor / regime / DCC-GARCH analyses
+- simulation agents and meta-RL training
+- seed consistency checks
+- audit/pre-analysis gating requirements as procedural constraints
 
 ---
 
-## Step 2: Acquire and validate raw data
-
-1. Pull futures data from WRDS Compustat Futures for 2000–2024 for:
-   - crude oil futures
-   - natural gas futures
-
-2. Retrieve at minimum the following fields if available:
-   - trade date
-   - contract identifier
-   - expiration/maturity date
-   - open, high, low, close or settlement price
-   - volume
-   - open interest
-   - bid price
-   - ask price
-   - any available contract metadata needed for rolling and continuous series construction
-
-3. Retrieve or construct passive GSCI investor concentration data:
-   - concentration defined as passive GSCI index investor holdings as a percentage of open interest
-   - if not directly available in WRDS Compustat Futures, derive from linked holdings/exposure data only if a defensible mapping is possible
-
-4. Retrieve macro announcement calendar data for:
-   - FOMC dates
-   - CPI release dates
-
-5. Retrieve factor data needed for the specified regression control:
-   - Fama-French three factors
-   - momentum factor exposure as referenced in the hypothesis
-   - align factor frequency to daily if possible, otherwise define a conversion rule
-
-6. Validate data completeness:
-   - confirm date coverage
-   - confirm both assets exist over sufficient history
-   - confirm open interest availability
-   - confirm bid-ask spread availability or identify fallback
-
----
-
-## Step 3: Apply exclusion rules
-
-For each contract and date:
-
-1. Exclude contracts with fewer than 100 trading days of history.
-
-2. Exclude observations on roll dates that fall within 5 calendar days or trading days of major macro announcements:
-   - FOMC
-   - CPI
-   - because the spec does not define calendar vs trading days, choose one and document it
-
-3. Exclude contracts where bid-ask spread exceeds 2% of contract price:
-   - spread measure likely `(ask - bid) / mid` or `(ask - bid) / price`
-   - choose one and document it
-
-4. Keep an audit table of all exclusions:
-   - contract
-   - date
-   - exclusion reason
-   - counts by asset and year
-
----
-
-## Step 4: Construct continuous futures series
-
-1. For each asset, sort contracts by date and maturity.
-
-2. Implement the specified roll convention:
-   - `ratio_backward`
-
-3. Implement the specified adjustment method:
-   - `ratio_backward`
-
-4. Build a continuous adjusted price series for each asset:
-   - identify roll dates
-   - backward-adjust historical prices by multiplicative ratios at each roll
-   - ensure return continuity across rolls
-
-5. Preserve both:
-   - adjusted continuous series for signal generation and return computation
-   - raw contract-level data for exclusion logic and microstructure checks
-
-6. Verify:
-   - no artificial jumps at roll boundaries after adjustment
-   - return distributions are plausible
-
----
-
-## Step 5: Define passive concentration regimes
-
-1. Compute daily passive concentration for each asset:
-   - passive GSCI holdings / total open interest
-
-2. Define regime labels:
-   - low: 10% scenario for simulation
-   - medium: 30% scenario for simulation and threshold reference
-   - high: 60% scenario for simulation
-   - empirical threshold comparison:
-     - low-concentration period: concentration < 30%
-     - high-concentration period: concentration > 30%
-
-3. Decide treatment of exactly 30% observations:
-   - must be specified because the hypothesis says “above 30%” and “below 30%”
-
-4. Create rolling 252-day windows and assign each window to a concentration regime:
-   - either by current-day regime
-   - or by average concentration over the window
-   - this is underspecified and must be fixed explicitly
-
----
-
-## Step 6: Build the 12-month momentum strategy
-
-1. Define the momentum lookback horizon:
-   - 12 months
-   - likely 252 trading days
-
-2. For each asset on each eligible date:
-   - compute trailing 12-month return from the adjusted continuous series
-
-3. Convert signal into position:
-   - long if trailing return > 0
-   - short if trailing return < 0
-   - treatment of zero return must be specified
-
-4. Determine portfolio construction:
-   - equal-weight across crude oil and natural gas, unless another weighting is justified
-   - rebalance frequency must be specified
-
-5. Compute daily strategy returns:
-   - position at t-1 times return from t-1 to t
-   - include transaction costs only if specified; otherwise note omission as an assumption
-
-6. Compute rolling 252-day annualized Sharpe ratio:
-   - annualized mean / annualized volatility
-   - define risk-free rate treatment; likely zero unless daily risk-free is included
-
----
-
-## Step 7: Estimate the primary metric
-
-1. Partition rolling windows into:
-   - high-concentration windows
-   - low-concentration windows
-
-2. Compute:
-   - average annualized Sharpe in high-concentration windows
-   - average annualized Sharpe in low-concentration windows
-
-3. Compute primary effect:
-   - `Sharpe_diff = Sharpe_high - Sharpe_low`
-
-4. Compare against minimum effect size:
-   - economically meaningful only if `Sharpe_diff <= -0.15`
-
----
-
-## Step 8: Conduct the primary statistical test
-
-1. Form the sample of rolling-window Sharpe observations by regime.
-
-2. Perform a two-tailed t-test comparing high vs low concentration Sharpe outcomes.
-
-3. Apply Newey-West HAC correction with 4 lags to account for serial dependence in rolling-window estimates.
-
-4. Record:
-   - test statistic
-   - HAC-adjusted standard error
-   - p-value
-   - confidence interval if implemented
-
-5. Evaluate:
-   - primary significance at p < 0.05
-   - economic significance at ≤ -0.15 Sharpe units
-
----
-
-## Step 9: Fit GARCH(1,1) volatility models
-
-1. For each asset and/or strategy return series, fit a GARCH(1,1) model:
-   - p=1
-   - q=1
-   - Normal distribution
-
-2. Use the fitted conditional volatility estimates to control for volatility clustering.
-
-3. Incorporate GARCH outputs into the analysis in one of the following ways:
-   - volatility-adjusted returns before Sharpe computation
-   - conditional-volatility covariate in regression
-   - regime-conditioned robustness analysis
-
-4. Because the spec says “controlling for GARCH(1,1) volatility clustering,” explicitly define the chosen control mechanism.
-
-5. Re-estimate the concentration effect after volatility control.
-
----
-
-## Step 10: Run factor regression control
-
-1. Prepare factor data for the specified regression:
-   - Fama-French three factors
-   - momentum factor exposure as referenced in the hypothesis
-
-2. Align factor data with strategy returns.
-
-3. Estimate factor exposure using OLS / panel framework as specified:
-   - the spec says “Fama-French three-factor OLS regression (linearmodels, Fama-MacBeth)”
-   - because OLS and Fama-MacBeth are not identical procedures, choose and document an implementation interpretation
-
-4. Regress momentum strategy returns on factors and concentration indicator or concentration level.
-
-5. Extract:
-   - alpha
-   - factor loadings
-   - concentration coefficient if included
-   - robust standard errors
-
-6. Assess whether the concentration effect remains after factor control.
-
----
-
-## Step 11: Detect regimes with Markov switching
-
-1. Fit a 2-regime Markov switching model:
-   - `k_regimes = 2`
-
-2. Choose the modeled series:
-   - strategy returns
-   - or concentration-adjusted returns
-   - or volatility
-   - this must be specified because the target series is not given
-
-3. Infer latent regimes and regime probabilities.
-
-4. Test whether the concentration effect differs by latent regime.
-
-5. Use this as a robustness or heterogeneity analysis among the six simultaneous tests.
-
----
-
-## Step 12: Estimate DCC-GARCH cross-asset correlation
-
-1. Use crude oil and natural gas return series.
-
-2. Fit univariate GARCH models as needed for each asset.
-
-3. Estimate dynamic conditional correlation between the two assets.
-
-4. Examine whether high passive concentration periods coincide with elevated or altered cross-asset correlation.
-
-5. Use this as another robustness or mechanism-oriented test.
-
----
-
-## Step 13: Implement simulation agents
-
-For each passive capital scenario and seed, simulate the following agents:
-
-1. `passive_gsci`
-   - mechanically rebalances to GSCI index weights
-
-2. `trend_follower`
-   - 12-month momentum long/short
-
-3. `mean_reversion`
-   - fades 3-month extremes
-
-4. `liquidity_provider`
-   - posts limit orders on both sides
-
-5. `macro_allocator`
-   - switches energy/non-energy on macro signals
-
-6. `meta_rl`
-   - learns optimal allocation across all strategies
-
-Implementation sequence:
-
-1. Define the market environment:
-   - assets
-   - state variables
-   - action spaces
-   - reward definitions
-   - episode boundaries
-
-2. Define passive capital scenarios:
-   - low = 10% of open interest
+# 1. Full implementation steps in order
+
+## Step 1: Formalize the study design
+Define the study universe and outputs before touching data.
+
+1. Set sample period to **2000–2024**.
+2. Restrict instruments to **GSCI energy sector futures**, explicitly listed as:
+   - crude oil
+   - natural gas
+3. Define the main comparison:
+   - **low concentration**: passive GSCI concentration below 30% of open interest
+   - **high concentration**: passive GSCI concentration above 30% of open interest
+4. Define passive capital scenarios for simulation:
+   - low = 10%
    - medium = 30%
    - high = 60%
-
-3. For each scenario and each seed:
-   - initialize environment and agents
-   - run training/evaluation
-
-4. Ensure total training episodes are at least 500,000 across all scenarios and seeds.
-
-5. For `meta_rl`:
-   - fitness = Sharpe ratio over trailing 252 episodes
-   - evaluate every 1000 training steps
-
-6. Record whether the qualitative finding holds across all three seeds.
-
----
-
-## Step 14: Define the six simultaneous tests for Bonferroni correction
-
-Because the spec states Bonferroni correction for 6 simultaneous tests but does not enumerate all six explicitly, define six tests before execution. A defensible set would be:
-
-1. Primary high-vs-low Sharpe differential test
-2. GARCH-controlled concentration effect test
-3. Factor-controlled concentration effect test
-4. Markov regime interaction test
-5. DCC-GARCH correlation shift test
-6. Simulation-based scenario effect test
-
-Then apply:
-- adjusted threshold p < 0.0083
-
-This enumeration must be fixed in advance because it is underspecified.
-
----
-
-## Step 15: Evaluate seed consistency
-
-1. Repeat all stochastic components for seeds:
+5. Define primary metric:
+   - annualized Sharpe ratio differential
+   - computed over rolling **252-trading-day windows**
+   - differential = high-concentration Sharpe minus low-concentration Sharpe
+6. Define minimum economically meaningful effect:
+   - differential must be **≤ -0.15** to count as economically significant
+7. Define seeds:
    - 1337
    - 42
    - 9999
-
-2. Define “qualitatively consistent results” before running:
-   - same sign of effect
-   - same conclusion on economic significance
-   - preferably same significance classification
-
-3. A finding is valid only if it holds across all three seeds.
+8. Define validity rule:
+   - result must be qualitatively consistent across all three seeds
 
 ---
 
-## Step 16: Summarize results against hypothesis
+## Step 2: Enforce procedural gating requirements
+These are not analytical methods but must be implemented as run prerequisites.
 
-For the hypothesis to be supported, all of the following should hold:
+1. Require pre-analysis plan status to be **COMMITTED** before execution.
+2. Reject execution if status is not COMMITTED.
+3. Require DataPassport SHA-256 signature on all extracted/mined outputs.
+4. Require audit workflow constraints:
+   - CODEC bidirectional audit before paper-writing stage
+   - HAWK methodology score at least 7/10
+   - maximum 3 HAWK revision cycles
 
-1. High concentration (>30%) is associated with lower momentum Sharpe than low concentration (<30%).
-
-2. The differential is at most -0.15 Sharpe units.
-
-3. The result is statistically significant:
-   - p < 0.05 primary
-   - and if treated among simultaneous tests, p < 0.0083 where applicable
-
-4. The result remains qualitatively consistent after:
-   - GARCH control
-   - factor control
-   - regime analysis
-   - cross-asset correlation analysis
-   - simulation scenarios
-   - all three seeds
+Because the spec references external governance systems, implementation should include validation hooks or metadata checks rather than assuming these happen manually.
 
 ---
 
-## Step 17: Produce reproducible outputs and audit artifacts
+## Step 3: Acquire raw data
+Obtain all required raw inputs.
 
-1. Save:
-   - cleaned datasets
-   - exclusion logs
-   - continuous series construction metadata
-   - rolling Sharpe outputs
-   - model estimates
-   - simulation summaries
-   - seed-by-seed results
-
-2. Generate DataPassport SHA-256 signatures on all outputs designated as MINER outputs.
-
-3. Ensure methodology quality is sufficient for HAWK rubric target of at least 7/10.
-
-4. Ensure bidirectional audit readiness for CODEC.
-
-5. Note that the pre-analysis plan status must be COMMITTED before execution; otherwise the run should be rejected.
+1. Pull futures data from **WRDS Compustat Futures** for crude oil and natural gas from 2000–2024.
+2. Required raw fields should include, at minimum:
+   - date
+   - contract identifier
+   - underlying commodity
+   - expiration/maturity
+   - price series needed for returns
+   - open interest
+   - bid
+   - ask
+   - volume if available
+3. Obtain or construct **GSCI-related passive investor concentration** data as share of open interest for the relevant futures.
+4. Obtain calendar data for **major macro announcements**:
+   - FOMC dates
+   - CPI release dates
+5. Obtain Fama-French factor data needed for the factor regression.
+6. Obtain any cross-asset data needed for DCC-GARCH if cross-asset correlation is to be estimated beyond the two energy contracts.
+7. Obtain any macro signal inputs needed by the macro allocator agent.
 
 ---
 
-# 2) Assumptions needed due to underspecification
+## Step 4: Define the futures continuation series
+Construct continuous futures series using the specified convention.
 
-These assumptions are necessary to make the methodology executable.
+1. For each commodity, sort contracts by date and maturity.
+2. Apply **roll convention = ratio_backward**.
+3. Apply **adjustment method = ratio_backward**.
+4. Produce a continuous adjusted price series for each commodity.
+5. Preserve mapping from adjusted series back to underlying contract dates so exclusion rules can still be applied around roll dates and contract-level history.
 
-## Data and universe assumptions
+---
 
-1. **Asset universe assumption**
-   - GSCI energy sector is operationalized as only crude oil and natural gas because those are the only instruments explicitly named.
+## Step 5: Apply exclusion rules
+Apply all exclusions before strategy estimation.
 
-2. **Date boundary assumption**
-   - Use all available trading days from 2000-01-01 to 2024-12-31.
+1. Exclude contracts with **fewer than 100 trading days of history**.
+2. Exclude observations/roll events where the **roll date is within 5 days of major macro announcements**:
+   - FOMC
+   - CPI
+3. Exclude contracts where **bid-ask spread exceeds 2% of contract price**.
+   - Compute spread percentage as `(ask - bid) / contract price`
+   - Define contract price consistently (assumption required; see underspecification section)
+4. Rebuild the continuous series after exclusions if excluded contracts affect rolling continuity.
+5. Log all exclusions with counts by commodity, year, and reason.
 
-3. **Passive concentration data assumption**
-   - Passive GSCI investor concentration can be observed directly or credibly proxied from available holdings/open-interest data.
+---
 
-4. **Open interest denominator assumption**
-   - Concentration is measured as passive GSCI position size divided by total contract open interest on the same date.
+## Step 6: Construct daily returns
+1. Compute daily returns from the adjusted continuous price series.
+2. Decide whether returns are simple or log returns and use consistently throughout.
+3. Align returns across commodities on a common trading calendar.
+4. Handle missing values due to exclusions or holidays.
 
-## Continuous futures construction assumptions
+---
 
-5. **Roll trigger assumption**
-   - Roll occurs using a standard rule such as rolling from front to next contract a fixed number of days before expiry, since the exact trigger is not specified.
+## Step 7: Measure passive investor concentration
+Construct the key explanatory regime variable.
 
-6. **Ratio backward implementation assumption**
-   - Backward multiplicative adjustment is applied at each roll using the price ratio between outgoing and incoming contracts on the roll date.
+1. For each date and commodity, compute or ingest **passive GSCI investor concentration as % of open interest**.
+2. Aggregate to a study-level concentration measure for “GSCI energy futures.”
+   - This likely requires combining crude oil and natural gas concentration into one energy-sector concentration metric.
+3. Label each date into concentration regimes:
+   - low: < 30%
+   - medium: = or around 30% if needed for scenario analysis
+   - high: > 30%
+4. For the primary hypothesis test, compare **high (>30%)** vs **low (<30%)** periods.
+5. Store concentration both as:
+   - continuous variable
+   - categorical regime variable
 
-## Exclusion assumptions
+---
 
-7. **Trading-day history assumption**
-   - “Fewer than 100 trading days of history” refers to each contract’s own observed history in the dataset.
+## Step 8: Build the 12-month momentum strategy
+Construct the main tested strategy.
 
-8. **Macro exclusion window assumption**
-   - “Within 5 days” is interpreted as 5 trading days unless calendar days are chosen and documented.
+1. Define a **12-month momentum signal** for each commodity.
+2. Use historical returns over a 12-month lookback window.
+3. Convert signal into long/short positions.
+4. Aggregate positions across crude oil and natural gas into a momentum portfolio.
+5. Compute daily portfolio returns.
+6. Compute rolling **252-day annualized Sharpe ratios** for the momentum portfolio.
+7. Partition rolling Sharpe observations into high- and low-concentration periods based on the concentration regime at each evaluation date.
 
-9. **Bid-ask spread assumption**
-   - Spread percentage is computed as `(ask - bid) / midprice`.
+---
+
+## Step 9: Compute the primary metric
+1. For each rolling 252-day window, compute annualized Sharpe ratio of the momentum strategy.
+2. Group windows by concentration regime:
+   - high concentration
+   - low concentration
+3. Compute:
+   - mean Sharpe in high-concentration periods
+   - mean Sharpe in low-concentration periods
+4. Compute primary differential:
+   - **Sharpe_high − Sharpe_low**
+5. Compare the estimated differential to the minimum effect threshold:
+   - economically meaningful only if differential ≤ -0.15
+
+---
+
+## Step 10: Run the primary statistical test
+1. Conduct a **two-tailed t-test** on the Sharpe differential between high- and low-concentration periods.
+2. Apply **Newey-West HAC correction with 4 lags** to account for autocorrelation/heteroskedasticity in rolling-window estimates.
+3. Use significance threshold:
+   - primary: p < 0.05
+4. Record:
+   - estimated differential
+   - HAC-adjusted standard error
+   - t-statistic
+   - p-value
+   - economic significance indicator (≤ -0.15 or not)
+
+---
+
+## Step 11: Apply multiple-testing correction
+1. Because the spec states **6 simultaneous tests**, apply **Bonferroni correction**.
+2. Adjusted threshold:
+   - p < 0.0083
+3. For each of the six tests, report:
+   - unadjusted p-value
+   - Bonferroni-adjusted significance decision
+
+---
+
+## Step 12: Fit GARCH(1,1) volatility controls
+1. Fit a **GARCH(1,1)** model with:
+   - p = 1
+   - q = 1
+   - Normal distribution
+2. Apply to the momentum strategy return series, or to underlying commodity returns if used as controls.
+3. Extract conditional volatility estimates.
+4. Use these volatility estimates to control for volatility clustering in the main analysis.
+5. Re-estimate the concentration effect conditional on GARCH-based volatility controls.
+
+---
+
+## Step 13: Run factor exposure regression
+1. Obtain Fama-French factor data.
+2. Construct regression of momentum strategy returns on:
+   - Fama-French three factors
+   - momentum factor exposure as stated in the hypothesis text
+3. Estimate using OLS / Fama-MacBeth framework as specified.
+4. Use regression residuals or adjusted returns to assess whether the concentration effect remains after controlling for factor exposure.
+5. Report coefficients, standard errors, t-stats, and residual Sharpe comparisons.
+
+---
+
+## Step 14: Run Markov switching regime detection
+1. Fit a **2-regime Markov switching model** to relevant return or volatility series.
+2. Infer latent regimes.
+3. Test whether high passive concentration aligns with one regime more than the other.
+4. Check whether the momentum Sharpe deterioration is concentrated in a specific latent regime.
+5. Report transition probabilities and regime-specific performance.
+
+---
+
+## Step 15: Run DCC-GARCH cross-asset correlation analysis
+1. Select the asset set for cross-asset correlation analysis.
+2. Fit DCC-GARCH to the selected return series.
+3. Estimate time-varying correlations.
+4. Test whether high passive concentration periods coincide with elevated cross-asset correlation.
+5. Assess whether correlation changes help explain momentum Sharpe deterioration.
+
+---
+
+## Step 16: Implement simulation agents
+Implement all six agents named in the spec.
+
+1. **passive_gsci**
+   - mechanically rebalances to GSCI index weights
+2. **trend_follower**
+   - uses 12-month momentum signal
+   - takes long/short positions
+3. **mean_reversion**
+   - fades 3-month extremes
+4. **liquidity_provider**
+   - posts limit orders on both sides
+5. **macro_allocator**
+   - switches energy/non-energy based on macro signals
+6. **meta_rl**
+   - learns optimal allocation across all strategies
+
+For each agent:
+- define state inputs
+- define action space
+- define reward function
+- define portfolio accounting
+- define transaction/roll handling
+- define constraints
+
+---
+
+## Step 17: Simulate passive capital scenarios
+1. Run simulations under passive concentration scenarios:
+   - 10%
+   - 30%
+   - 60%
+2. For each scenario, simulate market interaction among the six agents.
+3. Ensure passive_gsci agent size corresponds to the scenario’s share of open interest.
+4. Measure resulting momentum strategy performance under each scenario.
+5. Compare scenario-level Sharpe ratios and concentration effects.
+
+---
+
+## Step 18: Train the meta-RL allocator
+1. Train the **meta_rl** agent across all scenarios and seeds.
+2. Minimum training budget:
+   - **500,000 episodes across all scenarios and seeds**
+3. Evaluate fitness as:
+   - Sharpe ratio over trailing **252 episodes**
+   - evaluated every **1000 training steps**
+4. Save evaluation history for each seed and scenario.
+5. Determine whether learned allocations qualitatively support the main hypothesis.
+
+---
+
+## Step 19: Run all seeds
+Repeat the full stochastic components for each seed:
+- 1337
+- 42
+- 9999
+
+For each seed:
+1. initialize all random processes
+2. rerun simulation/training
+3. recompute outputs
+4. compare sign, magnitude direction, and significance consistency
+
+A finding is valid only if all three seeds are qualitatively consistent.
+
+---
+
+## Step 20: Define the six simultaneous tests explicitly
+Because Bonferroni is specified for six tests, implementation must enumerate six tests. A practical ordering is:
+
+1. Primary Sharpe differential test: high vs low concentration
+2. GARCH-controlled concentration effect test
+3. Factor-controlled concentration effect test
+4. Markov-regime-conditioned concentration effect test
+5. DCC-GARCH correlation-mediated effect test
+6. Simulation scenario contrast test (e.g., 60% vs 10%)
+
+This enumeration is necessary because the spec says six simultaneous tests but does not list exactly which six are included for Bonferroni.
+
+---
+
+## Step 21: Summarize results against decision rules
+For each seed and pooled analysis, report:
+
+1. Sharpe_high
+2. Sharpe_low
+3. differential = high − low
+4. p-value (HAC-adjusted)
+5. Bonferroni significance
+6. economic significance (≤ -0.15)
+7. consistency across seeds
+8. whether hypothesis is supported
+
+Decision rule:
+- supported only if:
+  - differential ≤ -0.15
+  - statistically significant at required threshold
+  - qualitatively consistent across all three seeds
+
+---
+
+## Step 22: Produce audit-ready outputs
+1. Attach SHA-256 signatures to all mined outputs.
+2. Produce methodology summary suitable for audit.
+3. Record all assumptions and underspecified choices.
+4. Record exclusion counts and data attrition.
+5. Record seed-by-seed reproducibility summary.
+
+---
+
+# 2. Assumptions needed due to underspecification
+
+These assumptions are necessary to make the spec executable.
+
+## Data and instrument assumptions
+1. **Instrument mapping assumption**  
+   “GSCI energy sector” is assumed to mean only the two explicitly named commodities:
+   - crude oil
+   - natural gas
+
+2. **Contract selection assumption**  
+   Use the front-month tradable contract sequence unless a different maturity ladder is required.
+
+3. **Open interest concentration assumption**  
+   Passive GSCI concentration is assumed measurable daily as:
+   `passive GSCI open interest / total open interest`.
+
+4. **Energy-sector aggregation assumption**  
+   Aggregate crude oil and natural gas concentration using open-interest-weighted averaging unless commodity-specific analyses are run separately.
+
+---
+
+## Return and Sharpe assumptions
+5. **Return definition assumption**  
+   Use daily log returns or simple returns consistently; if not specified, simple excess returns are a common default.
+
+6. **Sharpe annualization assumption**  
+   Annualized Sharpe = mean daily return / std daily return × sqrt(252).
+
+7. **Risk-free rate assumption**  
+   If not provided, assume zero daily risk-free rate or use a standard daily risk-free proxy.
+
+8. **Rolling-window labeling assumption**  
+   A rolling Sharpe window is assigned to the concentration regime of its end date.
+
+---
 
 ## Momentum strategy assumptions
+9. **12-month momentum construction assumption**  
+   Use a 252-trading-day lookback.
 
-10. **12-month horizon assumption**
-    - 12 months = 252 trading days.
+10. **Skip-month assumption**  
+    No skip-month is specified; assume none unless explicitly added.
 
-11. **Signal mapping assumption**
-    - Positive trailing return implies long; negative implies short; zero implies flat.
+11. **Portfolio weighting assumption**  
+    Equal-weight crude oil and natural gas signals unless GSCI weights are intended.
 
-12. **Portfolio weighting assumption**
-    - Equal-weight the two assets.
-
-13. **Rebalancing assumption**
-    - Rebalance daily after signal update.
-
-14. **Risk-free rate assumption**
-    - Use zero daily risk-free rate in Sharpe computation unless daily risk-free data are added.
-
-15. **Transaction cost assumption**
-    - Ignore transaction costs unless bid-ask and slippage are explicitly incorporated into strategy returns.
-
-## Statistical modeling assumptions
-
-16. **Sharpe comparison sample assumption**
-    - Rolling-window Sharpe observations are treated as the units for the t-test.
-
-17. **Newey-West application assumption**
-    - HAC correction is applied to the regression or mean-difference framework used for rolling Sharpe differentials.
-
-18. **GARCH control assumption**
-    - Volatility control is implemented by including conditional volatility estimates as controls or by standardizing returns.
-
-19. **Factor model assumption**
-    - Because the hypothesis mentions momentum factor exposure but the test list mentions only Fama-French three factors, include momentum factor as an additional control if available.
-
-20. **Fama-MacBeth assumption**
-    - If only two assets exist, Fama-MacBeth may be weakly identified; use time-series factor regression or pooled panel interpretation and document the limitation.
-
-21. **Markov switching target assumption**
-    - Fit the Markov switching model to strategy returns.
-
-22. **DCC-GARCH assumption**
-    - DCC-GARCH is estimated on crude oil and natural gas daily returns.
-
-## Simulation assumptions
-
-23. **Environment assumption**
-    - The simulation environment is based on historical market data with agent interactions layered on top.
-
-24. **Mean reversion definition assumption**
-    - “3-month extremes” means deviations based on trailing 63-trading-day returns.
-
-25. **Macro allocator assumption**
-    - Macro signals are derived from the same FOMC/CPI or other macro indicators available to the study.
-
-26. **Meta-RL algorithm assumption**
-    - Any standard RL allocator may be used, provided fitness is trailing-252-episode Sharpe and evaluation occurs every 1000 steps.
-
-27. **Episode definition assumption**
-    - One episode corresponds to one trading day or one fixed trading window; this must be chosen and documented.
-
-28. **Qualitative consistency assumption**
-    - “Qualitatively consistent” means same sign and same support/non-support conclusion for the hypothesis across all seeds.
-
-## Governance assumptions
-
-29. **Pre-analysis lock assumption**
-    - No execution should proceed unless pre-analysis status is COMMITTED.
-
-30. **Audit artifact assumption**
-    - DataPassport signatures are generated for all relevant outputs, even though exact output scope is not defined.
+12. **Signal threshold assumption**  
+    Positive trailing return = long, negative trailing return = short.
 
 ---
 
-# 3) Every underspecified detail flagged
+## Exclusion-rule assumptions
+13. **Major macro announcement window assumption**  
+    “Within 5 days” means ±5 calendar days or ±5 trading days; one must be chosen. Trading days is more operationally consistent.
+
+14. **Bid-ask spread denominator assumption**  
+    “2% of contract price” means midpoint price unless last trade/settlement is specified.
+
+15. **Contract history assumption**  
+    “Fewer than 100 trading days of history” refers to each individual listed contract before inclusion in the continuation chain.
+
+---
+
+## Statistical assumptions
+16. **t-test unit assumption**  
+    The t-test is applied to rolling-window Sharpe observations or to regime-specific mean returns transformed into Sharpe estimates; the former is assumed.
+
+17. **Newey-West implementation assumption**  
+    HAC correction is applied to the regression/intercept difference series with lag 4.
+
+18. **Bonferroni family assumption**  
+    The six simultaneous tests are assumed to be the six major analyses listed in Step 20.
+
+19. **Factor model assumption**  
+    Because the hypothesis mentions “Fama-French momentum factor exposure” but the tests mention “three-factor,” assume regression includes FF3 plus a momentum factor.
+
+20. **Fama-MacBeth assumption**  
+    Since Fama-MacBeth is usually cross-sectional and the study is time-series-heavy, assume it is used only if cross-sectional panels across contracts are constructed; otherwise standard time-series OLS may be needed.
+
+---
+
+## Regime and DCC assumptions
+21. **Markov switching target assumption**  
+    Fit the Markov switching model to momentum returns or volatility, not to concentration directly.
+
+22. **DCC asset universe assumption**  
+    DCC-GARCH is estimated at minimum on crude oil and natural gas returns; broader asset inclusion is optional if available.
+
+---
+
+## Simulation assumptions
+23. **Market simulator assumption**  
+    A stylized multi-agent market simulator must be built because no simulator mechanics are specified.
+
+24. **Execution-cost assumption**  
+    Transaction costs, slippage, and fill logic must be assumed; otherwise agent results are not meaningful.
+
+25. **Meta-RL algorithm assumption**  
+    Any standard RL allocator algorithm may be used because none is specified.
+
+26. **Episode definition assumption**  
+    One episode likely corresponds to one trading period or one portfolio decision interval; must be fixed explicitly.
+
+27. **Qualitative consistency assumption**  
+    “Qualitatively consistent” means same directional conclusion and similar significance/economic-significance outcome across seeds.
+
+---
+
+## Governance assumptions
+28. **Pre-analysis lock assumption**  
+    “pap_lock” is treated as a metadata status store, not a statistical object.
+
+29. **Audit-system assumption**  
+    CODEC, HAWK, SIGMA_JOB1, QUILL, FORGE are workflow systems external to the analysis and must be represented as validation checkpoints.
+
+---
+
+# 3. Every underspecified detail flagged
 
 Below is a comprehensive list of underspecified items in the spec.
 
-## A. Data definition underspecification
-
-1. **Exact contract identifiers are not specified.**
-2. **Whether only front-month contracts or all listed maturities are included is not specified.**
-3. **Whether additional GSCI energy contracts beyond crude oil and natural gas are excluded is not explicitly stated.**
-4. **How passive GSCI investor concentration is measured or sourced is not specified.**
-5. **Whether concentration is asset-specific, market-wide, or aggregated across energy futures is not specified.**
-6. **Whether open interest is contract-level or aggregated across maturities is not specified.**
-7. **Whether factor data are daily, monthly, or another frequency is not specified.**
-8. **How to obtain a commodity-relevant momentum factor while referencing Fama-French factors is not specified.**
-
-## B. Continuous futures construction underspecification
-
-9. **Roll trigger date is not specified.**
-10. **Whether rolling is volume-based, open-interest-based, or calendar-based is not specified.**
-11. **How ratio_backward is operationalized exactly is not specified.**
-12. **Whether returns are computed from settlement or close prices is not specified.**
-
-## C. Exclusion rule underspecification
-
-13. **“100 trading days of history” could refer to contract history, asset history, or continuous-series history.**
-14. **“Within 5 days” of macro announcements does not specify calendar days vs trading days.**
-15. **The exact macro announcement source/calendar is not specified.**
-16. **Bid-ask spread formula is not specified.**
-17. **Contract price denominator for the 2% spread rule is not specified.**
-18. **Whether exclusions remove only the affected date or the entire contract is not specified.**
-
-## D. Momentum strategy underspecification
-
-19. **Exact momentum signal formula is not specified.**
-20. **Whether there is a skip month between formation and holding is not specified.**
-21. **Whether the strategy is cross-sectional or time-series momentum is not specified.**
-22. **How long/short is implemented with only two assets is not specified.**
-23. **Portfolio weighting scheme is not specified.**
-24. **Rebalancing frequency is not specified.**
-25. **Treatment of zero signals is not specified.**
-26. **Transaction costs are not specified.**
-27. **Risk-free rate treatment in Sharpe ratio is not specified.**
-
-## E. Primary metric underspecification
-
-28. **How rolling windows are assigned to concentration regimes is not specified.**
-29. **Whether Sharpe is computed from daily returns within each window or from another frequency is not specified.**
-30. **Whether annualization uses 252 or another convention is implied but not explicitly stated.**
-31. **How exactly 30% concentration observations are handled is not specified.**
-32. **Whether the primary metric is asset-level, portfolio-level, or scenario-level is not specified.**
-
-## F. Statistical test underspecification
-
-33. **The exact implementation of the t-test with Newey-West HAC on rolling Sharpe windows is not specified.**
-34. **The six simultaneous tests for Bonferroni correction are not enumerated.**
-35. **How GARCH(1,1) “control” enters the hypothesis test is not specified.**
-36. **The factor model is inconsistent: hypothesis mentions momentum factor exposure, while tests specify Fama-French three-factor OLS.**
-37. **“OLS regression (linearmodels, Fama-MacBeth)” mixes two different approaches and is not fully coherent.**
-38. **The dependent variable in the factor regression is not specified.**
-39. **The role of concentration in the regression equation is not specified.**
-40. **The target series for Markov switching is not specified.**
-41. **The purpose and test statistic for DCC-GARCH are not specified.**
-42. **Whether p-values from all robustness tests must pass Bonferroni or only selected tests is not specified.**
-
-## G. Simulation underspecification
-
-43. **The simulation environment is not defined.**
-44. **Agent state spaces are not defined.**
-45. **Agent action spaces are not defined.**
-46. **Reward functions for all agents except meta_rl are not defined.**
-47. **How passive_gsci maps to actual GSCI weights is not specified.**
-48. **How trend_follower interacts with the empirical momentum strategy is not specified.**
-49. **How mean_reversion defines “3-month extremes” is not specified.**
-50. **How liquidity_provider order placement and fill mechanics work is not specified.**
-51. **How macro_allocator defines macro signals is not specified.**
-52. **What RL algorithm meta_rl uses is not specified.**
-53. **What an episode is is not specified.**
-54. **How 500,000 minimum training episodes are distributed across scenarios and seeds is not specified.**
-55. **How simulation outputs connect to the empirical hypothesis test is not specified.**
-
-## H. Seed policy underspecification
-
-56. **Which components are stochastic and therefore seed-sensitive is not specified.**
-57. **“Qualitatively consistent results” is not defined.**
-58. **Whether all six tests must be consistent across seeds or only the primary finding is not specified.**
-
-## I. Governance/audit underspecification
-
-59. **How pre-analysis commitment is verified operationally is not specified.**
-60. **What constitutes a MINER output for DataPassport signing is not specified.**
-61. **How CODEC bidirectional audit is performed is not specified.**
-62. **How HAWK methodology scoring is operationalized is not specified.**
-63. **What happens after 3 HAWK revision cycles is not specified.**
+## Data specification underspecified
+1. **Exact contract symbols/identifiers** for crude oil and natural gas are not specified.
+2. **Which exchanges/contracts** within WRDS Compustat Futures are included is not specified.
+3. **Exact fields** required from WRDS are not listed.
+4. **How passive GSCI investor concentration is observed or constructed** is not specified.
+5. **Whether concentration is daily, weekly, or monthly** is not specified.
+6. **How to aggregate concentration across crude oil and natural gas** is not specified.
+7. **Whether non-energy assets are needed** for macro allocator or DCC-GARCH is not specified.
+8. **Source of Fama-French factors** is not specified.
+9. **Which momentum factor series** is intended is not specified.
+10. **Source of FOMC and CPI calendars** is not specified.
 
 ---
 
-# 4) Reproducibility rating: 2 / 5
+## Futures construction underspecified
+11. **Exact roll trigger** for ratio_backward is not specified.
+12. **Which contract is rolled into which** is not specified.
+13. **Whether roll occurs on fixed days, volume switch, or open-interest switch** is not specified.
+14. **How ratio_backward is implemented mathematically** is not specified.
+15. **Whether settlement, close, or adjusted close prices** are used is not specified.
+
+---
+
+## Exclusion rules underspecified
+16. **Whether “within 5 days” means calendar or trading days** is not specified.
+17. **Whether exclusion removes only the roll date or the entire contract/window** is not specified.
+18. **Definition of “major macro announcements” beyond FOMC and CPI** is not specified.
+19. **How bid-ask spread is measured when bid/ask are missing** is not specified.
+20. **What “contract price” means** for the 2% spread rule is not specified.
+21. **Whether exclusions are applied before or after continuation construction** is not specified.
+
+---
+
+## Strategy construction underspecified
+22. **Exact 12-month momentum formula** is not specified.
+23. **Whether there is a one-month skip** is not specified.
+24. **Whether momentum is cross-sectional or time-series** is not specified.
+25. **How long/short weights are assigned** is not specified.
+26. **Whether leverage is allowed** is not specified.
+27. **How portfolio weights across crude oil and natural gas are combined** is not specified.
+28. **How missing signals are handled** is not specified.
+
+---
+
+## Primary metric underspecified
+29. **Whether Sharpe uses excess returns over risk-free** is not specified.
+30. **How annualization is done** is not explicitly specified.
+31. **Whether rolling windows overlap** is not specified, though implied.
+32. **How windows spanning both low and high concentration periods are classified** is not specified.
+33. **Whether the differential is difference in mean rolling Sharpes or Sharpe of pooled returns by regime** is not specified.
+
+---
+
+## Statistical testing underspecified
+34. **Exact t-test formulation** is not specified.
+35. **Whether HAC is applied to a regression, mean difference, or Sharpe series** is not specified.
+36. **The exact six simultaneous tests** for Bonferroni are not specified.
+37. **How GARCH controls enter the main hypothesis test** is not specified.
+38. **Whether GARCH is fit to strategy returns or underlying returns** is not specified.
+39. **How factor exposure is controlled while testing Sharpe differences** is not specified.
+40. **“Fama-French three-factor OLS regression (linearmodels, Fama-MacBeth)” is internally ambiguous**, because OLS and Fama-MacBeth are distinct estimation setups.
+41. **How Markov switching output is used in inference** is not specified.
+42. **Which assets enter DCC-GARCH** is not specified.
+43. **How DCC-GARCH results connect to the primary hypothesis** is not specified.
+
+---
+
+## Simulation-agent framework underspecified
+44. **Why simulation agents are needed for the primary empirical hypothesis** is not specified.
+45. **State variables for each agent** are not specified.
+46. **Action spaces for each agent** are not specified.
+47. **Reward functions for non-meta agents** are not specified.
+48. **Execution model / matching engine** is not specified.
+49. **Transaction costs and slippage** are not specified.
+50. **Inventory/risk constraints** are not specified.
+51. **How passive_gsci maps to actual GSCI weights** is not specified.
+52. **What macro signals drive macro_allocator** is not specified.
+53. **What algorithm powers meta_rl** is not specified.
+54. **What observation frequency the simulator uses** is not specified.
+55. **What an episode means** is not specified.
+56. **How 500,000 episodes are distributed across scenarios and seeds** is not specified.
+57. **How simulation outputs integrate with empirical tests** is not specified.
+
+---
+
+## Seed policy underspecified
+58. **Which components are stochastic and therefore seeded** is not specified.
+59. **What “qualitatively consistent” means operationally** is not specified.
+60. **Whether all empirical analyses or only simulations must be rerun per seed** is not specified.
+
+---
+
+## Governance/audit underspecified
+61. **How COMMITTED status is checked** is not specified.
+62. **What DataPassport SHA-256 signature format is required** is not specified.
+63. **How CODEC bidirectional audit is operationalized** is not specified.
+64. **What HAWK methodology rubric contains** is not specified.
+65. **How revision cycles are counted** is not specified.
+
+---
+
+# 4. Reproducibility rating: 2/5
 
 ## Rating: 2 out of 5
 
 ## Rationale
-
 The specification is strong on:
 - hypothesis statement
-- primary metric concept
 - sample period
 - broad data source
-- some model families
-- thresholds
-- seeds
-- exclusion categories
+- some statistical tools
+- threshold values
+- exclusion criteria
+- seed list
+- effect-size criterion
 
-However, reproducibility is limited because many implementation-critical details are missing or internally inconsistent.
-
-### Why not higher?
+However, reproducibility is substantially limited because many implementation-critical details are missing or ambiguous:
 
 1. **Core variable construction is underspecified**
    - passive GSCI concentration is central but not operationally defined
+   - aggregation across commodities is unspecified
 
-2. **Strategy definition is incomplete**
-   - 12-month momentum is not fully specified as time-series vs cross-sectional, weighting, rebalancing, skip rules, or cost treatment
+2. **Momentum strategy is not fully defined**
+   - no exact signal formula
+   - no weighting scheme
+   - no skip-month rule
+   - no leverage/exposure convention
 
-3. **Continuous futures construction is incomplete**
-   - ratio backward is named, but roll trigger logic is absent
+3. **Futures continuation methodology is incomplete**
+   - ratio_backward is named, but roll trigger mechanics are absent
 
-4. **Statistical framework has inconsistencies**
-   - “Fama-French three-factor OLS regression” and “Fama-MacBeth” are not the same thing
-   - hypothesis mentions momentum factor exposure but test list omits it
+4. **Statistical design has internal ambiguity**
+   - FF3 vs momentum factor inconsistency
+   - OLS vs Fama-MacBeth ambiguity
+   - six Bonferroni tests not enumerated
 
-5. **Bonferroni correction references 6 tests without defining them**
-   - this materially affects inference
+5. **Simulation section is highly underspecified**
+   - agents are named but not formally defined
+   - RL algorithm, environment, and episode structure are absent
 
-6. **Simulation section is highly underspecified**
-   - agents are named but not operationalized
-   - environment, rewards, episodes, and RL algorithm are missing
+6. **Governance requirements depend on external systems**
+   - these cannot be reproduced from the spec alone without assumptions
 
-7. **Seed consistency criterion is vague**
-   - “qualitatively consistent” is not defined
+Why not 1/5?
+- Because the spec still provides enough structure to build a plausible approximation of the intended study.
 
-### Why not lower?
-
-1. The hypothesis direction and effect size threshold are explicit.
-2. The sample universe and period are reasonably clear.
-3. Several model classes and significance thresholds are named.
-4. Exclusion categories are at least partially specified.
-5. The roll and adjustment method names are given, even if not fully operationalized.
-
-So the study is **partially reproducible**, but not enough for a faithful independent reimplementation without substantial assumptions.
+Why not 3/5 or higher?
+- Because too many choices that materially affect results must be invented by the implementer.
 
 ---
 
-# 5) Recommended minimal clarification set before implementation
+# 5. Recommended implementation interpretation to maximize fidelity
 
-If you want this to become reproducible at a high level, the minimum clarifications needed are:
+If forced to implement from this spec alone, the most defensible approach is:
 
-1. Exact formula/source for passive GSCI concentration
-2. Exact contract universe and maturity handling
-3. Exact roll trigger rule
-4. Exact momentum strategy definition
-5. Exact Sharpe computation convention
-6. Exact regression specification including factors and concentration term
-7. Enumeration of the 6 Bonferroni-tested hypotheses
-8. Exact Markov switching target variable
-9. Exact DCC-GARCH objective/statistic
-10. Exact simulation environment, episode definition, and meta_rl algorithm
-11. Definition of “qualitatively consistent across seeds”
+1. Treat the study as primarily an **empirical futures-return analysis**.
+2. Treat the **simulation/meta-RL section as secondary robustness analysis**, not the main identification strategy.
+3. Use:
+   - daily adjusted futures returns
+   - 252-day time-series momentum
+   - open-interest-weighted concentration
+   - rolling annualized Sharpe
+   - HAC-adjusted difference-in-means/regression framework
+4. Explicitly document every assumption listed above.
+5. Pre-register the missing choices before running the analysis to avoid researcher degrees of freedom.
 
 ---
 
-If you want, I can next convert this into a **formal implementation protocol** with:
-- equations,
-- pseudocode,
-- data schema,
-- and a decision table for every assumption.
+If you want, I can next turn this into a **pseudo-code implementation blueprint** or a **methods section written as a reproducible protocol**.

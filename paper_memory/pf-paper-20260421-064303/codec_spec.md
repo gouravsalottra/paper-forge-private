@@ -1,347 +1,332 @@
-# PASS1
+# CODEC Pass 1 Specification Extraction
 
-## 1. Statistical tests implemented
+## 1. Statistical tests
 
-From `agents/sigma_job2.py` and related spec constants in `agents/forge/env.py` / `PAPER.md`, the implemented econometric battery includes:
+### Newey-West HAC two-tailed t-test
+- **Name:** Two-tailed t-test with Newey-West HAC correction
+- **Library:** implied `statsmodels` usage in `agents/sigma_job2.py` (`import statsmodels.api as sm`)
+- **Parameters/specification:**
+  - Two-tailed
+  - HAC / Newey-West correction
+  - **Lags:** 4
+- **Evidence:**
+  - `PAPER.md`: “Two-tailed t-test, p < 0.05, Newey-West HAC correction (4 lags)”
+  - `SigmaJob2.run()` calls `_newey_west_ttest(returns)`
 
-1. **Newey-West t-test**
-   - Method call: `_newey_west_ttest(returns)`
-   - Input: `returns = sim_df["mean_reward"].to_numpy(dtype=float)`
-   - Library:
-     - `statsmodels.api as sm` imported in `agents/sigma_job2.py`
-   - Spec parameters:
-     - Two-tailed t-test
-     - Newey-West HAC correction
-     - `4` lags
-   - Thresholds:
-     - Primary significance threshold `p < 0.05` two-tailed
-     - Included in Bonferroni family of 6 tests
+### GARCH(1,1)
+- **Name:** GARCH(1,1) volatility model
+- **Library:** `arch` (`from arch import arch_model`)
+- **Parameters/specification:**
+  - `p=1`
+  - `q=1`
+  - Normal distribution
+- **Evidence:**
+  - `PAPER.md`: “GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution)”
+  - `env.py` constant: `GARCH_MODEL = "GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution)"`
+  - `SigmaJob2.run()` calls `_garch_11(returns)`
 
-2. **GARCH(1,1) volatility model**
-   - Method call: `_garch_11(returns)`
-   - Library:
-     - `arch.arch_model`
-   - Spec parameters:
-     - `p=1`, `q=1`
-     - Normal distribution
-   - Reported p-value used in multiplicity correction:
-     - `garch_result["alpha_pvalue"]`
+### Bootstrap confidence interval / bootstrap test
+- **Name:** Bootstrap CI / bootstrap mean-below-zero test
+- **Library:** not explicitly named beyond NumPy/Pandas context in `sigma_job2.py`
+- **Parameters/specification actually visible:**
+  - `n_resamples=1000`
+  - `seed=<derived from _seed_from_pap_lock()>`
+  - Output includes `mean_lt_zero_p_value`
+- **Evidence:**
+  - `SigmaJob2.run()` calls `_bootstrap_ci(returns, seed=seed, n_resamples=1000)`
 
-3. **Bootstrap confidence interval / bootstrap test**
-   - Method call: `_bootstrap_ci(returns, seed=seed, n_resamples=1000)`
-   - Library:
-     - not explicitly shown in truncated body; uses NumPy/Python code in project context
-   - Exact implemented parameters visible:
-     - `seed=seed`
-     - `n_resamples=1000`
-   - Reported p-value used in multiplicity correction:
-     - `bootstrap_result["mean_lt_zero_p_value"]`
+### Deflated Sharpe
+- **Name:** Deflated Sharpe ratio test
+- **Library:** not explicitly specified
+- **Parameters/specification actually visible:**
+  - `n_trials=6`
+  - Output includes `p_value`
+- **Evidence:**
+  - `SigmaJob2.run()` calls `_deflated_sharpe(returns, n_trials=6)`
 
-4. **Deflated Sharpe test**
-   - Method call: `_deflated_sharpe(returns, n_trials=6)`
-   - Library:
-     - internal implementation in `sigma_job2.py`; `scipy.stats.norm` imported
-   - Exact implemented parameters visible:
-     - `n_trials=6`
-   - Reported p-value used in multiplicity correction:
-     - `deflated_result["p_value"]`
+### Markov switching regime detection / Markov autoregression
+- **Name:** Markov switching regime detection
+- **Library:** `statsmodels`
+  - specifically `statsmodels.tsa.regime_switching.markov_autoregression.MarkovAutoregression`
+- **Parameters/specification:**
+  - `k_regimes=2`
+- **Evidence:**
+  - `PAPER.md`: “Markov switching regime detection (statsmodels, k_regimes=2)”
+  - `env.py`: `MARKOV_SWITCHING_REGIME_DETECTION = "statsmodels, k_regimes=2"`
+  - `SigmaJob2.run()` calls `_markov_regime(returns)`
 
-5. **Markov regime-switching model**
-   - Method call: `_markov_regime(returns)`
-   - Library:
-     - `statsmodels.tsa.regime_switching.markov_autoregression.MarkovAutoregression`
-   - Spec parameters:
-     - `k_regimes=2`
-   - Reported p-value used in multiplicity correction:
-     - `regime_result["regime_mean_diff_p_value"]`
+### Fama-MacBeth regression
+- **Name:** Fama-MacBeth regression
+- **Library:** specification says `linearmodels`
+- **Parameters/specification actually visible:**
+  - Used as `_fama_macbeth_regression(sim_df)`
+  - Output may include `concentration_pvalue`
+- **Evidence:**
+  - `SigmaJob2.run()` calls `_fama_macbeth_regression(sim_df)`
+  - `PAPER.md`: “Fama-French three-factor OLS regression (linearmodels, Fama-MacBeth)”  
+    - This wording conflates Fama-French OLS and Fama-MacBeth, but both are invoked in code.
 
-6. **Fama-MacBeth regression**
-   - Method call: `_fama_macbeth_regression(sim_df)`
-   - Library:
-     - output version tracking includes `"linearmodels"`
-     - `PAPER.md` says `linearmodels, Fama-MacBeth`
-   - Spec parameters:
-     - described in `PAPER.md` as “Fama-French three-factor OLS regression (linearmodels, Fama-MacBeth)”
-   - Reported p-value used in multiplicity correction:
-     - `fama_result.get("concentration_pvalue", 1.0)`
+### Fama-French three-factor OLS
+- **Name:** Fama-French three-factor OLS regression
+- **Library:** specification says `linearmodels`
+- **Parameters/specification actually visible:**
+  - Three-factor OLS
+  - Called as `_fama_french_three_factor_ols(sim_df)`
+- **Evidence:**
+  - `SigmaJob2.run()` calls `_fama_french_three_factor_ols(sim_df)`
+  - `PAPER.md`: “Fama-French three-factor OLS regression (linearmodels, Fama-MacBeth)”
 
-7. **DCC-GARCH cross-asset correlation summary**
-   - Method call: `_dcc_garch_summary()`
-   - Output fields written:
-     - `method`
-     - `n_pairs`
-     - `mean_dcc_correlation`
-     - `error`
-   - Spec name:
-     - DCC-GARCH cross-asset correlation
-   - Library:
-     - not shown in provided code excerpt
-   - Note:
-     - not included in the Bonferroni p-value list in the visible code
+### DCC-GARCH cross-asset correlation
+- **Name:** DCC-GARCH cross-asset correlation
+- **Library:** not explicitly specified
+- **Parameters/specification actually visible:**
+  - Summary output fields:
+    - `method`
+    - `n_pairs`
+    - `mean_dcc_correlation`
+    - `error`
+- **Evidence:**
+  - `PAPER.md`: “DCC-GARCH cross-asset correlation”
+  - `SigmaJob2.run()` calls `_dcc_garch_summary()`
 
-8. **Bonferroni correction**
-   - Method call:
-     - `_bonferroni([...], n_tests=6, primary_metric=primary_metric)`
-   - Exact implemented parameters:
-     - `n_tests=6`
-   - Inputs corrected:
-     - Newey-West t-test p-value
-     - GARCH alpha p-value
-     - Deflated Sharpe p-value
-     - Markov regime mean-difference p-value
-     - Bootstrap mean<0 p-value
-     - Fama-MacBeth concentration p-value
+### Bonferroni multiple-testing correction
+- **Name:** Bonferroni correction
+- **Library:** internal method
+- **Parameters/specification:**
+  - `n_tests=6`
+  - Adjusted threshold `p < 0.0083`
+  - Applied to these six p-values:
+    1. Newey-West t-test `p_value`
+    2. GARCH `alpha_pvalue`
+    3. Deflated Sharpe `p_value`
+    4. Markov regime `regime_mean_diff_p_value`
+    5. Bootstrap `mean_lt_zero_p_value`
+    6. Fama-MacBeth `concentration_pvalue` (default `1.0` if absent)
+- **Evidence:**
+  - `SigmaJob2.run()` explicit `_bonferroni([...], n_tests=6, primary_metric=primary_metric)`
+  - `PAPER.md` and `env.py` constants specify adjusted threshold `p < 0.0083`
 
 ## 2. Data
 
-### Source
-Implemented data source in `agents/miner/miner.py`:
-- **Yahoo Finance via `yfinance`**
-- Function calls:
-  - `yf.download(ticker, start=START, end=END, auto_adjust=True, progress=False)`
+### Actual implemented data source
+- **Source:** `yfinance`
+- **Library:** `import yfinance as yf`
+- **Evidence:** `agents/miner/miner.py`
 
-Spec text in `PAPER.md` says:
-- **WRDS Compustat Futures — GSCI energy sector**
-
-But the actual code in `miner.py` downloads from **Yahoo Finance**, not WRDS.
-
-### Tickers
-Exact implemented tickers in `agents/miner/miner.py`:
+### Tickers actually used
 - `CL=F` → `crude_oil_wti`
 - `NG=F` → `natural_gas`
 
 ### Date range
-Exact implemented constants:
-- `START_DATE = "2000-01-01"`
-- `END_DATE_EXCLUSIVE = "2024-01-01"`
-- Effective intended inclusive coverage:
-  - through `2023-12-31`
-- Passport writes:
+- **Configured download range:**
+  - `START_DATE = "2000-01-01"`
+  - `END_DATE_EXCLUSIVE = "2024-01-01"`
+- **Interpretation in code:**
+  - Includes data through `2023-12-31`
+- **Passport-reported range:**
   - `"start": "2000-01-01"`
   - `"end": "2023-12-31"`
 
-### Adjustment method
-Actual download setting:
-- `auto_adjust=True`
-
-Spec text also states:
-- Roll convention: `ratio_backward`
-- Adjustment method: `ratio_backward`
-
-But in the provided implementation of `miner.py`, the actual market data retrieval uses:
-- **Yahoo Finance adjusted prices via `auto_adjust=True`**
-not an explicit futures roll construction routine.
+### Adjustment method actually used
+- **Method:** `auto_adjust=True` in `yf.download(...)`
+- **Applied in:**
+  - `download_close_series`
+  - `download_spread_proxy_series`
 
 ### Return construction
-Implemented in `build_returns_frame()`:
-- inner join across ticker close series
-- sorted by date
-- log returns:
-  - `np.log(close_df / close_df.shift(1)).dropna()`
+- **Formula:** log returns
+  - `returns = np.log(close_df / close_df.shift(1)).dropna()`
+
+### Join/alignment
+- Close series concatenated with `join="inner"`
+- Spread proxy series concatenated with `join="inner"`
+- Both sorted by index
 
 ### Exclusion / filtering rules actually implemented
-1. **Minimum trading history**
-   - retain only columns with at least `100` non-null trading days
+- **Minimum trading history:**
+  - retain only columns with at least `100` non-null trading days
+- **Macro exclusion window:**
+  - `apply_macro_exclusion_window(df, exclusion_days=5)`
+  - removes rows within ±5 calendar days of dates in `FOMC_DATES_APPROX`
+  - comment says CPI/FOMC exclusion; actual list shown is approximate FOMC dates sample
+- **Bid-ask spread filter:**
+  - `apply_bid_ask_spread_filter(..., threshold=0.02)`
+  - spread proxy = `abs(high - low) / close`
+  - removes rows where max spread proxy across assets exceeds `0.02`
 
-2. **Macro announcement exclusion**
-   - function: `apply_macro_exclusion_window(df, exclusion_days=5)`
-   - exclusion window:
-     - `±5` calendar days around dates in `FOMC_DATES_APPROX`
-   - comment says FOMC and CPI, but visible list is `FOMC_DATES_APPROX`
-   - applied to return rows
+### Specification-vs-implementation note
+- `PAPER.md` specifies:
+  - **Source:** WRDS Compustat Futures
+  - **Universe:** GSCI energy sector
+  - **Period:** 2000–2024
+  - **Roll convention:** `ratio_backward`
+  - **Adjustment method:** `ratio_backward`
+- **But actual implemented miner code uses:** `yfinance`, adjusted Yahoo data, not WRDS roll-adjusted futures construction.
 
-3. **Bid-ask spread filter**
-   - function: `apply_bid_ask_spread_filter(..., threshold=0.02)`
-   - spread proxy:
-     - `(High - Low).abs() / Close`
-   - row removed if:
-     - `aligned_spread.max(axis=1) > 0.02`
+## 3. Simulation: agent names and behaviors
 
-## 3. Simulation agents and behaviors
+Defined in `CommodityFuturesEnv.possible_agents` and `agents/forge/agents.py`.
 
-From `agents/forge/agents.py` and `agents/forge/env.py`, the six agents are:
+### `passive_gsci`
+- **Behavior:** always returns action `1`
+- **Action meaning:** from env action space comment, `1=long`
+- **Implementation:** `PassiveGSCI.act()` ignores observation and always longs
 
-1. **passive_gsci / `PassiveGSCI`**
-   - Behavior:
-     - ignores observation
-     - always returns action `1`
-   - In env action semantics:
-     - `0=hold, 1=long, 2=short`
+### `trend_follower`
+Two behaviors appear:
 
-2. **trend_follower / `TrendFollower`**
-   - Base class behavior in `agents.py`:
-     - returns `1` if `obs[0] > obs[4]`, else `2`
-   - Runner override in training episode (`_run_single_episode`):
-     - computes 12-month momentum using environment price history
-     - `lookback_window = 252`
-     - `momentum_signal = current_price - lookback_price`
-     - action `1` if momentum positive, else `2`
+#### Base class behavior in `agents.py`
+- **Rule:** `1 if obs[0] > obs[4] else 2`
+- Long if current observed value exceeds `obs[4]`, else short
 
-3. **mean_reversion / `MeanReversion`**
-   - Behavior:
-     - if `obs[0] > obs[1] * 1.02`: action `2`
-     - if `obs[0] < obs[1] * 0.98`: action `1`
-     - else action `0`
+#### Actual runner episode behavior for training in `_run_single_episode`
+- Overrides class logic for this agent
+- **Rule:**
+  - `p0 = obs[0]`
+  - `lookback_idx = max(0, len(self.env._price_history) - self.lookback_window)`
+  - `lookback_price = self.env._price_history[lookback_idx]`
+  - `momentum_signal = p0 - lookback_price`
+  - action `1` if `momentum_signal > 0`, else `2`
+- **Interpretation:** 12-month momentum, long if current price above lookback price, otherwise short
+- **Lookback:** `252`
 
-4. **liquidity_provider / `LiquidityProvider`**
-   - Behavior:
-     - alternates between action `1` and action `2`
-     - starts with counter `0`, so first action is `1`
-     - increments counter each act call
+### `mean_reversion`
+- **Rule:**
+  - if `obs[0] > obs[1] * 1.02`: action `2` (short)
+  - if `obs[0] < obs[1] * 0.98`: action `1` (long)
+  - else action `0` (hold)
+- **Interpretation:** fade ±2% deviations relative to `obs[1]`
 
-5. **macro_allocator / `MacroAllocator`**
-   - Parameter:
-     - `passive_threshold: float = 0.30`
-   - In runner instantiated as:
-     - `MacroAllocator(passive_threshold=self.passive_concentration)`
-   - Behavior:
-     - returns `1` if `obs[6] < self.passive_threshold`
-     - else `0`
-   - Since `obs[6]` is passive concentration in env observation, this compares concentration to threshold
+### `liquidity_provider`
+- **Rule:** alternates actions each call
+  - even counter: `1`
+  - odd counter: `2`
+- **Stateful:** internal `_counter`
+- **Runner behavior:** reinitialized at start of each `_run_single_episode`
 
-6. **meta_rl / `MetaRL`**
-   - Placeholder class behavior in `agents.py`:
-     - random action `random.randint(0, 2)`
-   - Actual training/evaluation behavior in runner:
-     - action chosen by `self.cem.act(obs, weights)`
-     - `CEM.act` computes:
-       - `logits = obs @ weights`
-       - action = `argmax(logits)`
+### `macro_allocator`
+- **Parameter:** `passive_threshold: float = 0.30`
+- **Runner instantiation:** `MacroAllocator(passive_threshold=self.passive_concentration)`
+- **Rule:** `1 if obs[6] < passive_threshold else 0`
+- **Interpretation:** long when observation slot 6 is below threshold, otherwise hold
 
-### Environment action semantics
-From `agents/forge/env.py`:
-- `Discrete(3)`
-- `0 = hold`
-- `1 = long`
-- `2 = short`
+### `meta_rl`
+- **Base class behavior in `agents.py`:**
+  - random action `random.randint(0, 2)`
+- **Actual runner behavior:**
+  - action chosen by `self.cem.act(obs, weights)`
+  - `CEM.act`: compute `logits = obs @ weights`, choose `argmax(logits)`
+- **Interpretation:** learned allocation/policy over 3 discrete actions via linear logits over 10-dim observation
 
-### Environment observation contents
-Visible `observe()` fields:
-1. `self._price_history[0]`
-2. `self._price_history[1]`
-3. `self._price_history[2]`
-4. `self._price_history[3]`
-5. `self._price_history[4]`
-6. `self._current_volatility`
-7. `self.passive_concentration`
-8. `self.portfolio_values[agent]`
-9. `self.cash[agent]`
-10. `float(self.current_step)`
+### Environment/action setup
+- **Agents:** 6 total
+  - `passive_gsci`
+  - `trend_follower`
+  - `mean_reversion`
+  - `liquidity_provider`
+  - `macro_allocator`
+  - `meta_rl`
+- **Observation space:** shape `(10,)`, dtype `float32`
+- **Action space:** `Discrete(3)`
+  - `0=hold`
+  - `1=long`
+  - `2=short`
+
+### Passive capital scenarios
+- Valid concentrations in env:
+  - `0.10`
+  - `0.30`
+  - `0.60`
+- Labels in spec:
+  - Low = 10%
+  - Medium = 30%
+  - High = 60%
 
 ## 4. Seeds
 
-Exact seed values used:
-- `1337`
-- `42`
-- `9999`
+### Exact seed values
+- `[1337, 42, 9999]`
 
-Locations:
-- `agents/forge/env.py`: `SEED_POLICY: "seeds = [1337, 42, 9999]"`
-- `PAPER.md`: same
-- `agents/forge/full_run.py`: `seeds = [1337, 42, 9999]`
-- `agents/forge/modal_run.py`: `seeds = [1337, 42, 9999]`
+### Where used
+- `PAPER.md`: seed policy
+- `env.py`: `SEED_POLICY = "seeds = [1337, 42, 9999]"`
+- `full_run.py`: `seeds = [1337, 42, 9999]`
+- `modal_run.py`: `seeds = [1337, 42, 9999]`
 
-Actual seeding in runner:
-- `np.random.seed(self.seed)`
-- `random.seed(self.seed)`
+### Seeding behavior in runner
+- In `ForgeRunner.__init__`:
+  - `np.random.seed(self.seed)`
+  - `random.seed(self.seed)`
 
-Environment reset optionally seeds NumPy:
-- `reset(seed=...)` sets `np.random.seed(seed)` if provided
+### Additional sigma seed usage
+- `SigmaJob2.run()`:
+  - `seed = self._seed_from_pap_lock()`
+  - bootstrap uses this seed: `_bootstrap_ci(..., seed=seed, n_resamples=1000)`
 
-Sigma job also derives a seed for bootstrap:
-- `seed = self._seed_from_pap_lock()`
-- exact numeric value not visible in provided excerpt, so cannot report it
+### Seed consistency requirement
+- `PAPER.md`: all three seeds must produce qualitatively consistent results
+- finding valid only if it holds across all three seeds
+- `SigmaJob2.run()` calls `_validate_seed_consistency(sim_df)`
 
 ## 5. Thresholds
 
-### Significance thresholds
-Implemented/spec constants:
-- Primary:
-  - `p < 0.05` two-tailed
-- Bonferroni:
-  - `p < 0.0083`
-  - `n_tests = 6`
+### Statistical significance thresholds
+- **Primary:** `p < 0.05`, two-tailed
+- **Bonferroni-adjusted:** `p < 0.0083`
+- **Number of simultaneous tests:** `6`
 
-Locations:
-- `agents/forge/env.py`
-- `PAPER.md`
-- `sigma_job2.py` uses `_bonferroni(..., n_tests=6, ...)`
-
-### Minimum effect size
-Exact threshold:
-- `-0.15` Sharpe units
-
-Evidence:
-- `PAPER.md`: minimum effect size `-0.15 Sharpe units`
-- `agents/forge/env.py`: `MINIMUM_EFFECT_SIZE: "-0.15 Sharpe units"`
-- `sigma_job2.py` writes:
+### Minimum effect threshold
+- **Minimum effect size:** `-0.15 Sharpe units`
+- In `SigmaJob2.run()` minimum effect output:
   - `"threshold": -0.15`
 
-### Other implemented thresholds / cutoffs relevant to spec
-- Passive concentration scenarios:
-  - `0.10`, `0.30`, `0.60`
-- Hypothesis threshold / macro allocator default threshold:
-  - `0.30`
-- Mean reversion trigger bands:
-  - upper: `obs[0] > obs[1] * 1.02`
-  - lower: `obs[0] < obs[1] * 0.98`
-- Bid-ask spread exclusion threshold:
-  - `0.02` = `2%`
-- Minimum trading history:
-  - `100` trading days
-- Macro exclusion window:
-  - `5` days on each side
-- Near-zero Sharpe std guard:
-  - `std < 1e-8` returns `0.0`
+### Hypothesis threshold for passive concentration
+- Above `30%` of open interest is the hypothesis threshold
+- Scenarios include low `10%`, medium `30%`, high `60%`
+
+### Data exclusion thresholds
+- **Bid-ask spread filter:** `> 2%` of contract price, implemented as threshold `0.02`
+- **Minimum trading history:** fewer than `100` trading days excluded
+- **Macro exclusion window:** ±`5` days around macro announcement dates
+
+### Numerical stability threshold in Sharpe computation
+- In `ForgeRunner.sharpe`:
+  - if `std < 1e-8`, return `0.0`
 
 ## 6. Windows
 
-Exact windows/lookbacks implemented:
+### Momentum lookback window
+- **Value:** `252`
+- **Meaning:** 12-month momentum
+- **Locations:**
+  - `ForgeRunner.lookback_window = 252`
+  - `env.py`: `MOMENTUM_LOOKBACK_WINDOW = 252`
 
-1. **Momentum lookback window**
-   - `252`
-   - Locations:
-     - `ForgeRunner.lookback_window = 252`
-     - `MOMENTUM_LOOKBACK_WINDOW = 252`
-   - Used for:
-     - 12-month momentum signal
+### Rolling primary metric window
+- **Value:** `252` days
+- **Meaning:** rolling Sharpe differential annualized over rolling 252-day windows
+- **Locations:**
+  - `PAPER.md`: primary metric
+  - `env.py`: `ROLLING_CORRELATION_WINDOW = 252`
+  - `SigmaJob2.run()` calls `_rolling_sharpe_differential(sim_df)`
 
-2. **Primary metric rolling window**
-   - `252` days
-   - `ROLLING_CORRELATION_WINDOW = 252`
-   - `PAPER.md`: Sharpe ratio differential annualized over rolling `252`-day windows
-   - `sigma_job2.py` computes:
-     - `_rolling_sharpe_differential(sim_df)`
+### Fitness trailing window
+- **Value:** trailing `252` episodes
+- **Evaluation frequency:** every `1000` training steps / episodes, and at final episode
+- **Location:** `ForgeRunner.run()`
 
-3. **Fitness trailing window**
-   - trailing `252` episodes
-   - evaluated every `1000` training steps
-   - code:
-     - `trailing = self.rewards_history[-252:]`
-     - `if episode % 1000 == 0 or episode == self.n_episodes`
+### Episode length
+- **Default:** `252`
+- **Location:** `CommodityFuturesEnv.__init__(..., episode_length: int = 252)`
 
-4. **Episode length**
-   - default `252`
-   - `CommodityFuturesEnv(..., episode_length: int = 252)`
-
-5. **Macro exclusion window**
-   - `5` days before/after listed macro dates
-   - implemented as `exclusion_days=5`
+### Macro exclusion window
+- **Value:** `5` days on each side of listed macro dates
+- **Function:** `apply_macro_exclusion_window(..., exclusion_days=5)`
 
 ## 7. Fitness function for MetaRL
 
-Exact implemented formula from `agents/forge/runner.py`:
-
-- Fitness is evaluated every `1000` episodes/training steps, and at the final episode.
-- The fitness input series is:
-  - `trailing = self.rewards_history[-252:]`
-- `self.rewards_history` stores:
-  - `float(np.max(scores))` per episode
-  - where `scores` are candidate episode rewards for the CEM population
-- Fitness computation:
-  - `fitness = self.sharpe(trailing)`
-
-Exact Sharpe formula in `ForgeRunner.sharpe(step_returns)`:
+### Exact implemented formula
+From `ForgeRunner.sharpe(step_returns)`:
 ```python
 arr = np.asarray(step_returns, dtype=np.float64)
 mean = arr.mean()
@@ -351,70 +336,61 @@ if std < 1e-8:
 return float((mean / std) * np.sqrt(252))
 ```
 
-So the implemented MetaRL fitness function is:
+### How it is used for MetaRL fitness during training
+- Every `1000` episodes, or at the final episode:
+  - `trailing = self.rewards_history[-252:]`
+  - `fitness = self.sharpe(trailing)`
+- So the training fitness is:
+  - **annualized Sharpe ratio of the trailing 252 episode-level rewards**
+- Stored description:
+  - `'fitness_function': 'trailing_252_episode_sharpe_every_1000_steps'`
 
-\[
-\text{fitness} =
-\begin{cases}
-0.0 & \text{if } n < 2 \\
-0.0 & \text{if } \sigma < 10^{-8} \\
-\left(\frac{\bar{x}}{\sigma}\right)\sqrt{252} & \text{otherwise}
-\end{cases}
-\]
-
-where:
-- \(x\) is the trailing window of the last up to `252` values from `rewards_history`
-- each `rewards_history` value is the **maximum candidate score** in that episode:
-  - `np.max(scores)`
-- each candidate score is the episode mean of MetaRL step rewards:
-  - `_run_single_episode(weights)` returns `episode_mean = mean(meta_step_rewards)`
+### Episode scoring feeding fitness history
+- For each CEM candidate in `_run_single_episode(weights)`:
+  - collect `meta_step_rewards`
+  - return `episode_mean = np.mean(meta_step_rewards)` if non-empty else `0.0`
+- `self.rewards_history.append(np.max(scores))`
+- Therefore the trailing series used in fitness is the history of **best candidate episode mean rewards per episode**
+- Then Sharpe is computed on that trailing history using:
+  - `mean(trailing_rewards) / std(trailing_rewards) * sqrt(252)`
 
 ## Consolidated specification-level parameter list
 
 ### Statistical/econometric parameters
 - Newey-West HAC lags: `4`
-- Two-tailed significance: `p < 0.05`
-- Bonferroni corrected threshold: `p < 0.0083`
-- Number of simultaneous tests in Bonferroni: `6`
-- GARCH parameters: `(p=1, q=1)`, Normal distribution
-- Markov switching regimes: `k_regimes=2`
+- GARCH: `(1,1)` with Normal distribution
+- Markov switching regimes: `2`
 - Bootstrap resamples: `1000`
-- Deflated Sharpe `n_trials=6`
+- Deflated Sharpe trials: `6`
+- Bonferroni simultaneous tests: `6`
 
 ### Data parameters
-- Source actually implemented: `yfinance`
+- Actual source: `yfinance`
 - Tickers: `CL=F`, `NG=F`
-- Date range requested: `2000-01-01` to `2024-01-01` exclusive
-- Effective stated coverage: through `2023-12-31`
-- Price adjustment in download: `auto_adjust=True`
+- Renamed series: `crude_oil_wti`, `natural_gas`
+- Download start: `2000-01-01`
+- Download end exclusive: `2024-01-01`
+- Included through: `2023-12-31`
+- Adjustment: `auto_adjust=True`
 - Returns: log returns
-- Minimum history filter: `100` trading days
-- Macro exclusion window: `±5` days
-- Bid-ask spread threshold: `2%`
+- History filter: minimum `100` trading days
+- Spread filter threshold: `0.02`
+- Macro exclusion window: `5` days
 
 ### Simulation parameters
-- Agents:
-  - `passive_gsci`
-  - `trend_follower`
-  - `mean_reversion`
-  - `liquidity_provider`
-  - `macro_allocator`
-  - `meta_rl`
-- Passive concentration scenarios:
-  - `0.10`, `0.30`, `0.60`
-- Episode length:
-  - `252`
-- Training episodes default:
-  - `500_000`
-
-### Window parameters
-- Momentum lookback: `252`
-- Rolling primary metric window: `252`
-- Fitness trailing window: `252`
-- Fitness evaluation frequency: every `1000` steps/episodes
+- Passive concentrations: `0.10`, `0.30`, `0.60`
+- Episode length: `252`
+- Observation dimension: `10`
+- Action count: `3` (`hold`, `long`, `short`)
+- Training episodes default: `500_000`
 
 ### Seed parameters
-- Seeds: `[1337, 42, 9999]`
+- Seeds: `1337`, `42`, `9999`
 
-### Minimum effect
-- Sharpe differential threshold: `-0.15`
+### Thresholds/windows
+- Primary significance: `p < 0.05`
+- Bonferroni significance: `p < 0.0083`
+- Minimum effect: `-0.15` Sharpe units
+- Momentum lookback: `252`
+- Rolling/fitness window: `252`
+- Fitness evaluation interval: `1000` episodes
