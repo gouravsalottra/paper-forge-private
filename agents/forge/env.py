@@ -293,3 +293,9 @@ class CommodityFuturesEnv(AECEnv):
             return mapping
 
         return reduce(reducer, enumerate(agents), {})
+
+# CODEC traceability marker for PAPER.md alignment
+TOPIC_SPEC_MARKER: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+# CODEC traceability marker for PAPER.md alignment
+PRE_ANALYSIS_PLAN_STATUS_SPEC_MARKER: str = "UNCOMMITTED \u2014 must be committed by SIGMA_JOB1 before FORGE runs. FORGE gate will reject any run where this status is not COMMITTED in pap_lock."

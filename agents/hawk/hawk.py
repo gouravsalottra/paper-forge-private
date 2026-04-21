@@ -27,6 +27,8 @@ class HawkAgent:
         context = self._load_review_context()
         report = self._write_referee_report(context, revision_number)
         routing = self._parse_routing(report)
+        methodology_score = self._score_methodology_rubric(context)
+        routing["methodology_score_10"] = methodology_score
 
         out_dir = self.output_dir / self.run_id
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -205,6 +207,11 @@ MAJOR_REVISION with a [CODEC] mandatory item."""
     def _decide(routing: dict, revision_number: int) -> str:
         rec = routing.get("recommendation", "MAJOR_REVISION")
         mandatory = routing.get("mandatory_items", [])
+        methodology_score = float(routing.get("methodology_score_10", 0.0))
+
+        # PAPER.md requirement: minimum 7/10 methodology rubric to pass.
+        if methodology_score < 7.0:
+            return "REVISION_REQUESTED" if revision_number < 3 else "ESCALATE"
 
         if rec == "ACCEPT" and not mandatory:
             return "APPROVED"
@@ -213,6 +220,26 @@ MAJOR_REVISION with a [CODEC] mandatory item."""
         if mandatory and revision_number >= 5:
             return "ESCALATE"
         return "REVISION_REQUESTED"
+
+    def _score_methodology_rubric(self, context: dict) -> float:
+        prompt = (
+            "Score the paper methodology from 1 to 10 using strict finance-review standards.\n"
+            "Return JSON only: {\"methodology_score_10\": <number>}.\n\n"
+            f"PAPER:\n{context.get('paper_draft', '')[:6000]}\n\n"
+            f"STATS:\n{context.get('stats_tables_csv', '')[:3000]}\n"
+        )
+        raw = self._call_llm(
+            "You are a strict methodology scorer. Return valid JSON only.",
+            prompt,
+            max_completion_tokens=300,
+        )
+        try:
+            clean = re.sub(r"```json|```", "", raw).strip()
+            parsed = json.loads(clean)
+            score = float(parsed.get("methodology_score_10", 0.0))
+            return max(0.0, min(10.0, score))
+        except Exception:
+            return 0.0
 
     def _call_llm(self, system: str, user: str, max_completion_tokens: int = 2000) -> str:
         if self.llm_client is not None:

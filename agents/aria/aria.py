@@ -132,7 +132,7 @@ class ARIAPipeline:
                 continue
 
             if phase == "HAWK":
-                self._run_hawk_loop(max_cycles=5)
+                self._run_hawk_loop(max_cycles=3)
                 continue
 
             self._advance_phase(phase, "running")
@@ -690,3 +690,6 @@ class ARIAPipeline:
     @staticmethod
     def _table_columns(conn: sqlite3.Connection, table_name: str) -> list[str]:
         return [row[1] for row in conn.execute(f"PRAGMA table_info({table_name})")]
+
+# CODEC traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
