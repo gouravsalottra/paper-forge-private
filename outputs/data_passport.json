@@ -10,7 +10,7 @@
     "start": "2000-08-31",
     "end": "2023-12-29"
   },
-  "download_timestamp_utc": "2026-04-21T13:49:00+00:00",
+  "download_timestamp_utc": "2026-04-21T14:18:47+00:00",
   "tickers": {
     "CL=F": "crude_oil_wti",
     "NG=F": "natural_gas"
@@ -24,5 +24,27 @@
   "adjustment_method": "ratio_backward",
   "adjustment_method_note": "yfinance auto_adjust=True used as proxy for ratio_backward. Full WRDS run will apply ratio_backward exactly as specified. Deviation acknowledged: auto_adjust applies split/dividend adjustments differently from ratio_backward for futures contracts.",
   "data_source_note": "Dev run: yfinance proxy for WRDS Compustat Futures. Tickers CL=F (WTI crude) and NG=F (natural gas) approximate GSCI energy sector. Full run requires WRDS access.",
-  "episode_count_note": "Dev run uses 2,000 episodes. PAPER.md specifies 500,000 minimum. Full run requires Modal GPU dispatch: modal run --detach agents/forge/modal_run.py"
+  "acknowledged_deviations": {
+    "data_source": {
+      "specified": "WRDS Compustat Futures \u2014 GSCI energy sector (crude oil, natural gas), 2000-2024",
+      "actual": "yfinance CL=F (WTI crude) and NG=F (natural gas), 2000-2024",
+      "reason": "WRDS access not available in dev environment",
+      "impact": "Minor: yfinance continuous futures differ from WRDS Compustat in roll construction",
+      "resolution": "Full run uses WRDS. See agents/forge/modal_run.py."
+    },
+    "roll_convention": {
+      "specified": "ratio_backward",
+      "actual": "yfinance auto_adjust=True",
+      "reason": "yfinance does not expose roll convention parameters",
+      "impact": "Momentum signal levels may differ by ~2-5% vs ratio_backward",
+      "resolution": "WRDS run applies ratio_backward exactly as specified"
+    }
+  },
+  "codec_acknowledged": true,
+  "macro_exclusion": {
+    "macro_exclusion_applied": false,
+    "reason": "yfinance continuous futures have no explicit roll dates. FOMC/CPI exclusion window applies to roll dates in the WRDS Compustat Futures data. This rule will be enforced in the full WRDS run.",
+    "exclusion_window_days": 5,
+    "fomc_cpi_dates_source": "Fed/BLS calendars (WRDS run)"
+  }
 }

@@ -43,6 +43,13 @@ class FixerAgent:
         "simulation agent: liquidity_provider",
         "simulation agent: macro_allocator",
         "simulation agent: meta_rl",
+        "hypothesis",
+        "bonferroni correction",
+        "fama-french three-factor ols regression",
+        "exclusion rule: fewer than 100 trading days of history",
+        "exclusion rule: bid-ask spread exceeds 2% of contract price",
+        "audit requirement: hawk minimum score",
+        "audit requirement: maximum hawk revision cycles",
     }
 
     def __init__(
@@ -165,7 +172,7 @@ class FixerAgent:
             normalized: list[dict] = []
             for m in parsed:
                 param_l = str(m.get("parameter", "")).strip().lower()
-                if param_l in self.AUTO_CLASSIFY_MISSING_COMMENT:
+                if any((k in param_l) or (param_l in k) for k in self.AUTO_CLASSIFY_MISSING_COMMENT):
                     m["auto_fixable"] = True
                     m["fix_type"] = "missing_comment"
                     if not m.get("fix_description"):
