@@ -56,31 +56,79 @@ class ARIAPipeline:
                     if flag in ("PASS", "WARN"):
                         self._advance_phase("CODEC", "done")
                         if flag == "WARN":
-                            print(
-                                f"CODEC WARN: minor discrepancies found. "
-                                f"QUILL will acknowledge them in limitations. "
-                                f"Read paper_memory/{self.run_id}/codec_mismatch.md"
-                            )
+                            print(f"CODEC WARN: minor discrepancies. QUILL will acknowledge in limitations section.")
                         break
-                    else:
+
+                    print(f"\nCODEC FAIL (attempt {attempt}). Running FIXER...")
+                    from agents.fixer.fixer import FixerAgent
+
+                    fixer = FixerAgent(
+                        run_id=self.run_id,
+                        db_path=self.db_path,
+                        output_dir="paper_memory",
+                    )
+                    fixer_result = fixer.run()
+                    self._write_result_flag(
+                        agent="FIXER",
+                        job=f"after_codec_{attempt}",
+                        flag=fixer_result["result_flag"],
+                    )
+
+                    fixes = fixer_result.get("fixes_applied", 0)
+                    escalations = fixer_result.get("requires_human", 0)
+
+                    print(f"FIXER: {fixes} fixes applied, {escalations} need human.")
+
+                    if escalations > 0:
+                        self._advance_phase("CODEC", "failed")
+                        self._set_run_status("failed")
+                        esc_details = "\n".join(
+                            f"  {i + 1}. [{e['parameter']}] {e.get('human_action', '')}"
+                            for i, e in enumerate(fixer_result.get("escalations", []))
+                        )
+                        raise PipelineHaltError(
+                            f"\n"
+                            f"{'=' * 60}\n"
+                            f"FIXER could not fully resolve CODEC mismatches\n"
+                            f"(CODEC attempt {attempt}/{max_codec_attempts})\n"
+                            f"{'=' * 60}\n"
+                            f"Automated fixes applied: {fixes}\n"
+                            f"Requires human action: {escalations}\n"
+                            f"\n"
+                            f"Take these specific actions:\n"
+                            f"{esc_details}\n"
+                            f"\n"
+                            f"Then re-run:\n"
+                            f"  python run_aria_pipeline.py --resume {self.run_id} --from CODEC\n"
+                            f"\n"
+                            f"Full fix report:\n"
+                            f"  cat paper_memory/{self.run_id}/fixer_report.md\n"
+                            f"{'=' * 60}"
+                        )
+
+                    if fixes == 0:
                         self._advance_phase("CODEC", "failed")
                         self._set_run_status("failed")
                         raise PipelineHaltError(
                             f"\n"
                             f"{'=' * 60}\n"
-                            f"CODEC FAIL — pipeline halted (attempt {attempt}/{max_codec_attempts})\n"
+                            f"CODEC FAIL — FIXER found no automated fixes\n"
+                            f"(attempt {attempt}/{max_codec_attempts})\n"
                             f"{'=' * 60}\n"
-                            f"The code does not match what PAPER.md specifies.\n"
-                            f"This means a paper cannot be written yet.\n"
-                            f"\n"
-                            f"Read the mismatch report:\n"
-                            f"  cat paper_memory/{self.run_id}/codec_mismatch.md\n"
-                            f"\n"
-                            f"Fix the gaps in the code so it implements what PAPER.md describes.\n"
-                            f"Then re-run from CODEC:\n"
-                            f"  python run_aria_pipeline.py --resume {self.run_id} --from CODEC\n"
+                            f"This mismatch requires manual investigation.\n"
+                            f"cat paper_memory/{self.run_id}/codec_mismatch.md\n"
+                            f"cat paper_memory/{self.run_id}/fixer_report.md\n"
                             f"{'=' * 60}"
                         )
+
+                    print(f"FIXER applied {fixes} fixes. Re-running CODEC...")
+                else:
+                    self._advance_phase("CODEC", "failed")
+                    self._set_run_status("failed")
+                    raise PipelineHaltError(
+                        f"CODEC failed after {max_codec_attempts} attempts with FIXER. "
+                        f"cat paper_memory/{self.run_id}/fixer_report.md"
+                    )
                 continue
 
             if phase == "HAWK":
@@ -354,6 +402,15 @@ class ARIAPipeline:
             from agents.codec.codec import CodecAgent
 
             agent = CodecAgent(run_id=self.run_id, db_path=self.db_path, output_dir="paper_memory", llm_client=None)
+            return agent.run()
+        if agent_name == "FIXER":
+            from agents.fixer.fixer import FixerAgent
+
+            agent = FixerAgent(
+                run_id=self.run_id,
+                db_path=self.db_path,
+                output_dir="paper_memory",
+            )
             return agent.run()
         if agent_name == "QUILL":
             from agents.quill.quill import QuillAgent

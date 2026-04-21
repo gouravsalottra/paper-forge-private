@@ -13,6 +13,7 @@ AGENT_SERVER_MAP: dict[str, str] = {
     "FORGE": "forge_cluster",
     "SIGMA_JOB2": "local_stats",
     "CODEC": "llm",
+    "FIXER": "local",
     "QUILL": "llm",
     "HAWK": "llm",
 }
@@ -24,6 +25,7 @@ AGENT_TIMEOUTS_SECONDS: dict[str, int] = {
     "FORGE": 86400,
     "SIGMA_JOB2": 300,
     "CODEC": 600,
+    "FIXER": 600,
     "QUILL": 900,
     "HAWK": 600,
 }
