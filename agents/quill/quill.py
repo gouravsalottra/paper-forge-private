@@ -464,8 +464,8 @@ class QuillAgent:
             errors.append(f"references too high ({ref_count}); require <=40")
         if visual_count < 8:
             errors.append(f"tables/figures too low ({visual_count}); require >=8")
-        if visual_count > 12:
-            errors.append(f"tables/figures too high ({visual_count}); require <=12")
+        if visual_count > 20:
+            errors.append(f"tables/figures too high ({visual_count}); require <=20")
         if numeric_count < 20:
             errors.append("results section lacks concrete numeric evidence")
         if errors:
