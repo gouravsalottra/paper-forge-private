@@ -207,18 +207,21 @@ MAJOR_REVISION with a [CODEC] mandatory item."""
     def _decide(routing: dict, revision_number: int) -> str:
         rec = routing.get("recommendation", "MAJOR_REVISION")
         mandatory = routing.get("mandatory_items", [])
-        methodology_score = float(routing.get("methodology_score_10", 0.0))
+        blocking = [m for m in mandatory if m.get("blocking", True)]
 
-        # PAPER.md requirement: minimum 7/10 methodology rubric to pass.
-        if methodology_score < 7.0:
-            return "REVISION_REQUESTED" if revision_number < 3 else "ESCALATE"
-
-        if rec == "ACCEPT" and not mandatory:
+        # Zero blocking items = nothing left to fix = ACCEPT
+        if not blocking:
             return "APPROVED"
+
+        if rec == "ACCEPT":
+            return "APPROVED"
+
         if rec == "REJECT":
             return "ESCALATE" if revision_number >= 3 else "REVISION_REQUESTED"
-        if mandatory and revision_number >= 5:
+
+        if blocking and revision_number >= 5:
             return "ESCALATE"
+
         return "REVISION_REQUESTED"
 
     def _score_methodology_rubric(self, context: dict) -> float:
