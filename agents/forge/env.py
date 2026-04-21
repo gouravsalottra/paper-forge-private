@@ -9,6 +9,46 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
+# PAPER.md specification: Audit Requirement: Maximum HAWK revision cycles
+AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES: str = "3"
+
+
+# PAPER.md specification: Audit Requirement: HAWK minimum score
+AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE: str = "7/10 on methodology rubric"
+
+
+# PAPER.md specification: Exclusion Rule: bid-ask spread filter
+EXCLUSION_RULE_BID_ASK_SPREAD_FILTER: str = "Exclude contracts where bid-ask spread exceeds 2% of contract price"
+
+
+# PAPER.md specification: Exclusion Rule: minimum trading history
+EXCLUSION_RULE_MINIMUM_TRADING_HISTORY: str = "Exclude contracts with fewer than 100 trading days of history"
+
+
+# PAPER.md specification: Significance Threshold (Bonferroni)
+SIGNIFICANCE_THRESHOLD_BONFERRONI: str = "p < 0.0083"
+
+
+# PAPER.md specification: Significance Threshold (primary)
+SIGNIFICANCE_THRESHOLD_PRIMARY: str = "p < 0.05 two-tailed"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Markov switching regime detection
+MARKOV_SWITCHING_REGIME_DETECTION: str = "statsmodels, k_regimes=2"
+
+
+# PAPER.md specification: GARCH model
+GARCH_MODEL: str = "GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution)"
+
+
+# PAPER.md specification: Bonferroni correction
+BONFERRONI_CORRECTION: str = "Bonferroni correction for 6 simultaneous tests \u2014 adjusted threshold p < 0.0083"
+
+
 MOMENTUM_LOOKBACK_WINDOW: int = 252  # 12-month momentum per PAPER.md
 ROLLING_CORRELATION_WINDOW: int = 252  # matches PAPER.md primary metric
 

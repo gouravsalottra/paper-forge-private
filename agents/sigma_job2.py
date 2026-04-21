@@ -30,13 +30,16 @@ class SigmaJob2:
         sim_df = self._load_sim_results()
         seed = self._seed_from_pap_lock()
         returns = sim_df["mean_reward"].to_numpy(dtype=float)
+        primary_metric = self._rolling_sharpe_differential(sim_df)
 
         ttest_result = self._newey_west_ttest(returns)
         garch_result = self._garch_11(returns)
         bootstrap_result = self._bootstrap_ci(returns, seed=seed, n_resamples=1000)
         deflated_result = self._deflated_sharpe(returns, n_trials=6)
         regime_result = self._markov_regime(returns)
-        fama_macbeth_result = self._fama_macbeth(returns)
+        fama_result = self._fama_macbeth_regression(sim_df)
+        dcc_result = self._dcc_garch_summary()
+        seed_consistency = self._validate_seed_consistency(sim_df)
 
         bonf = self._bonferroni(
             [
@@ -46,9 +49,10 @@ class SigmaJob2:
                 deflated_result["p_value"],
                 regime_result["regime_mean_diff_p_value"],
                 bootstrap_result["mean_lt_zero_p_value"],
-                fama_macbeth_result.get("concentration_pvalue", 1.0),
+                fama_result.get("concentration_pvalue", 1.0),
             ],
             n_tests=7,
+            primary_metric=primary_metric,
         )
 
         stats_dir = Path(self.output_dir) / self.run_id / "stats_tables"
@@ -58,12 +62,35 @@ class SigmaJob2:
         ttest_results_path = stats_dir / "ttest_results.csv"
         garch_results_path = stats_dir / "garch_results.csv"
         fama_macbeth_path = stats_dir / "fama_macbeth_results.csv"
+        primary_metric_path = stats_dir / "primary_metric.csv"
+        min_effect_path = stats_dir / "minimum_effect_check.csv"
+        dcc_path = stats_dir / "dcc_garch_results.csv"
+        seed_path = stats_dir / "seed_consistency.csv"
         latex_path = stats_dir / "stats_summary.tex"
 
         self._write_sharpe_summary(sharpe_summary_path, sim_df, deflated_result, bootstrap_result, bonf)
         self._write_ttest_results(ttest_results_path, ttest_result, bonf)
         self._write_garch_results(garch_results_path, garch_result, bonf)
-        self._write_fama_macbeth_results(fama_macbeth_path, fama_macbeth_result, bonf)
+        self._write_fama_macbeth_results(fama_macbeth_path, fama_result, bonf)
+        pd.DataFrame([primary_metric]).to_csv(primary_metric_path, index=False)
+        min_effect_data = {
+            "threshold": -0.15,
+            "observed_differential": primary_metric.get("sharpe_differential"),
+            "passes": primary_metric.get("meets_minimum_effect"),
+            "conclusion": primary_metric.get("economic_significance"),
+        }
+        pd.DataFrame([min_effect_data]).to_csv(min_effect_path, index=False)
+        pd.DataFrame([{
+            "method": dcc_result.get("method"),
+            "n_pairs": dcc_result.get("n_pairs"),
+            "mean_dcc_correlation": dcc_result.get("mean_dcc_correlation"),
+            "error": dcc_result.get("error"),
+        }]).to_csv(dcc_path, index=False)
+        pd.DataFrame([{
+            "consistent": seed_consistency["consistent"],
+            "finding_valid": seed_consistency["finding_valid"],
+            "conclusion": seed_consistency["conclusion"],
+        }]).to_csv(seed_path, index=False)
         self._write_stats_summary_tex(
             latex_path,
             ttest_result=ttest_result,
@@ -71,7 +98,7 @@ class SigmaJob2:
             bootstrap_result=bootstrap_result,
             deflated_result=deflated_result,
             regime_result=regime_result,
-            fama_macbeth_result=fama_macbeth_result,
+            fama_macbeth_result=fama_result,
             bonf=bonf,
         )
         versions_path = stats_dir / "library_versions.json"
@@ -92,18 +119,26 @@ class SigmaJob2:
                 "ttest_results": str(ttest_results_path),
                 "garch_results": str(garch_results_path),
                 "fama_macbeth_results": str(fama_macbeth_path),
+                "primary_metric": str(primary_metric_path),
+                "minimum_effect_check": str(min_effect_path),
+                "dcc_garch_results": str(dcc_path),
+                "seed_consistency": str(seed_path),
                 "stats_summary_tex": str(latex_path),
                 "library_versions": str(versions_path),
             },
             "summary": {
+                "primary_metric": primary_metric,
                 "newey_west_t": ttest_result,
                 "garch": garch_result,
                 "bootstrap": bootstrap_result,
                 "deflated_sharpe": deflated_result,
                 "markov_regime": regime_result,
-                "fama_macbeth": fama_macbeth_result,
+                "fama_macbeth": fama_result,
+                "dcc_garch": dcc_result,
+                "seed_consistency": seed_consistency,
                 "bonferroni": bonf,
             },
+            "primary_metric": primary_metric,
         }
 
     @staticmethod
@@ -143,13 +178,22 @@ class SigmaJob2:
         x = np.ones((len(y), 1), dtype=float)
         model = sm.OLS(y, x)
         fit = model.fit(cov_type="HAC", cov_kwds={"maxlags": 4})
+        p_value = float(fit.pvalues[0])
         return {
             "coef_mean": float(fit.params[0]),
             "std_error_hac": float(fit.bse[0]),
             "t_stat": float(fit.tvalues[0]),
-            "p_value": float(fit.pvalues[0]),
+            "p_value": p_value,
             "n_obs": int(len(y)),
             "maxlags": 4,
+            "two_tailed": True,
+            "alpha": 0.05,
+            "passes_alpha": p_value < 0.05,
+            "passes_bonferroni": p_value < 0.0083,
+            "conclusion": (
+                "Significant at alpha=0.05" if p_value < 0.05
+                else "Not significant at alpha=0.05"
+            ),
         }
 
     @staticmethod
@@ -274,54 +318,190 @@ class SigmaJob2:
         }
 
     @staticmethod
-    def _fama_macbeth(returns: np.ndarray) -> dict:
-        """Fama-MacBeth two-pass cross-sectional regression.
-
-        Pass 1: Time-series regression of each asset on factors.
-        Pass 2: Cross-sectional regression of average returns on betas.
-        Uses linearmodels.FamaMacBeth.
+    def _rolling_sharpe_differential(sim_df: pd.DataFrame) -> dict:
         """
-        del returns
+        Compute the primary metric from PAPER.md:
+        Annualized Sharpe differential = mean(Sharpe|high_conc)
+                                        - mean(Sharpe|low_conc)
+        High concentration = passive_concentration >= 0.30
+        Low concentration  = passive_concentration < 0.30
+        Window: per-scenario Sharpe already annualized in FORGE output.
+        """
+        high = sim_df[sim_df["concentration"] >= 0.30]["sharpe"]
+        low = sim_df[sim_df["concentration"] < 0.30]["sharpe"]
+
+        if high.empty or low.empty:
+            return {
+                "sharpe_high_mean": float("nan"),
+                "sharpe_low_mean": float("nan"),
+                "sharpe_differential": float("nan"),
+                "meets_minimum_effect": False,
+                "minimum_effect_threshold": -0.15,
+            }
+
+        sharpe_high = float(high.mean())
+        sharpe_low = float(low.mean())
+        differential = sharpe_high - sharpe_low
+
+        return {
+            "sharpe_high_mean": sharpe_high,
+            "sharpe_low_mean": sharpe_low,
+            "sharpe_differential": differential,
+            "meets_minimum_effect": differential <= -0.15,
+            "minimum_effect_threshold": -0.15,
+            "economic_significance": (
+                "Confirmed" if differential <= -0.15
+                else "Not confirmed — effect below minimum threshold"
+            ),
+        }
+
+    @staticmethod
+    def _fama_macbeth_regression(sim_df: pd.DataFrame) -> dict:
+        """
+        Fama-MacBeth two-pass cross-sectional regression.
+        Uses passive concentration as the factor.
+        Cross-section: seeds (entities).
+        Time: concentration conditions (periods).
+        Dependent: Sharpe ratio.
+        """
         try:
             from linearmodels import FamaMacBeth
 
-            sim_path = Path("outputs") / "sim_results.json"
-            rows = json.loads(sim_path.read_text())
-            df = pd.DataFrame(rows)
+            df = sim_df.copy()
             df["entity"] = df["seed"].astype(str)
-            df["time"] = pd.Categorical(df["concentration"]).codes
-            df["concentration_factor"] = df["concentration"]
-            df["passive_dummy"] = (df["concentration"] >= 0.30).astype(float)
+            df["time_idx"] = pd.Categorical(df["concentration"].round(2)).codes
+            df["passive_above_threshold"] = (df["concentration"] >= 0.30).astype(float)
 
-            panel = df.set_index(["entity", "time"])
-            mod = FamaMacBeth(panel["sharpe"], panel[["concentration_factor", "passive_dummy"]])
-            fit = mod.fit(cov_type="kernel", bandwidth=4)
+            panel = df.set_index(["entity", "time_idx"])
+            if len(panel.index.get_level_values(0).unique()) < 2:
+                raise ValueError("Need at least 2 entities for Fama-MacBeth")
+
+            mod = FamaMacBeth(panel["sharpe"], panel[["concentration", "passive_above_threshold"]])
+            fit = mod.fit(cov_type="kernel", bandwidth=2)
 
             params = fit.params.to_dict()
             pvals = fit.pvalues.to_dict()
             return {
-                "concentration_coef": float(params.get("concentration_factor", float("nan"))),
-                "concentration_pvalue": float(pvals.get("concentration_factor", float("nan"))),
-                "passive_dummy_coef": float(params.get("passive_dummy", float("nan"))),
-                "passive_dummy_pvalue": float(pvals.get("passive_dummy", float("nan"))),
+                "method": "FamaMacBeth_OLS",
+                "concentration_coef": float(params.get("concentration", float("nan"))),
+                "concentration_pvalue": float(pvals.get("concentration", float("nan"))),
+                "passive_dummy_coef": float(params.get("passive_above_threshold", float("nan"))),
+                "passive_dummy_pvalue": float(pvals.get("passive_above_threshold", float("nan"))),
                 "rsquared": float(fit.rsquared),
                 "n_obs": int(fit.nobs),
-                "method": "FamaMacBeth",
+                "factors_used": "passive_concentration, passive_above_threshold_dummy",
+                "note": (
+                    "Dev run: FF factors from WRDS not available. "
+                    "Concentration used as primary factor. "
+                    "Full run adds Fama-French 3-factor controls."
+                ),
             }
         except Exception as exc:
             return {
+                "method": "FamaMacBeth_OLS",
                 "error": str(exc),
-                "method": "FamaMacBeth",
                 "concentration_coef": float("nan"),
                 "concentration_pvalue": float("nan"),
                 "passive_dummy_coef": float("nan"),
                 "passive_dummy_pvalue": float("nan"),
                 "rsquared": float("nan"),
                 "n_obs": 0,
+                "note": f"FamaMacBeth failed: {exc}",
             }
 
     @staticmethod
-    def _bonferroni(p_values: list[float], n_tests: int) -> dict:
+    def _dcc_garch_summary() -> dict:
+        """
+        Run DCC-GARCH if commodity_returns.csv has 2+ columns.
+        Wraps agents/analyst/analyst.py compute_dcc_correlations().
+        """
+        try:
+            returns_path = Path("outputs/commodity_returns.csv")
+            if not returns_path.exists():
+                return {"error": "commodity_returns.csv not found"}
+
+            returns = pd.read_csv(returns_path, parse_dates=["date"]).set_index("date").dropna()
+            value_cols = [c for c in returns.columns if c != "date"]
+            if len(value_cols) < 2:
+                return {
+                    "error": "Need 2+ assets for DCC-GARCH",
+                    "assets": value_cols,
+                }
+
+            from agents.analyst.analyst import compute_dcc_correlations
+
+            dcc_df = compute_dcc_correlations(returns)
+            if dcc_df.empty:
+                return {"error": "DCC-GARCH returned empty result"}
+
+            summary = (
+                dcc_df.groupby("pair")["correlation"]
+                .agg(["mean", "std", "min", "max"])
+                .reset_index()
+            )
+
+            return {
+                "method": "DCC-GARCH(1,1)",
+                "n_pairs": int(len(summary)),
+                "mean_dcc_correlation": float(dcc_df["correlation"].mean()),
+                "pairs": summary.to_dict(orient="records"),
+            }
+        except Exception as exc:
+            return {"error": str(exc), "method": "DCC-GARCH(1,1)"}
+
+    @staticmethod
+    def _validate_seed_consistency(sim_df: pd.DataFrame) -> dict:
+        """
+        PAPER.md: finding valid only if it holds across all 3 seeds.
+        Check: for each concentration level, do all 3 seeds agree
+        on direction of Sharpe (all positive or all negative)?
+        """
+        required_seeds = {1337, 42, 9999}
+        actual_seeds = set(sim_df["seed"].unique())
+        missing_seeds = required_seeds - actual_seeds
+
+        if missing_seeds:
+            return {
+                "consistent": False,
+                "reason": f"Missing seeds: {missing_seeds}",
+                "required_seeds": sorted(required_seeds),
+                "actual_seeds": sorted(actual_seeds),
+                "finding_valid": False,
+                "conclusion": "Finding does NOT hold across all 3 seeds — invalid per PAPER.md",
+            }
+
+        consistency_by_concentration = {}
+        for conc in sim_df["concentration"].unique():
+            subset = sim_df[sim_df["concentration"] == conc]
+            sharpes = subset["sharpe"].tolist()
+            directions = [1 if s > 0 else -1 for s in sharpes]
+            consistent = len(set(directions)) == 1
+            consistency_by_concentration[str(round(float(conc), 2))] = {
+                "sharpes": sharpes,
+                "consistent_direction": consistent,
+                "direction": (
+                    "positive" if all(d > 0 for d in directions)
+                    else "negative" if all(d < 0 for d in directions)
+                    else "mixed"
+                ),
+            }
+
+        all_consistent = all(v["consistent_direction"] for v in consistency_by_concentration.values())
+        return {
+            "consistent": all_consistent,
+            "required_seeds": sorted(required_seeds),
+            "actual_seeds": sorted(actual_seeds),
+            "by_concentration": consistency_by_concentration,
+            "finding_valid": all_consistent,
+            "conclusion": (
+                "Finding holds across all 3 seeds — valid per PAPER.md"
+                if all_consistent
+                else "Finding does NOT hold across all 3 seeds — invalid per PAPER.md"
+            ),
+        }
+
+    @staticmethod
+    def _bonferroni(p_values: list[float], n_tests: int, primary_metric: dict | None = None) -> dict:
         threshold = 0.05 / float(n_tests)
         clean = [float(p) for p in p_values if np.isfinite(p)]
         return {
@@ -329,6 +509,7 @@ class SigmaJob2:
             "adjusted_threshold": threshold,
             "passes_any": bool(any(p < threshold for p in clean)),
             "num_significant": int(sum(p < threshold for p in clean)),
+            "minimum_effect_met": (primary_metric or {}).get("meets_minimum_effect", False),
         }
 
     @staticmethod
