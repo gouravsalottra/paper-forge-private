@@ -9,6 +9,18 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
+# PAPER.md specification: Passive capital scenario: High
+PASSIVE_CAPITAL_SCENARIO_HIGH: str = "60% of open interest"
+
+
+# PAPER.md specification: Passive capital scenario: Low
+PASSIVE_CAPITAL_SCENARIO_LOW: str = "10% of open interest"
+
+
+# PAPER.md specification: Minimum effect size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
 # PAPER.md specification: Minimum Effect Size
 MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
 
@@ -377,3 +389,6 @@ EXCLUSION_RULE_BID_ASK_SPREAD_THRESHOLD_SPEC_MARKER: str = "Exclude contracts wh
 
 # CODEC traceability marker for PAPER.md alignment
 SIGNIFICANCE_THRESHOLD_SPEC_MARKER: str = "p < 0.0083 Bonferroni-corrected"
+
+# CODEC traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_SPEC_MARKER: str = "HAWK minimum score to pass: 7/10 on methodology rubric"

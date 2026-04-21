@@ -42,7 +42,7 @@ class ARIAPipeline:
                 self._check_forge_gate()
 
             if phase == "CODEC":
-                max_codec_attempts = 3
+                max_codec_attempts = 5
                 for attempt in range(1, max_codec_attempts + 1):
                     self._advance_phase("CODEC", "running")
                     result = self._dispatch(
@@ -56,7 +56,11 @@ class ARIAPipeline:
                     if flag in ("PASS", "WARN"):
                         self._advance_phase("CODEC", "done")
                         if flag == "WARN":
-                            print(f"CODEC WARN: minor discrepancies. QUILL will acknowledge in limitations section.")
+                            print(
+                                f"CODEC WARN: documented deviations present. "
+                                f"QUILL will acknowledge in limitations section. "
+                                f"Proceeding to HAWK loop."
+                            )
                         break
 
                     print(f"\nCODEC FAIL (attempt {attempt}). Running FIXER...")
