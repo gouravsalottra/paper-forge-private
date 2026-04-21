@@ -41,8 +41,50 @@ class ARIAPipeline:
             if phase == "FORGE":
                 self._check_forge_gate()
 
+            if phase == "CODEC":
+                max_codec_attempts = 3
+                for attempt in range(1, max_codec_attempts + 1):
+                    self._advance_phase("CODEC", "running")
+                    result = self._dispatch(
+                        "CODEC",
+                        self._server_for_phase("CODEC"),
+                        self._context_config_for_phase("CODEC"),
+                    )
+                    flag = str(result.get("result_flag", "FAIL"))
+                    self._write_result_flag(agent="CODEC", job=f"attempt_{attempt}", flag=flag)
+
+                    if flag in ("PASS", "WARN"):
+                        self._advance_phase("CODEC", "done")
+                        if flag == "WARN":
+                            print(
+                                f"CODEC WARN: minor discrepancies found. "
+                                f"QUILL will acknowledge them in limitations. "
+                                f"Read paper_memory/{self.run_id}/codec_mismatch.md"
+                            )
+                        break
+                    else:
+                        self._advance_phase("CODEC", "failed")
+                        self._set_run_status("failed")
+                        raise PipelineHaltError(
+                            f"\n"
+                            f"{'=' * 60}\n"
+                            f"CODEC FAIL — pipeline halted (attempt {attempt}/{max_codec_attempts})\n"
+                            f"{'=' * 60}\n"
+                            f"The code does not match what PAPER.md specifies.\n"
+                            f"This means a paper cannot be written yet.\n"
+                            f"\n"
+                            f"Read the mismatch report:\n"
+                            f"  cat paper_memory/{self.run_id}/codec_mismatch.md\n"
+                            f"\n"
+                            f"Fix the gaps in the code so it implements what PAPER.md describes.\n"
+                            f"Then re-run from CODEC:\n"
+                            f"  python run_aria_pipeline.py --resume {self.run_id} --from CODEC\n"
+                            f"{'=' * 60}"
+                        )
+                continue
+
             if phase == "HAWK":
-                self._run_hawk_loop(max_cycles=3)
+                self._run_hawk_loop(max_cycles=5)
                 continue
 
             self._advance_phase(phase, "running")
@@ -67,46 +109,197 @@ class ARIAPipeline:
             return None
         return str(row[0]) if row[0] is not None else None
 
-    def _run_hawk_loop(self, max_cycles: int = 3) -> None:
-        for revision in range(1, max_cycles + 1):
-            # For revision cycles >1, request QUILL rewrite before re-review.
-            if revision > 1:
-                self._advance_phase("QUILL", "running")
-                quill_result = self._dispatch(
-                    "QUILL",
-                    self._server_for_phase("QUILL"),
-                    {"revision_number": revision, **self._context_config_for_phase("QUILL")},
+    def _run_hawk_loop(self, max_cycles: int = 5) -> None:
+        """Fully automatic HAWK review loop with agent routing."""
+        for cycle in range(1, max_cycles + 1):
+            print(f"\n{'=' * 50}")
+            print(f"HAWK review cycle {cycle}/{max_cycles}")
+            print(f"{'=' * 50}")
+
+            self._advance_phase("QUILL", "running")
+            quill_result = self._dispatch(
+                "QUILL",
+                self._server_for_phase("QUILL"),
+                {"revision_number": cycle, **self._context_config_for_phase("QUILL")},
+            )
+            quill_flag = str(quill_result.get("result_flag", "DONE"))
+            self._write_result_flag("QUILL", f"CYCLE{cycle}", quill_flag)
+            if quill_flag in ("FAILED", "FAIL"):
+                self._advance_phase("QUILL", "failed")
+                self._set_run_status("failed")
+                raise PipelineHaltError(
+                    f"QUILL failed on cycle {cycle}. Check stats_tables/ and literature_map.md are populated."
                 )
-                quill_flag = str(quill_result.get("result_flag", "DONE"))
-                self._write_result_flag(agent="QUILL", job=f"REV{revision}", flag=quill_flag)
-                if quill_flag in {"FAILED", "FAIL", "ESCALATE"}:
-                    self._advance_phase("QUILL", "failed")
-                    self._set_run_status("failed")
-                    raise PipelineHaltError(f"QUILL failed during revision cycle {revision} with flag={quill_flag}")
-                self._advance_phase("QUILL", "done")
+            self._advance_phase("QUILL", "done")
+            print(f"QUILL draft v{cycle} written.")
 
             self._advance_phase("HAWK", "running")
-            result = self._dispatch(
+            hawk_result = self._dispatch(
                 "HAWK",
                 self._server_for_phase("HAWK"),
-                {"revision_number": revision, **self._context_config_for_phase("HAWK")},
+                {"revision_number": cycle, **self._context_config_for_phase("HAWK")},
             )
-            flag = str(result.get("result_flag", "REVISION_REQUESTED"))
-            if revision >= max_cycles and flag == "REVISION_REQUESTED":
-                flag = "ESCALATE"
-            self._write_result_flag(agent="HAWK", job=f"REV{revision}", flag=flag)
+            hawk_flag = str(hawk_result.get("result_flag", "REVISION_REQUESTED"))
+            routing = hawk_result.get("routing", {}) or {}
+            recommendation = hawk_result.get("recommendation", "MAJOR_REVISION")
+            mandatory_items = routing.get("mandatory_items", []) or []
 
-            if flag == "APPROVED":
+            self._write_result_flag("HAWK", f"CYCLE{cycle}", hawk_flag)
+
+            print(f"HAWK recommendation: {recommendation}")
+            print(f"Mandatory items: {len(mandatory_items)}")
+            for item in mandatory_items:
+                print(f"  [{item.get('agent', '?')}] {str(item.get('issue', ''))[:80]}")
+
+            if hawk_flag == "APPROVED":
                 self._advance_phase("HAWK", "done")
+                print(f"\nHAWK ACCEPTED the paper on cycle {cycle}.")
+                print(f"Read: paper_memory/{self.run_id}/hawk_review_v{cycle}.md")
                 return
-            if flag == "ESCALATE":
+
+            if hawk_flag == "ESCALATE" or recommendation == "REJECT":
                 self._advance_phase("HAWK", "failed")
                 self._set_run_status("failed")
-                raise PipelineHaltError("HAWK escalated after max revision cycles")
+                raise PipelineHaltError(
+                    f"\n"
+                    f"{'=' * 60}\n"
+                    f"HAWK {'ESCALATED' if hawk_flag == 'ESCALATE' else 'REJECTED'} the paper (cycle {cycle})\n"
+                    f"{'=' * 60}\n"
+                    f"Read the full referee report:\n"
+                    f"  cat paper_memory/{self.run_id}/hawk_review_v{cycle}.md\n"
+                    f"\n"
+                    f"These issues cannot be fixed by revision alone.\n"
+                    f"The paper requires fundamental rethinking.\n"
+                    f"{'=' * 60}"
+                )
 
-        self._advance_phase("HAWK", "failed")
-        self._set_run_status("failed")
-        raise PipelineHaltError("HAWK did not approve within max revision cycles")
+            if cycle == max_cycles:
+                self._advance_phase("HAWK", "failed")
+                self._set_run_status("failed")
+                raise PipelineHaltError(
+                    f"\n"
+                    f"{'=' * 60}\n"
+                    f"HAWK did not accept after {max_cycles} cycles\n"
+                    f"{'=' * 60}\n"
+                    f"Read final referee report:\n"
+                    f"  cat paper_memory/{self.run_id}/hawk_review_v{cycle}.md\n"
+                    f"\n"
+                    f"Remaining mandatory items:\n"
+                    + "\n".join(
+                        f"  [{i.get('agent', '?')}] {i.get('issue', '')}"
+                        for i in mandatory_items
+                    )
+                    + f"\n{'=' * 60}"
+                )
+
+            print("\nRouting mandatory items to agents...")
+
+            if routing.get("routes_to_codec"):
+                self._advance_phase("HAWK", "failed")
+                self._set_run_status("failed")
+                codec_items = [i for i in mandatory_items if i.get("agent") == "CODEC"]
+                raise PipelineHaltError(
+                    f"\n"
+                    f"{'=' * 60}\n"
+                    f"HAWK found code-paper mismatch\n"
+                    f"{'=' * 60}\n"
+                    f"Fix the code so it implements what the paper claims:\n"
+                    + "\n".join(f"  - {i.get('required_action', '')}" for i in codec_items)
+                    + f"\n\nThen re-run from CODEC:\n"
+                    f"  python run_aria_pipeline.py --resume {self.run_id} --from CODEC\n"
+                    f"{'=' * 60}"
+                )
+
+            if routing.get("routes_to_forge"):
+                print("  [FORGE] Re-running simulation per HAWK instructions...")
+                forge_items = [i for i in mandatory_items if i.get("agent") == "FORGE"]
+                for item in forge_items:
+                    print(f"    Issue: {str(item.get('issue', ''))[:100]}")
+                    print(f"    Fix:   {str(item.get('required_action', ''))[:100]}")
+
+                self._check_forge_gate_for_revision()
+                forge_result = self._dispatch(
+                    "FORGE",
+                    self._server_for_phase("FORGE"),
+                    self._context_config_for_phase("FORGE"),
+                )
+                self._write_result_flag("FORGE", f"HAWK_CYCLE{cycle}", forge_result.get("result_flag", "DONE"))
+                print("  [FORGE] Complete. Re-running SIGMA JOB 2...")
+
+                sigma_result = self._dispatch(
+                    "SIGMA_JOB2",
+                    self._server_for_phase("SIGMA_JOB2"),
+                    self._context_config_for_phase("SIGMA_JOB2"),
+                )
+                self._write_result_flag("SIGMA_JOB2", f"HAWK_CYCLE{cycle}", sigma_result.get("result_flag", "DONE"))
+                print("  [SIGMA JOB 2] Complete. Re-running CODEC...")
+
+                codec_result = self._dispatch(
+                    "CODEC",
+                    self._server_for_phase("CODEC"),
+                    self._context_config_for_phase("CODEC"),
+                )
+                codec_flag = str(codec_result.get("result_flag", "FAIL"))
+                self._write_result_flag("CODEC", f"HAWK_CYCLE{cycle}", codec_flag)
+                if codec_flag == "FAIL":
+                    self._advance_phase("HAWK", "failed")
+                    self._set_run_status("failed")
+                    raise PipelineHaltError(
+                        "CODEC still failing after HAWK-requested FORGE revision.\n"
+                        "Fix code gaps before continuing.\n"
+                        f"cat paper_memory/{self.run_id}/codec_mismatch.md"
+                    )
+                print("  [CODEC] PASS. Continuing to QUILL.")
+
+            if routing.get("routes_to_sigma"):
+                print("  [SIGMA] Running additional tests per HAWK instructions...")
+                sigma_items = [i for i in mandatory_items if i.get("agent") == "SIGMA"]
+                for item in sigma_items:
+                    print(f"    Issue: {str(item.get('issue', ''))[:100]}")
+                    print(f"    Fix:   {str(item.get('required_action', ''))[:100]}")
+
+                sigma_result = self._dispatch(
+                    "SIGMA_JOB2",
+                    self._server_for_phase("SIGMA_JOB2"),
+                    self._context_config_for_phase("SIGMA_JOB2"),
+                )
+                self._write_result_flag("SIGMA_JOB2", f"HAWK_CYCLE{cycle}", sigma_result.get("result_flag", "DONE"))
+                print("  [SIGMA JOB 2] Additional tests complete.")
+
+            if routing.get("routes_to_miner"):
+                print("  [MINER] Re-fetching data per HAWK instructions...")
+                miner_items = [i for i in mandatory_items if i.get("agent") == "MINER"]
+                for item in miner_items:
+                    print(f"    Issue: {str(item.get('issue', ''))[:100]}")
+
+                miner_result = self._dispatch(
+                    "MINER",
+                    self._server_for_phase("MINER"),
+                    self._context_config_for_phase("MINER"),
+                )
+                self._write_result_flag("MINER", f"HAWK_CYCLE{cycle}", miner_result.get("result_flag", "DONE"))
+                print("  [MINER] Data refresh complete.")
+
+                sigma_result = self._dispatch(
+                    "SIGMA_JOB2",
+                    self._server_for_phase("SIGMA_JOB2"),
+                    self._context_config_for_phase("SIGMA_JOB2"),
+                )
+                self._write_result_flag(
+                    "SIGMA_JOB2", f"MINER_REFRESH_CYCLE{cycle}", sigma_result.get("result_flag", "DONE")
+                )
+                print("  [SIGMA JOB 2] Re-run on fresh data complete.")
+
+            quill_items = [i for i in mandatory_items if i.get("agent") == "QUILL"]
+            if quill_items:
+                print(f"  [QUILL] {len(quill_items)} writing issues will be")
+                print(f"          addressed in next draft (cycle {cycle + 1}).")
+                for item in quill_items:
+                    print(f"    - {str(item.get('issue', ''))[:100]}")
+
+            print(f"\nAll upstream fixes complete. Starting cycle {cycle + 1}...")
+
+        raise PipelineHaltError(f"HAWK loop exhausted {max_cycles} cycles.")
 
     def _dispatch(self, agent_name: str, server_name: str, context_config: dict[str, Any]) -> dict[str, Any]:
         self._health_check_or_raise(server_name)
@@ -236,6 +429,22 @@ class ARIAPipeline:
                 (self._now(), self.run_id),
             )
             conn.commit()
+
+    def _check_forge_gate_for_revision(self) -> None:
+        """FORGE gate check for HAWK revision cycles."""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM pap_lock WHERE run_id=? AND locked_at IS NOT NULL",
+                (self.run_id,),
+            ).fetchone()
+            if row is None:
+                raise ForgeGateError(
+                    "FORGE revision gate failed: PAP not locked. "
+                    "Cannot re-run FORGE without a committed PAP."
+                )
+            conn.execute("UPDATE pap_lock SET forge_started_at=NULL WHERE run_id=?", (self.run_id,))
+            conn.commit()
+        self._check_forge_gate()
 
     def _write_result_flag(self, agent: str, job: str | None, flag: str) -> None:
         with sqlite3.connect(self.db_path) as conn:
