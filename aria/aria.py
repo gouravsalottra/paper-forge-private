@@ -1,3 +1,7 @@
+# DEPRECATED: Use agents.aria.aria.ARIAPipeline instead.
+# This file will be removed in the next release.
+# See mock_pipeline.py for the migration pattern.
+
 """ARIA orchestrator for Paper Forge.
 
 This module intentionally uses only Python stdlib + sqlite3.

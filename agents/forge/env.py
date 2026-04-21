@@ -18,8 +18,12 @@ class CommodityFuturesEnv(AECEnv):
     def __init__(self, passive_concentration: float = 0.30, episode_length: int = 252) -> None:
         super().__init__()
 
-        if passive_concentration not in (0.10, 0.30, 0.60):
-            raise ValueError("passive_concentration must be one of: 0.10, 0.30, 0.60")
+        _valid = {0.10, 0.30, 0.60}
+        if round(float(passive_concentration), 2) not in _valid:
+            raise ValueError(
+                f"passive_concentration must be one of {sorted(_valid)}, "
+                f"got {passive_concentration}"
+            )
 
         self.possible_agents: List[str] = [
             "passive_gsci",

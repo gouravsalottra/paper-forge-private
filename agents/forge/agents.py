@@ -39,8 +39,11 @@ class LiquidityProvider:
 
 
 class MacroAllocator:
+    def __init__(self, passive_threshold: float = 0.30) -> None:
+        self.passive_threshold = float(passive_threshold)
+
     def act(self, obs: np.ndarray) -> int:
-        return 1 if obs[6] < 0.30 else 0
+        return 1 if obs[6] < self.passive_threshold else 0
 
 
 class MetaRL:

@@ -10,6 +10,8 @@ import modal
 
 app = modal.App("paper-forge-full-run")
 runtime_secret = modal.Secret.from_name("paper-forge-runtime")
+# SECURITY: Never use add_local_dir(".") — it uploads .env and secrets.
+# Only add specific directories and files required for the FORGE run.
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -18,7 +20,8 @@ image = (
         "gymnasium==1.2.3",
         "pettingzoo==1.24.3",
     )
-    .add_local_dir(".", remote_path="/root")
+    .add_local_dir("agents/forge", remote_path="/root/agents/forge")
+    .add_local_file("PAPER.md", remote_path="/root/PAPER.md")
 )
 
 

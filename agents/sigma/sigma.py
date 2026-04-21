@@ -1,3 +1,7 @@
+# DEPRECATED: SigmaAgent is not dispatched by ARIA.
+# ARIA dispatches agents/sigma_job1.py (SigmaJob1) and agents/sigma_job2.py (SigmaJob2).
+# This file is retained for reference only and will be removed in a future release.
+
 """SIGMA agent: PAP pre-registration and econometric evaluation."""
 
 from __future__ import annotations

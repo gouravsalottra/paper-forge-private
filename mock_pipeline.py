@@ -6,7 +6,8 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 
-from aria.aria import ARIA, ForgeGateError
+from agents.aria.aria import ARIAPipeline
+from agents.aria.exceptions import ForgeGateError
 
 PHASE_ORDER = [
     "SCOUT",
@@ -24,11 +25,27 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def complete_phase(db_path: str, run_id: str, phase_name: str) -> None:
+    with sqlite3.connect(db_path) as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(phases)")}
+        finished_col = "completed_at" if "completed_at" in cols else "finished_at"
+        if finished_col in cols:
+            conn.execute(
+                f"UPDATE phases SET status='done', {finished_col}=? WHERE run_id=? AND phase_name=?",
+                (now_iso(), run_id, phase_name),
+            )
+        else:
+            conn.execute(
+                "UPDATE phases SET status='done' WHERE run_id=? AND phase_name=?",
+                (run_id, phase_name),
+            )
+        conn.commit()
+
+
 def main() -> None:
     start = time.perf_counter()
-
-    aria = ARIA("state.db")
-    run_id = aria.start_run("PAPER.md")
+    run_id = "pf-mock-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    aria = ARIAPipeline(db_path="state.db", run_id=run_id, paper_md_path="PAPER.md")
 
     for phase_name in PHASE_ORDER:
         print(f"▶ Running [{phase_name}]...")
@@ -36,7 +53,7 @@ def main() -> None:
 
         if phase_name == "FORGE":
             try:
-                aria.dispatch_forge(run_id)
+                aria._check_forge_gate()
                 print("🚀 FORGE gate opened.")
             except ForgeGateError as exc:
                 print(f"FORGE gate error: {exc}")
@@ -44,7 +61,7 @@ def main() -> None:
                 print(f"Total elapsed time: {elapsed:.2f} seconds")
                 return
 
-        aria.complete_phase(run_id, phase_name)
+        complete_phase("state.db", run_id, phase_name)
 
         if phase_name == "SIGMA_JOB1":
             with sqlite3.connect("state.db") as conn:

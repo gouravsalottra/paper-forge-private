@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from agents.aria.exceptions import ForgeGateError, IntegrityViolationError, PipelineHaltError, ServerUnavailableError
+from agents.aria.routing_config import AGENT_SERVER_MAP, AGENT_TIMEOUTS_SECONDS
 
 
 class ARIAPipeline:
@@ -303,17 +304,8 @@ class ARIAPipeline:
 
     @staticmethod
     def _server_for_phase(phase: str) -> str:
-        mapping = {
-            "SCOUT": "semantic_scholar",
-            "MINER": "wrds",
-            "SIGMA_JOB1": "local_stats",
-            "FORGE": "forge_cluster",
-            "SIGMA_JOB2": "local_stats",
-            "CODEC": "llm",
-            "QUILL": "llm",
-            "HAWK": "llm",
-        }
-        return mapping.get(phase, "local")
+        _ = AGENT_TIMEOUTS_SECONDS.get(phase)
+        return AGENT_SERVER_MAP.get(phase, "local")
 
     def _init_db(self) -> None:
         schema_path = Path(__file__).with_name("schema.sql")

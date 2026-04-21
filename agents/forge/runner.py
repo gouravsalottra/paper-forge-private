@@ -33,7 +33,7 @@ class ForgeRunner:
         self.trend_agent = TrendFollower()
         self.mean_agent = MeanReversion()
         self.liquidity_agent = LiquidityProvider()
-        self.macro_agent = MacroAllocator()
+        self.macro_agent = MacroAllocator(passive_threshold=self.passive_concentration)
         self.meta_rl = MetaRL()
 
         self.cem = CEM(obs_dim=10, n_elite=10, population=50, noise=0.1)
@@ -101,62 +101,27 @@ class ForgeRunner:
         return step_returns
 
     def _run_single_episode(self, weights: np.ndarray) -> float:
-        # Reset stateful policy so each candidate sees a fresh episode policy state.
+        """Run one CEM candidate episode via PettingZoo AEC interface."""
         self.liquidity_agent = LiquidityProvider()
-        env = self.env
-        env.reset()
-
+        self.env.reset()
         meta_step_rewards: List[float] = []
-        concentration = env.passive_concentration
 
-        for _ in range(env.episode_length):
-            p0 = env._price_history[0]
-            p1 = env._price_history[1]
-            p4 = env._price_history[4]
+        for agent in self.env.agent_iter():
+            obs, reward, term, trunc, _ = self.env.last()
+            if term or trunc:
+                self.env.step(None)
+                continue
 
-            trend_action = 1 if p0 > p4 else 2
-            if p0 > p1 * 1.02:
-                mean_action = 2
-            elif p0 < p1 * 0.98:
-                mean_action = 1
+            if agent == "meta_rl":
+                meta_step_rewards.append(float(reward))
+                action = self.cem.act(obs, weights)
             else:
-                mean_action = 0
-            macro_action = 1 if concentration < 0.30 else 0
-            liquidity_action = self.liquidity_agent.act(None)
+                action = self._rule_policy(agent, obs)
 
-            meta_obs = np.array(
-                [
-                    env._price_history[0],
-                    env._price_history[1],
-                    env._price_history[2],
-                    env._price_history[3],
-                    env._price_history[4],
-                    env._current_volatility,
-                    concentration,
-                    env.portfolio_values["meta_rl"],
-                    env.cash["meta_rl"],
-                    float(env.current_step),
-                ],
-                dtype=np.float32,
-            )
-            meta_action = self.cem.act(meta_obs, weights)
+            self.env.step(action)
 
-            env._pending_actions = {
-                "passive_gsci": 1,
-                "trend_follower": trend_action,
-                "mean_reversion": mean_action,
-                "liquidity_provider": liquidity_action,
-                "macro_allocator": macro_action,
-                "meta_rl": meta_action,
-            }
-            env._clear_rewards()
-            env._apply_market_step()
-            env._pending_actions.clear()
-            meta_step_rewards.append(float(env.rewards.get("meta_rl", 0.0)))
-
-        episode_rewards_sum = float(np.sum(meta_step_rewards))
-        step_count = len(meta_step_rewards)
-        return float(episode_rewards_sum / max(step_count, 1))
+        episode_mean = float(np.mean(meta_step_rewards)) if meta_step_rewards else 0.0
+        return episode_mean
 
     def _rule_policy(self, agent: str, obs) -> int:
         if agent == 'passive_gsci':
