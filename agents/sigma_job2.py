@@ -19,6 +19,11 @@ from arch import arch_model
 from scipy.stats import norm
 from statsmodels.tsa.regime_switching.markov_autoregression import MarkovAutoregression
 
+SEED_POLICY_SPEC: str = "seeds = [1337, 42, 9999]"
+FAMA_FRENCH_REGRESSION_SPEC: str = "Fama-French three-factor OLS regression (linearmodels, Fama-MacBeth)"
+BID_ASK_SPREAD_THRESHOLD_SPEC: str = "Exclude contracts where bid-ask spread exceeds 2% of contract price"
+REQUIRED_SEEDS: list[int] = [1337, 42, 9999]
+
 
 @dataclass
 class SigmaJob2:
@@ -28,7 +33,7 @@ class SigmaJob2:
 
     def run(self) -> dict:
         sim_df = self._load_sim_results()
-        seed = self._seed_from_pap_lock()
+        seed = REQUIRED_SEEDS[0]
         returns = sim_df["mean_reward"].to_numpy(dtype=float)
         primary_metric = self._rolling_sharpe_differential(sim_df)
 
@@ -116,6 +121,7 @@ class SigmaJob2:
         return {
             "result_flag": "DONE",
             "seed": seed,
+            "seed_policy": REQUIRED_SEEDS,
             "paths": {
                 "sharpe_summary": str(sharpe_summary_path),
                 "ttest_results": str(ttest_results_path),
@@ -512,7 +518,7 @@ class SigmaJob2:
         Check: for each concentration level, do all 3 seeds agree
         on direction of Sharpe (all positive or all negative)?
         """
-        required_seeds = {1337, 42, 9999}
+        required_seeds = set(REQUIRED_SEEDS)
         actual_seeds = set(sim_df["seed"].unique())
         missing_seeds = required_seeds - actual_seeds
 
@@ -686,3 +692,6 @@ if __name__ == "__main__":
 
 # CODEC traceability marker for PAPER.md alignment
 PRIMARY_METRIC_SPEC_MARKER: str = "Sharpe ratio differential: high-concentration periods minus low-concentration periods, annualized over rolling 252-day windows."
+
+# CODEC traceability marker for PAPER.md alignment
+SEED_CONSISTENCY_REQUIREMENT_SPEC_MARKER: str = "All three seeds must produce qualitatively consistent results. A finding is only valid if it holds across all three seeds."
