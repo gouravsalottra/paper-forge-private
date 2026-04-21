@@ -125,3 +125,19 @@ pdflatex paper_draft_vN.tex
 - WRDS-first policy is enforced by design; controlled fallback can be set by env.
 - Use run-specific artifact folders for traceability and audits.
 
+## Known limitations
+
+- **WRDS required for production runs**: Set `PAPER_FORGE_MINER_SOURCE=yfinance`
+  for local development without a WRDS subscription.
+- **FORGE is GPU-intensive**: Full 500,000-episode runs require Modal GPU credits.
+  Use `PAPER_FORGE_FORGE_EPISODES=500` for local smoke tests.
+- **MCP servers are stubs**: `mcp_servers/` files document planned integrations.
+  Current pipeline uses direct Python dispatch via `ARIAPipeline._dispatch`.
+- **CODEC isolation**: Pass 2 runs as a subprocess. Set `OPENAI_API_KEY_PASS2`
+  for full key isolation. Falls back to `OPENAI_API_KEY` if not set.
+
+## Model version
+
+PaperForge uses `gpt-5.4` (snapshot `gpt-5.4-2026-03-05`) for all LLM calls.
+CODEC audit calls use `temperature=0` for determinism.
+All other agent calls use `temperature=0.1`.

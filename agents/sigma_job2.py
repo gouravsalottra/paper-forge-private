@@ -69,6 +69,13 @@ class SigmaJob2:
             regime_result=regime_result,
             bonf=bonf,
         )
+        versions_path = stats_dir / "library_versions.json"
+        import json as _json
+
+        versions = {}
+        for pkg in ["arch", "statsmodels", "scipy", "pandas", "numpy", "linearmodels"]:
+            versions[pkg] = _get_pkg_version(pkg)
+        versions_path.write_text(_json.dumps(versions, indent=2), encoding="utf-8")
 
         self._write_result_flag("DONE")
 
@@ -80,6 +87,7 @@ class SigmaJob2:
                 "ttest_results": str(ttest_results_path),
                 "garch_results": str(garch_results_path),
                 "stats_summary_tex": str(latex_path),
+                "library_versions": str(versions_path),
             },
             "summary": {
                 "newey_west_t": ttest_result,
@@ -351,6 +359,15 @@ class SigmaJob2:
                     (uuid.uuid4().hex, self.run_id, "SIGMA_JOB2", "SIGMA_JOB2", status, created_at),
                 )
             conn.commit()
+
+
+def _get_pkg_version(pkg: str) -> str:
+    try:
+        import importlib.metadata
+
+        return importlib.metadata.version(pkg)
+    except Exception:
+        return "unknown"
 
 
 if __name__ == "__main__":
