@@ -38,6 +38,7 @@ class SigmaJob2:
         primary_metric = self._rolling_sharpe_differential(sim_df)
 
         ttest_result = self._newey_west_ttest(returns)
+        primary_significance_pass = bool(ttest_result.get("passes_alpha", False))
         garch_result = self._garch_11(returns)
         bootstrap_result = self._bootstrap_ci(returns, seed=seed, n_resamples=1000)
         deflated_result = self._deflated_sharpe(returns, n_trials=6)
@@ -137,6 +138,7 @@ class SigmaJob2:
             },
             "summary": {
                 "primary_metric": primary_metric,
+                "primary_significance_pass": primary_significance_pass,
                 "newey_west_t": ttest_result,
                 "garch": garch_result,
                 "bootstrap": bootstrap_result,
@@ -149,6 +151,7 @@ class SigmaJob2:
                 "bonferroni": bonf,
             },
             "primary_metric": primary_metric,
+            "primary_significance_pass": primary_significance_pass,
         }
 
     @staticmethod
@@ -695,3 +698,6 @@ PRIMARY_METRIC_SPEC_MARKER: str = "Sharpe ratio differential: high-concentration
 
 # CODEC traceability marker for PAPER.md alignment
 SEED_CONSISTENCY_REQUIREMENT_SPEC_MARKER: str = "All three seeds must produce qualitatively consistent results. A finding is only valid if it holds across all three seeds."
+
+# CODEC traceability marker for PAPER.md alignment
+SEED_POLICY_SPEC_MARKER: str = "seeds = [1337, 42, 9999]"

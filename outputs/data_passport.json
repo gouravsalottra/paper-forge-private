@@ -10,7 +10,7 @@
     "start": "2001-02-16",
     "end": "2021-06-09"
   },
-  "download_timestamp_utc": "2026-04-21T14:28:55+00:00",
+  "download_timestamp_utc": "2026-04-21T14:33:50+00:00",
   "tickers": {
     "CL=F": "crude_oil_wti",
     "NG=F": "natural_gas"
