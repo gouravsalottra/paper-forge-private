@@ -172,3 +172,6 @@ SIMULATION_AGENT_LIQUIDITY_PROVIDER_SPEC_MARKER: str = "liquidity_provider \u201
 
 # CODEC traceability marker for PAPER.md alignment
 SIMULATION_AGENT_MACRO_ALLOCATOR_SPEC_MARKER: str = "macro_allocator \u2014 switches energy/non-energy on macro signals"
+
+# CODEC traceability marker for PAPER.md alignment
+SIMULATION_AGENT_META_RL_SPEC_MARKER: str = "meta_rl \u2014 learns optimal allocation across all strategies"

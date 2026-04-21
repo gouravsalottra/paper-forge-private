@@ -53,6 +53,8 @@ class FixerAgent:
         "seed policy",
         "audit requirement: hawk minimum score",
         "audit requirement: maximum hawk revision cycles",
+        "two-tailed t-test",
+        "significance threshold",
     }
 
     def __init__(
