@@ -1,0 +1,65 @@
+[
+  {
+    "concentration": 0.1,
+    "seed": 42,
+    "sharpe": 0.987487665345832,
+    "mean_reward": 0.00020291127548079557,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.1,
+    "seed": 1337,
+    "sharpe": -1.1287515596570101,
+    "mean_reward": -0.00020059676490115998,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.1,
+    "seed": 9999,
+    "sharpe": 1.1268404491935833,
+    "mean_reward": 0.0002324760193221389,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.3,
+    "seed": 42,
+    "sharpe": 0.8449684086676323,
+    "mean_reward": 0.00026044098586617957,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.3,
+    "seed": 1337,
+    "sharpe": -1.3645479137660734,
+    "mean_reward": -0.00034473270365901766,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.3,
+    "seed": 9999,
+    "sharpe": 0.9929119455195787,
+    "mean_reward": 0.000306756927495294,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.6,
+    "seed": 42,
+    "sharpe": 0.016755319920782278,
+    "mean_reward": 1.1739846474250152e-05,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.6,
+    "seed": 1337,
+    "sharpe": -2.7483815992160805,
+    "mean_reward": -0.001320768891250709,
+    "n_episodes": 2000
+  },
+  {
+    "concentration": 0.6,
+    "seed": 9999,
+    "sharpe": 0.1406782559044273,
+    "mean_reward": 9.761634903556423e-05,
+    "n_episodes": 2000
+  }
+]
