@@ -1,44 +1,41 @@
 # CODEC mismatch report
 model: gpt-5.4
 temperature: 0
-timestamp_utc: 2026-04-21T14:00:16+00:00
+timestamp_utc: 2026-04-21T14:13:32+00:00
 
 ## parameter_comparison (PAPER.md-specified only)
 total_specified_params: 36
-matched: 11
-mismatched: 16
-not_found_in_code: 9
-match_ratio: 0.306
+matched: 14
+mismatched: 14
+not_found_in_code: 8
+match_ratio: 0.389
 
 ## mismatched_parameters
-- Hypothesized Sharpe ratio reduction: paper=reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units | code=Minimum effect threshold not enforced; no explicit -0.15 hypothesis check visible
-- Primary Metric: paper=Sharpe ratio differential: high-concentration periods minus low-concentration periods, annualized over rolling 252-day windows | code=sim_results consumed with columns including concentration and sharpe; no explicit high-minus-low rolling 252-day Sharpe differential computation visible
-- Two-tailed t-test: paper=Two-tailed t-test, p < 0.05, Newey-West HAC correction (4 lags) | code=OLS intercept test with HAC/Newey-West covariance, maxlags=4; no explicit p < 0.05 threshold enforcement visible
-- Bonferroni correction: paper=Bonferroni correction for 6 simultaneous tests — adjusted threshold p < 0.0083 | code=Bonferroni correction applied with n_tests=7
-- GARCH model: paper=GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution) | code=arch_model used; mean='Constant', volatility='GARCH'; p=1, q=1, distribution not confirmed from visible code
-- Fama-French regression: paper=Fama-French three-factor OLS regression (linearmodels, Fama-MacBeth) | code=Fama-MacBeth invoked, but exact implementation library and three-factor OLS setup not visible
-- Markov switching regime detection: paper=statsmodels, k_regimes=2 | code=MarkovAutoregression used; exact fitted parameters including k_regimes not visible
-- Minimum Effect Size: paper=-0.15 Sharpe units | code=No minimum effect threshold enforced in visible implementation
-- Data Source: paper=WRDS Compustat Futures — GSCI energy sector (crude oil, natural gas), 2000–2024 | code=Primary implemented dev source is yfinance for CL=F and NG=F; alternate source='wrds' path exists but visible config fetches kind='ff_factors' and dataset contents are not visible
-- Roll Convention: paper=ratio_backward | code=Passport records roll_convention='ratio_backward'; note says yfinance auto_adjust=True used as proxy
-- Adjustment Method: paper=ratio_backward | code=Passport records adjustment_method='ratio_backward'; note says yfinance auto_adjust=True used as proxy
-- Training Episodes: paper=500,000 minimum across all scenarios and seeds | code=Data consumed by SigmaJob2 includes n_episodes, but no visible enforcement of 500,000 minimum across all scenarios and seeds
-- Significance Threshold (primary): paper=p < 0.05 two-tailed | code=No explicit primary alpha threshold enforced in visible implementation excerpt
-- Significance Threshold (Bonferroni): paper=p < 0.0083 | code=Bonferroni applied with n_tests=7; adjusted threshold p < 0.0083 not visible
-- Pre-Analysis Plan Status: paper=UNCOMMITTED — must be committed by SIGMA_JOB1 before FORGE runs. FORGE gate will reject any run where this status is not COMMITTED in pap_lock. | code=Bootstrap seed derived from pap_lock via _seed_from_pap_lock(); no visible FORGE gate rejecting runs unless pap_lock status is COMMITTED
-- Audit Requirement: DataPassport SHA-256 signature: paper=required on all MINER outputs | code=DataPassport SHA-256 mentioned in paper requirement, but no explicit enforcement on all MINER outputs visible in provided code extract
+- Primary Metric: paper=Sharpe ratio differential: high-concentration periods minus low-concentration periods, annualized over rolling 252-day windows | code=Primary metric referenced in Bonferroni call as primary_metric; exact rolling 252-day annualized Sharpe differential implementation NOT FOUND in provided code summary
+- Bonferroni correction: paper=Bonferroni correction for 6 simultaneous tests — adjusted threshold p < 0.0083 | code=Adjusted threshold p < 0.0083 is specified, but SigmaJob2.run() calls _bonferroni(..., n_tests=7)
+- Data Source: paper=WRDS Compustat Futures — GSCI energy sector (crude oil, natural gas), 2000–2024 | code=Dev run uses yfinance proxy with tickers CL=F and NG=F; full run requires WRDS access; date range 2000-01-01 to 2023-12-31
+- Adjustment Method: paper=ratio_backward | code=Declared in passport as ratio_backward, but actual implemented download adjustment is yfinance auto_adjust=True used as proxy
+- Exclusion Rule: minimum trading history: paper=Exclude contracts with fewer than 100 trading days of history | code=Present only as specification constant/paper text; implementation NOT FOUND
+- Exclusion Rule: macro announcement window: paper=Exclude roll dates within 5 days of major macro announcements (FOMC, CPI) | code=apply_macro_exclusion_window(df, exclusion_days=5) exists, but actual dev-run behavior is no-op and macro_exclusion_applied: False
+- Exclusion Rule: bid-ask spread filter: paper=Exclude contracts where bid-ask spread exceeds 2% of contract price | code=Present only as specification constant/paper text; implementation NOT FOUND
+- Simulation Agent: paper=passive_gsci — rebalances to GSCI index weights mechanically | code=passive_gsci present; behavior always long/action 1
+- Simulation Agent: paper=trend_follower — 12-month momentum signal, long/short | code=trend_follower present; implemented using short lookback from price history / lookback_idx up to 4, not 12-month momentum
+- Simulation Agent: paper=mean_reversion — fades 3-month extremes | code=mean_reversion present; behavior details NOT FOUND in provided summary
+- Simulation Agent: paper=liquidity_provider — posts limit orders both sides | code=liquidity_provider present; behavior details NOT FOUND in provided summary
+- Simulation Agent: paper=macro_allocator — switches energy/non-energy on macro signals | code=macro_allocator present; behavior details NOT FOUND in provided summary
+- Simulation Agent: paper=meta_rl — learns optimal allocation across all strategies | code=meta_rl present; learning/allocation implementation NOT FOUND in provided summary
+- Audit Requirement: paper=DataPassport SHA-256 signature required on all MINER outputs | code=Data passport is written, but SHA-256 signature requirement NOT FOUND in provided summary
 
 ## not_found_in_code
-- DCC-GARCH cross-asset correlation (paper specifies: DCC-GARCH cross-asset correlation)
+- Seed Policy (paper specifies: seeds = [1337, 42, 9999])
 - Seed consistency requirement (paper specifies: All three seeds must produce qualitatively consistent results. A finding is only valid if it holds across all three seeds.)
-- Exclusion Rule: minimum trading history (paper specifies: Exclude contracts with fewer than 100 trading days of history)
-- Exclusion Rule: macro announcement window (paper specifies: Exclude roll dates within 5 days of major macro announcements (FOMC, CPI))
-- Exclusion Rule: bid-ask spread filter (paper specifies: Exclude contracts where bid-ask spread exceeds 2% of contract price)
 - Fitness Function (paper specifies: meta_rl fitness = Sharpe ratio over trailing 252 episodes, evaluated every 1000 training steps)
-- Audit Requirement: CODEC bidirectional audit (paper specifies: required before QUILL writes paper)
-- Audit Requirement: HAWK minimum score (paper specifies: 7/10 on methodology rubric)
-- Audit Requirement: Maximum HAWK revision cycles (paper specifies: 3)
+- Training Episodes (paper specifies: 500,000 minimum across all scenarios and seeds)
+- Pre-Analysis Plan Status (paper specifies: UNCOMMITTED — must be committed by SIGMA_JOB1 before FORGE runs. FORGE gate will reject any run where this status is not COMMITTED in pap_lock.)
+- Audit Requirement (paper specifies: CODEC bidirectional audit required before QUILL writes paper)
+- Audit Requirement (paper specifies: HAWK minimum score to pass: 7/10 on methodology rubric)
+- Audit Requirement (paper specifies: Maximum HAWK revision cycles: 3)
 
 ## verdict: FAIL
 severity: Major
-issue: code_deviates: 16 specified parameters differ between code and PAPER.md
+issue: code_deviates: 14 specified parameters differ between code and PAPER.md

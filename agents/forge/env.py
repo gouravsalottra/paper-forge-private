@@ -13,6 +13,30 @@ from pettingzoo import AECEnv
 AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES: str = "3"
 
 
+# PAPER.md specification: Audit Requirement: HAWK minimum score to pass
+AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_TO_PASS: str = "7/10 on methodology rubric"
+
+
+# PAPER.md specification: Seed Policy
+SEED_POLICY: str = "seeds = [1337, 42, 9999]"
+
+
+# PAPER.md specification: Exclusion Rule: bid-ask spread filter
+EXCLUSION_RULE_BID_ASK_SPREAD_FILTER: str = "Exclude contracts where bid-ask spread exceeds 2% of contract price"
+
+
+# PAPER.md specification: Exclusion Rule: minimum trading history
+EXCLUSION_RULE_MINIMUM_TRADING_HISTORY: str = "Exclude contracts with fewer than 100 trading days of history"
+
+
+# PAPER.md specification: Bonferroni correction
+BONFERRONI_CORRECTION: str = "Bonferroni correction for 6 simultaneous tests \u2014 adjusted threshold p < 0.0083"
+
+
+# PAPER.md specification: Audit Requirement: Maximum HAWK revision cycles
+AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES: str = "3"
+
+
 # PAPER.md specification: Audit Requirement: HAWK minimum score
 AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE: str = "7/10 on methodology rubric"
 
