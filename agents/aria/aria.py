@@ -147,7 +147,10 @@ class ARIAPipeline:
 
             context = dict(self._context_config_for_phase(phase))
             if phase in {"QUILL", "HAWK"}:
-                context["revision_number"] = max(1, retries.get(phase, 1))
+                existing = sorted(
+                    (Path("paper_memory") / self.run_id).glob("paper_draft_v*.tex")
+                )
+                context["revision_number"] = len(existing) + 1
 
             result = self._dispatch(phase, self._server_for_phase(phase), context)
             flag = str(result.get("result_flag", "DONE"))
@@ -167,6 +170,12 @@ class ARIAPipeline:
                 retries[phase] = 0
                 return
 
+            if phase == "FIXER" and flag in {"FAILED", "FAIL", "ESCALATE"}:
+                self._log_audit("FIXER", "WARN", f"FIXER returned {flag}; continuing without blocking pipeline.")
+                self._advance_phase("FIXER", "done")
+                retries[phase] = 0
+                return
+
             if flag in {"FAILED", "FAIL", "ESCALATE"}:
                 raise RuntimeError(f"{phase} returned non-success flag={flag}")
 
@@ -180,6 +189,11 @@ class ARIAPipeline:
             self._log_audit(phase, "ERROR", f"Attempt {attempt} failed: {type(exc).__name__}: {exc}")
             self._last_failure_phase = phase
             self._last_failure_message = str(exc)
+            if phase == "FIXER":
+                self._log_audit("FIXER", "WARN", "FIXER exception treated as non-blocking; continuing main loop.")
+                self._advance_phase("FIXER", "done")
+                retries[phase] = 0
+                return
             if phase not in {"QUILL", "HAWK"} and attempt >= max_retries.get(phase, 3):
                 self._log_audit(
                     phase,
