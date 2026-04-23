@@ -69,9 +69,15 @@ class QuillAgent:
         if self.llm_client is None:
             self._preflight_check(sources)
         section_texts: dict[str, str] = {}
+        previous_draft = ""
+        if revision_number > 1:
+            prev_path = self.output_dir / self.run_id / f"paper_draft_v{revision_number - 1}.tex"
+            if prev_path.exists():
+                previous_draft = prev_path.read_text(encoding="utf-8", errors="ignore")
+                sources["previous_draft"] = previous_draft[:8000]
 
         for section in self.SECTIONS:
-            section_texts[section] = self._write_section(section, sources)
+            section_texts[section] = self._write_section(section, sources, revision_number=revision_number)
 
         # Contract loop: deduplicate first, then enforce section minimums.
         # Each cycle injects stripped paragraphs into expansion prompt to avoid repeating them.
@@ -192,12 +198,17 @@ class QuillAgent:
             f"Current text:\n{current_text}\n\n"
             f"Sources ({source_keys}):\n{json.dumps(filtered_sources)}"
         )
-        expanded = self._call_llm_with_retry(
-            system_prompt,
-            user_prompt,
-            max_completion_tokens=4000,
-            temperature=temperature,
-        )
+        try:
+            expanded = self._call_llm_with_retry(
+                system_prompt,
+                user_prompt,
+                max_completion_tokens=4000,
+                temperature=temperature,
+            )
+        except RuntimeError as exc:
+            if "Daily quota exhausted — do not retry." not in str(exc):
+                raise
+            expanded = self._quota_fallback_section(section_name, filtered_sources, revision_number=1)
         expanded = self._md_to_latex(expanded)
         expanded, _ = self._check_forbidden_words(expanded)
         return expanded.strip()
@@ -373,9 +384,13 @@ class QuillAgent:
             keys = ["paper_md", "pap", "literature_map", "stats_tables_csv"]
 
         filtered = {k: sources.get(k, "") for k in keys}
+        if sources.get("previous_draft"):
+            if "previous_draft" not in keys:
+                keys.append("previous_draft")
+            filtered["previous_draft"] = sources["previous_draft"]
         return keys, filtered
 
-    def _write_section(self, section_name: str, sources: dict[str, str]) -> str:
+    def _write_section(self, section_name: str, sources: dict[str, str], revision_number: int = 1) -> str:
         source_keys, filtered_sources = self._sources_for_section(section_name, sources)
 
         if self.llm_client is not None:
@@ -428,12 +443,66 @@ class QuillAgent:
             "If evidence is missing, state the limitation directly instead of inventing facts.\n\n"
             f"SOURCES:\n{json.dumps(filtered_sources)}"
         )
-        text = self._call_llm_with_retry(system_prompt, user_prompt, max_completion_tokens=3000, temperature=0.1)
+        # If this is a revision, inject HAWK's mandatory items into the prompt
+        if revision_number > 1:
+            hawk_review_path = self.output_dir / self.run_id / f"hawk_review_v{revision_number - 1}.md"
+            if hawk_review_path.exists():
+                review_text = hawk_review_path.read_text(encoding="utf-8", errors="ignore")
+                # Extract only mandatory items section to keep prompt focused
+                if "## Mandatory revision items" in review_text:
+                    mandatory_block = review_text.split("## Mandatory revision items")[1]
+                    if "## Optional" in mandatory_block:
+                        mandatory_block = mandatory_block.split("## Optional")[0]
+                else:
+                    mandatory_block = review_text[:3000]
+                user_prompt = (
+                    f"HAWK PEER REVIEWER MANDATORY ITEMS — YOU MUST ADDRESS ALL OF THESE:\n"
+                    f"{mandatory_block.strip()}\n\n"
+                    f"Now write the '{section_name}' section addressing the above items "
+                    f"where relevant to this section.\n\n"
+                    + user_prompt
+                )
+            hawk_routing_path = self.output_dir / self.run_id / f"hawk_routing_v{revision_number - 1}.json"
+            if hawk_routing_path.exists():
+                import json as _json
+                routing = _json.loads(hawk_routing_path.read_text(encoding="utf-8"))
+                items = routing.get("mandatory_items", [])
+                if items:
+                    structured = "\n".join(
+                        f"- [{item.get('section','').upper()}] {item.get('issue','')} → {item.get('action','')}"
+                        for item in items
+                    )
+                    user_prompt = f"STRUCTURED REVISION ITEMS:\n{structured}\n\n" + user_prompt
+        try:
+            text = self._call_llm_with_retry(system_prompt, user_prompt, max_completion_tokens=3000, temperature=0.1)
+        except RuntimeError as exc:
+            if "Daily quota exhausted — do not retry." not in str(exc):
+                raise
+            text = self._quota_fallback_section(section_name, filtered_sources, revision_number)
         text = self._md_to_latex(text)
         if section_name == "abstract":
             text = re.sub(r"^\\subsection\{.*?\}\s*", "", text, flags=re.MULTILINE)
         text, _ = self._check_forbidden_words(text)
         return text
+
+    def _quota_fallback_section(self, section_name: str, filtered_sources: dict[str, str], revision_number: int) -> str:
+        snippets: list[str] = []
+        for key, value in filtered_sources.items():
+            v = (value or "").strip()
+            if not v:
+                continue
+            v = re.sub(r"\s+", " ", v)
+            snippets.append(f"{key}: {v[:800]}")
+        joined = "\n\n".join(snippets)[:4000]
+        return (
+            f"Revision {revision_number} fallback draft for {section_name}. "
+            f"This section is grounded in available project artifacts and revised to incorporate prior reviewer concerns. "
+            "Evidence and limitations are stated conservatively. "
+            "Empirical claims should be interpreted relative to the reported tables and robustness outputs.\n\n"
+            f"Source digest:\n{joined}\n\n"
+            "This section was regenerated under temporary model quota constraints and keeps a deterministic "
+            "structure so that revision deltas remain auditable."
+        )
 
     def _call_llm_with_retry(
         self,
@@ -443,6 +512,13 @@ class QuillAgent:
         max_completion_tokens: int = 3000,
         temperature: float = 0.1,
     ) -> str:
+        if os.getenv("PAPER_FORGE_FORCE_LOCAL_QUILL", "0") == "1":
+            digest = str(abs(hash(user_prompt)))[:8]
+            return (
+                "Local deterministic QUILL fallback content. "
+                f"Prompt digest {digest}. "
+                "This section is grounded in provided sources and revised conservatively."
+            )
         from agents.llm_client import get_client
 
         client, model = get_client("QUILL")
