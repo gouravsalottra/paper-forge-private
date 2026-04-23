@@ -1,36 +1,76 @@
-# HAWK Review
+## Summary
+The paper tests whether higher passive concentration weakens momentum profitability in GSCI energy futures, with the primary estimand defined as the Sharpe-ratio difference between high- and low-concentration periods. The current draft does not deliver a valid identified result. The observed Sharpe differential is economically large, but the inference is unusable because the effective sample is only 9 observations, the factor-control implementation is a development proxy rather than the specified data source, seed consistency fails under the paper’s own rules, and the CODEC audit shows that the implemented pipeline is not fully verified against the stated design. This is not a presentation problem; it is a design-execution mismatch with inadequate statistical support.
 
-Section: Introduction (lines 25-31)
-Issue: "The research specification states a sharp hypothesis. It tests whether passive GSCI index investor concentration above 30% of open interest in GSCI energy futures reduces the Sharpe ratio of a 12-month momentum strategy by at least 0.15 relative to periods below 30% concentration, while controlling for GARCH(1,1) volatility clustering and Fama-French momentum factor exposure" (line 25). This claim overstates the implemented contribution and novelty because the code artifacts do not implement the stated momentum strategy, WRDS GSCI energy sample, or Fama-MacBeth/momentum controls; CODEC explicitly flags missing code coverage for "momentum" and "macbeth." As written, the paper presents a novel integrated design that is not actually executed.
-Severity: Major
-Required action: Replace this sentence with a contribution statement tied to implemented artifacts only, and add a two-column table in the Introduction titled "Planned vs Implemented Contribution" listing at minimum: data source, asset universe, outcome variable, estimator, and controls, with each row marked "implemented" or "not implemented" using citations to `codec_spec` and `codec_mismatch`.
+## Mandatory revision items
 
-Section: Results (lines 137-145)
-Issue: "Taken together, the available tables show a negative directional relation between concentration and mean Sharpe ratios, especially at 30% and 60% concentration (`sharpe_summary.csv`), but the formal statistical evidence does not support a reliable effect under the stated testing framework" (line 145). The identification problem is that the reported inference is not estimating the paper’s stated causal/reduced-form estimand: `sigma_job2` runs tests on 9 scenario-level `mean_reward` observations, not on rolling Sharpe differentials between high- and low-concentration periods, and not on observed commodity-futures momentum returns. This makes the stated concentration-performance relation unidentified in the reported tests.
-Severity: Major
-Required action: Add a results table titled "Estimand-to-Estimator Mapping" with one row for each reported test showing: target estimand, actual dependent variable, unit of observation, sample size, and whether it matches the hypothesis. Then either (a) re-estimate the main test on the actual high-minus-low rolling Sharpe differential series from the implemented data, or (b) relabel all inferential claims as tests on scenario-level mean reward only and remove any hypothesis-validation language.
+1. **Section Abstract, lines 1–18**
+   - **Problem:** The abstract reports a large negative Sharpe differential as the central empirical finding even though the paper’s own decision rule says the finding is invalid when seed consistency fails. Economically, a result that does not replicate across the required seeds is not an admissible finding under the stated protocol. Presenting it as the headline result overstates evidence.
+   - **Required fix:** Rewrite the abstract so that the lead result is protocol failure, not the observed point estimate. Explicitly state that the primary finding is invalid under the pre-specified seed policy and that the reported differential is descriptive only unless the full three-seed validation is passed and documented.
+   - **Responsible component:** [QUILL]
 
-Section: Methodology (lines 124-130)
-Issue: "`agents/sigma_job2.py` applies an econometric battery to `outputs/sim_results.json`, but the actual sample is the vector of nine scenario-level `mean_reward` observations, not episode-level returns and not the reported Sharpe series" (line 126). This sentence reveals a core methodology error: Newey-West HAC, GARCH(1,1), and regime models are being applied to a 9-point vector of scenario summaries rather than a time series of returns. Those estimators are not methodologically appropriate for the paper’s stated objective or for such aggregated data.
-Severity: Major
-Required action: Change the estimator set so that HAC/GARCH/Markov tests are run on a genuine time-indexed return series with documented timestamps and sample length; if only 9 scenario summaries are available, delete the HAC/GARCH/Markov inference and replace it with exact permutation or randomization tests across the 9 scenario-seed observations, reported in a new table with test statistic, null, and p-value.
+2. **Section Introduction, paragraph discussing audit-oriented design, lines 32–45**
+   - **Problem:** The paper claims an “audit-traceable” and “pre-registered” design, but the materials show the pre-analysis-plan status was marked UNCOMMITTED in the draft discussion, temporal ordering is flagged as “CHECK NEEDED,” and the CODEC audit does not verify several required controls. Economically and procedurally, identification based on a pre-committed design is not credible unless commitment timing and gatekeeping are demonstrated.
+   - **Required fix:** Provide a dated audit table showing: PAP lock timestamp, commitment status at run start, forge start timestamp, and evidence that no analysis outputs used in the paper were generated before commitment. If commitment did not precede execution, remove all pre-registration language and restate the paper as exploratory.
+   - **Responsible component:** [CODEC]
 
-Section: Robustness (lines 150-160)
-Issue: "No seed-by-seed results, factor regressions, Markov switching estimates, or DCC-GARCH outputs are provided, so those robustness dimensions cannot be verified here" (line 150). The evidentiary problem is that the paper acknowledges missing robustness outputs but still proceeds to discuss the hypothesis as if robustness had been meaningfully assessed. Without seed-level heterogeneity, omitted planned checks, and no alternative specifications, the robustness section is not evidence.
-Severity: Major
-Required action: Add a robustness table with one row per planned check from `paper_md`—seed consistency, factor regression, Markov switching, DCC-GARCH, exclusion filters—showing status as `reported`/`not reported`, artifact filename, and pass/fail criterion. Also include a seed-by-seed table for all 9 concentration×seed runs with `concentration`, `seed`, `mean_reward`, and `sharpe`, and state whether the sign of the effect is consistent across all three seeds.
+3. **Section Abstract and primary-results discussion, lines reporting Newey-West t-test**
+   - **Problem:** The primary t-test is based on **n = 9** with **4 HAC lags**. Statistically, HAC inference with such a short series is unstable and not informative; with only 9 observations, the long-run variance estimate is poorly determined and the test has little meaning. This is not a minor power issue; it undermines the claimed inferential framework.
+   - **Required fix:** Reconstruct the primary test at the underlying rolling-window frequency rather than collapsing to 9 observations, or justify exactly what the 9 observations are and why HAC with 4 lags is valid in that setting. In addition, report finite-sample-appropriate inference: randomization/permutation test for the concentration-label assignment, block bootstrap confidence intervals for the Sharpe differential, and sensitivity to lag choice \(L=0,1,2\). If only 9 independent observations truly exist, drop HAC-based significance claims entirely and relabel the analysis as descriptive.
+   - **Responsible component:** [SIGMA]
 
-Section: Discussion (lines 169-175)
-Issue: "The bootstrap confidence interval reported in the Sharpe summary, from -0.000429 to 0.000168, is also extremely narrow relative to the cross-state mean differences, which raises an internal consistency concern about how uncertainty was summarized" (line 169). This identifies an internal inconsistency but leaves it unresolved. The same table reports large cross-bin mean Sharpe differences and standard deviations above 1, yet identical near-zero bootstrap intervals across all bins, suggesting the interval is for a different statistic or is misreported.
-Severity: Major
-Required action: Insert a reconciliation table that, for each column in `sharpe_summary.csv`, defines the exact statistic, underlying sample, and formula used. Then verify whether `boot_ci_2_5` and `boot_ci_97_5` are intervals for mean reward or Sharpe; if they are not Sharpe intervals, rename the columns and revise all text accordingly. If they are intended as Sharpe intervals, recompute them separately by concentration bin and report non-identical bin-specific values.
+4. **Section Results tables for Sharpe summaries and primary metric**
+   - **Problem:** The paper compares “high” and “low” concentration periods, but the scenario table is organized at 10%, 30%, and 60% concentration while the hypothesis threshold is “exceeds 30%.” The mapping from the three scenarios to the binary high/low comparison is not identified. Economically, the estimand depends on the exact partition rule; if 30% is both a midpoint scenario and a threshold, the treatment definition is ambiguous.
+   - **Required fix:** State the exact classification rule used to construct `sharpe_high_mean` and `sharpe_low_mean`: whether 30% is included in high, low, or excluded; whether the primary comparison is 60% vs 10%, above-30% vs below-30%, or pooled bins. Then rerun all primary tables using that exact rule and provide a robustness table for alternative threshold codings: \(>30\), \(\ge 30\), and tercile-based bins.
+   - **Responsible component:** [QUILL]
 
-Section: Discussion (lines 165-171)
-Issue: "Relative to the low-concentration benchmark, the drop is about 0.1707 Sharpe units at 30% and about 1.1922 Sharpe units at 60%, both exceeding the minimum economic effect size of 0.15 in magnitude" (line 165). The economic-significance problem is that these magnitudes are presented without any translation into returns, certainty-equivalent value, or implementable strategy impact, and they are derived from only 3 observations per bin. The reader cannot assess whether the effect is economically meaningful in a trading or welfare sense.
-Severity: Major
-Required action: Add an economic-significance table converting the reported Sharpe differences into annualized mean-return equivalents under at least two volatility assumptions (e.g., 10% and 20% annualized volatility), and report the implied change in expected annual return for the 30% vs 10% and 60% vs 10% comparisons. Include the exact formula used in a table note.
+5. **Section Results, factor-control discussion**
+   - **Problem:** The factor-control implementation uses only 9 observations and explicitly substitutes development-run proxies for the specified WRDS Fama-French factors. This does not implement the paper’s stated design. Statistically, an OLS with \(R^2=1.0\) on 9 observations using proxy factors is not credible evidence of factor adjustment; it is a red flag for overfit or degenerate construction.
+   - **Required fix:** Replace the proxy factor run with the specified factor data source, report the exact merge and sample coverage, and rerun the factor-adjusted regressions on the full available sample. Include a table comparing proxy-factor and true-factor estimates, with observation counts and date ranges. If WRDS factors are unavailable for the asset class, revise the design and remove claims of Fama-French adjustment rather than presenting the proxy as confirmatory evidence.
+   - **Responsible component:** [MINER]
 
-Section: Abstract (lines 14-18)
-Issue: "This study examines whether passive GSCI investor concentration is associated with lower momentum profitability in GSCI energy futures" (line 14). This opening sentence is presentation-wise misleading because the implemented artifacts do not actually analyze a GSCI energy-futures momentum dataset; the code uses either Yahoo Finance prices for five commodities or synthetic simulation outputs. The abstract therefore states the paper as if it were an executed empirical commodity-futures study rather than a mismatched specification-plus-simulation exercise.
-Severity: Major
-Required action: Rewrite the first two abstract sentences so they explicitly distinguish the planned design from the implemented evidence. The revised abstract must state the actual analyzed inputs (`sharpe_summary.csv`, `ttest_results.csv`, `garch_results.csv`, and/or synthetic scenario outputs) and must not mention WRDS GSCI energy futures unless a matching implemented dataset table is added and cited.
+6. **Section Results, GARCH and DCC discussion**
+   - **Problem:** The paper invokes GARCH(1,1) and DCC-GARCH as part of the mechanism, but the reported GARCH estimates are degenerate (\(\alpha=0\), \(\beta=1\), persistence \(=1\)) on 9 observations, and DCC is estimated for only one pair. Econometrically, these outputs do not identify volatility clustering or dynamic correlation; they are artifacts of an unusably small sample.
+   - **Required fix:** Rerun GARCH/DCC on the full return series at the native frequency with sufficient observations for stable estimation, report convergence diagnostics and parameter constraints, and show whether the mechanism variables change across concentration regimes. If the sample cannot support these models, remove them from the claimed mechanism and from the abstract/introduction.
+   - **Responsible component:** [SIGMA]
+
+7. **Section Data/Methods where futures construction is described**
+   - **Problem:** The CODEC audit reports a mismatch between the specified adjustment method (`ratio_backward`) and the implemented method (`yfinance auto_adjust=True`). For futures return construction, roll and adjustment conventions directly affect momentum signals and Sharpe ratios. This is a substantive implementation issue, not a cosmetic one.
+   - **Required fix:** Implement the exact specified roll-adjustment method and regenerate all return-based outputs, or formally amend the design and provide a side-by-side replication showing that the main Sharpe differential is robust to both `ratio_backward` and the current implementation. The paper must identify which series enters the momentum strategy and why.
+   - **Responsible component:** [CODEC]
+
+8. **Section Methods / empirical sample construction**
+   - **Problem:** The paper claims to study “GSCI energy futures,” but the reported DCC output has only one estimated pair and the rest of the materials do not document contract coverage, date range, roll schedule, missing-data handling, or how passive concentration is measured and aligned to returns. Economically, without transparent coverage and alignment, the treatment variable may be mismeasured and the sample may not represent the stated market.
+   - **Required fix:** Add a data-construction table listing every contract, exchange, sample start/end, roll rule, observation frequency, passive concentration source, merge key, and final usable observations by contract. Also report how many observations are lost at each cleaning step and whether concentration is contemporaneous, lagged, or averaged over the return window.
+   - **Responsible component:** [MINER]
+
+9. **Section Results and conclusion language**
+   - **Problem:** The draft repeatedly frames the evidence as “large negative observed Sharpe differential” despite non-significance, failed seed consistency, and invalid mechanism tests. Economically, this is classic overclaiming from a noisy point estimate. The paper’s own minimum-effect rule does not override failed inference and failed protocol validity.
+   - **Required fix:** Rewrite the results and conclusion so that the paper states plainly: the observed effect is not statistically reliable, not seed-consistent, and not protocol-valid in the current implementation. Any discussion of economic magnitude must be explicitly labeled exploratory and conditional on successful replication.
+   - **Responsible component:** [QUILL]
+
+10. **Section Methods / reproducibility and seed policy**
+    - **Problem:** The seed policy requires validation across seeds \([1337, 42, 9999]\), but the audit states the full seed list is not found in the provided code context and the validation file says the finding does not hold across all three seeds. Under the paper’s own rules, this invalidates the result. A result that depends on one seed is not reproducible evidence.
+    - **Required fix:** Provide a seed-by-seed replication table for every primary output: Sharpe differential, HAC test, factor regression, and any bootstrap intervals. Archive the exact code path that loops over all three seeds and aggregates the decision rule. If the result remains seed-sensitive, redesign the simulation or estimation procedure so the primary conclusion is not driven by seed choice.
+    - **Responsible component:** [FORGE]
+
+11. **Section Methods / code-to-paper conformity**
+    - **Problem:** The CODEC report shows 34/43 specified parameters matched, 2 mismatched, and 7 not found in code, including training episodes, evaluation frequency, and audit gatekeeping fields. Even if some are pipeline-level controls, the paper currently asserts stronger implementation fidelity than has been verified. This is a code-specification conformity problem.
+    - **Required fix:** Produce a complete code-spec concordance appendix listing each specified parameter, where it is implemented, and whether it affects the reported empirical outputs. For every “not found” item, either implement it and rerun the pipeline or document that it is irrelevant to this paper and remove it from the claimed design. The revised manuscript must not claim full protocol compliance unless CODEC verifies it.
+    - **Responsible component:** [CODEC]
+
+## Optional suggestions
+
+1. Report the date range and number of rolling 252-day windows used in the primary Sharpe calculations, and include a time-series plot of concentration and momentum Sharpe by window.  
+   - **Responsible component:** [QUILL]
+
+2. Add a placebo analysis using non-energy commodity futures or an alternative concentration threshold to show whether the observed pattern is specific to the stated mechanism.  
+   - **Responsible component:** [SIGMA]
+
+3. Replace the current factor discussion with commodity-relevant controls if equity Fama-French factors are not theoretically appropriate for futures momentum.  
+   - **Responsible component:** [FORGE]
+
+4. Include a simple table reconciling every number in the abstract to the exact source file and row used to generate it.  
+   - **Responsible component:** [QUILL]
+
+## Decision
+MAJOR_REVISION

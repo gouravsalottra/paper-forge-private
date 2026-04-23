@@ -10,14 +10,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from openai import OpenAI
+from agents.llm_client import get_client
 
 
 class SigmaJob1:
     def __init__(self, run_id: str, db_path: str = "state.db") -> None:
         self.run_id = run_id
         self.db_path = db_path
-        self.client = OpenAI()
+        self.client, self._model = get_client("SIGMA")
 
     def run(self) -> dict:
         _skills_candidates = [
@@ -73,7 +73,7 @@ class SigmaJob1:
 
         try:
             completion = self.client.chat.completions.create(
-                model="gpt-5.4",
+                model=self._model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -99,6 +99,12 @@ class SigmaJob1:
         canonical_json = json.dumps(pap_obj, sort_keys=True, separators=(",", ":"))
         pap_sha256 = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        run_dir = Path("paper_memory") / self.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "pap.md").write_text(
+            "# Pre-Analysis Plan (Committed)\n\n```json\n" + json.dumps(pap_obj, indent=2) + "\n```\n",
+            encoding="utf-8",
+        )
 
         pap_id = uuid.uuid4().hex
         with sqlite3.connect(self.db_path) as conn:

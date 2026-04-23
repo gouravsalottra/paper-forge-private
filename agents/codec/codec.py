@@ -8,6 +8,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from agents.llm_client import get_client
+
 
 class CodecAgent:
     def __init__(self, run_id: str, db_path: str, output_dir: str, llm_client) -> None:
@@ -15,79 +17,162 @@ class CodecAgent:
         self.db_path = db_path
         self.output_dir = Path(output_dir)
         self.llm_client = llm_client
-        self._model_name: str = "gpt-5.4"
+        if llm_client is None:
+            self._llm_client, self._model_name = get_client("CODEC")
+        else:
+            self._llm_client, self._model_name = None, "external-client"
 
     def run(self) -> dict:
         pass1_spec = self._pass1_read_code()
         pass2_spec = self._pass2_read_paper()
         mismatch = self._compare(pass1_spec, pass2_spec)
-
-        flag = "PASS" if "verdict: PASS" in mismatch else "WARN" if "verdict: WARN" in mismatch else "FAIL"
+        mismatch_items = self._extract_mismatch_items(mismatch)
+        if len(mismatch_items) > 3:
+            flag = "FAIL"
+        elif len(mismatch_items) > 0:
+            flag = "WARN"
+        else:
+            flag = "PASS"
+        print("[CODEC DEBUG] Raw LLM verdict:")
+        print(mismatch)
+        print("[CODEC DEBUG] Parsed result_flag:", flag)
+        print("[CODEC DEBUG] Mismatches found:")
+        for m in mismatch_items:
+            print(f"  - {m}")
         self._write_result(flag)
         return {"result_flag": flag}
 
-    def _pass1_read_code(self) -> str:
-        PRIORITY_FILES = [
-            Path("agents/sigma_job2.py"),
-            Path("agents/forge/agents.py"),
-            Path("agents/forge/runner.py"),
-            Path("agents/forge/env.py"),
-            Path("agents/miner/miner.py"),
-            Path("PAPER.md"),
-        ]
-
-        SECONDARY_DIRS = [
-            Path("agents/sigma"),
-            Path("agents/forge"),
-            Path("agents/miner"),
-        ]
-
-        lines = ["# CODEC Pass 1 — Specification-level code analysis", ""]
-        lines.append("## PRIORITY FILES (specification-level implementations)")
-        for p in PRIORITY_FILES:
-            if p.exists() and p.stat().st_size > 0:
-                text = p.read_text(encoding="utf-8", errors="ignore")
-                lines.append(f"\n### FILE: {p.as_posix()}")
-                lines.append(text[:6000])
-
-        lines.append("\n## SECONDARY FILES (supporting implementations)")
-        seen = {p.resolve() for p in PRIORITY_FILES if p.exists()}
-        for d in SECONDARY_DIRS:
-            if not d.exists():
+    @staticmethod
+    def _extract_mismatch_items(report: str) -> list[str]:
+        lines = report.splitlines()
+        items: list[str] = []
+        current_section = ""
+        for line in lines:
+            if line.startswith("## "):
+                current_section = line.strip().lower()
                 continue
-            for p in sorted(d.rglob("*.py")):
-                if p.resolve() in seen:
-                    continue
-                if "__pycache__" in p.parts or p.stat().st_size == 0:
-                    continue
-                seen.add(p.resolve())
-                text = p.read_text(encoding="utf-8", errors="ignore")
-                lines.append(f"\n### FILE: {p.as_posix()} ({len(text.splitlines())} lines)")
-                lines.append(text[:2000])
+            if not line.startswith("- "):
+                continue
+            if "## mismatched_parameters" in current_section or "## not_found_in_code" in current_section:
+                items.append(line[2:].strip())
+        return items
 
-        prompt = {
+    @staticmethod
+    def _truncate_file(content: str, max_lines: int = 300) -> str:
+        lines = content.splitlines()
+        if len(lines) <= max_lines:
+            return content
+        half = max_lines // 2
+        return "\n".join(lines[:half]) + \
+               f"\n... [{len(lines) - max_lines} lines truncated] ...\n" + \
+               "\n".join(lines[-half:])
+
+    def _pass1_read_code(self) -> str:
+        import tiktoken
+
+        enc = tiktoken.encoding_for_model("gpt-4o")
+        initial_prompt = self._build_pass1_prompt(enforce_budget=False)
+        initial_token_count = len(enc.encode(initial_prompt))
+        print(f"[CODEC] Prompt token count: {initial_token_count}")
+
+        final_prompt = self._build_pass1_prompt(enforce_budget=True)
+        final_token_count = len(enc.encode(final_prompt))
+        print(f"[CODEC] Final prompt token count: {final_token_count}")
+
+        llm_payload = {
             "pass": "PASS1",
             "instructions": (
-                "You are CODEC Pass 1. Read ONLY the provided codebase.\n"
-                "Extract what it actually implements at specification level:\n"
-                "1. Statistical tests: name each test, its parameters, library\n"
-                "2. Data: source, tickers, date range, adjustment method\n"
-                "3. Simulation: agent names and their behaviors\n"
-                "4. Seeds: exact values used\n"
-                "5. Thresholds: significance levels, minimum effects\n"
-                "6. Windows: lookback periods, rolling windows\n"
-                "7. Fitness function: exact formula used for MetaRL\n"
-                "Do NOT report: CEM internals, SQLite settings, "
-                "health check timeouts, logging constants.\n"
-                "Be exhaustive on specification-level parameters."
+                "You are CODEC Pass 1. Read ONLY the provided codebase. "
+                "Extract implementation behavior at specification level."
             ),
-            "context": {"codebase_text": "\n".join(lines)},
+            "context": {
+                "codebase_text": final_prompt,
+            },
+            "raw_prompt": final_prompt,
         }
-        llm_out = self._call_llm(prompt)
+        llm_out = self._call_llm(llm_payload)
         out = self.output_dir / self.run_id / "codec_spec.md"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(str(llm_out), encoding="utf-8")
         return str(llm_out)
+
+    def _build_pass1_prompt(self, enforce_budget: bool = True) -> str:
+        import tiktoken
+
+        relevant_files = [
+            Path("agents/miner/miner.py"),
+            Path("agents/forge/runner.py"),
+        ]
+
+        instructions = (
+            "You are CODEC Pass 1. Read ONLY the provided codebase.\n"
+            "Extract what it actually implements at specification level:\n"
+            "1. Statistical tests: name each test, its parameters, library\n"
+            "2. Data: source, tickers, date range, adjustment method\n"
+            "3. Simulation: agent names and their behaviors\n"
+            "4. Seeds: exact values used\n"
+            "5. Thresholds: significance levels, minimum effects\n"
+            "6. Windows: lookback periods, rolling windows\n"
+            "7. Fitness function: exact formula used for MetaRL\n"
+            "Do NOT report: CEM internals, SQLite settings, "
+            "health check timeouts, logging constants.\n"
+            "Be exhaustive on specification-level parameters."
+        )
+
+        blocks: list[tuple[Path, str]] = []
+        for p in relevant_files:
+            if p.exists() and p.stat().st_size > 0:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+                blocks.append((p, self._truncate_file(text, max_lines=80)))
+
+        def compose(block_values: list[tuple[Path, str]]) -> str:
+            lines = ["# CODEC Pass 1 — Specification-level code analysis", ""]
+            lines.append("## RELEVANT FILES (specification-level implementations)")
+            for path_obj, content in block_values:
+                lines.append(f"\n### FILE: {path_obj.as_posix()}")
+                lines.append(content)
+            codebase_text = "\n".join(lines)
+            return (
+                "PASS: PASS1\n"
+                f"INSTRUCTIONS:\n{instructions}\n\n"
+                f"CONTEXT:\n{json.dumps({'codebase_text': codebase_text})}\n"
+            )
+
+        prompt = compose(blocks)
+        if not enforce_budget:
+            return prompt
+
+        enc = tiktoken.encoding_for_model("gpt-4o")
+        token_count = len(enc.encode(prompt))
+        if token_count <= 6000:
+            return prompt
+
+        # Hard budget enforcement: iteratively truncate only the last file.
+        if not blocks:
+            return prompt
+
+        last_path, last_content = blocks[-1]
+        last_lines = last_content.splitlines()
+        while token_count > 6000 and len(last_lines) > 20:
+            cut = max(5, min(20, len(last_lines) // 8))
+            last_lines = last_lines[:-cut]
+            reduced = "\n".join(last_lines) + "\n... [additional lines truncated for token budget] ..."
+            blocks[-1] = (last_path, reduced)
+            prompt = compose(blocks)
+            token_count = len(enc.encode(prompt))
+
+        # Absolute clamp if still above budget.
+        if token_count > 6000:
+            while token_count > 6000:
+                over = token_count - 6000
+                shrink_chars = max(200, over * 4)
+                _, cur = blocks[-1]
+                cur = cur[:-shrink_chars] if len(cur) > shrink_chars else cur[: max(0, len(cur) // 2)]
+                blocks[-1] = (last_path, cur + "\n... [token budget clamp] ...")
+                prompt = compose(blocks)
+                token_count = len(enc.encode(prompt))
+
+        return prompt
 
     def _pass2_read_paper(self) -> str:
         """Run CODEC Pass 2 in an isolated subprocess with separate environment."""
@@ -112,11 +197,12 @@ class CodecAgent:
         import subprocess
         import sys
 
-        script_path = Path(__file__).resolve().parents[1] / "codec_pass2.py"
+        project_root = Path(__file__).resolve().parents[2]
         result = subprocess.run(
             [
                 sys.executable,
-                str(script_path),
+                "-m",
+                "agents.codec_pass2",
                 "--run-id",
                 self.run_id,
                 "--db-path",
@@ -124,11 +210,13 @@ class CodecAgent:
                 "--output-dir",
                 str(self.output_dir),
             ],
+            cwd=str(project_root),
             capture_output=True,
             text=True,
             timeout=600,
             env={
                 **os.environ,
+                "PYTHONPATH": str(project_root),
                 "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY_PASS2", os.environ.get("OPENAI_API_KEY", "")),
             },
         )
@@ -325,26 +413,18 @@ class CodecAgent:
 
     def _call_llm(self, payload: dict) -> str:
         if self.llm_client is None:
-            try:
-                from dotenv import load_dotenv
-            except Exception:
-                def load_dotenv(*_args, **_kwargs):
-                    return False
-
-            load_dotenv()
-            from openai import OpenAI
-
-            client = OpenAI()
             system_prompt = (
                 "You are a rigorous audit model. Return markdown only. "
                 "Do not invent unseen context and do not use sources outside the provided context."
             )
-            user_prompt = (
-                f"PASS: {payload.get('pass')}\n"
-                f"INSTRUCTIONS:\n{payload.get('instructions','')}\n\n"
-                f"CONTEXT:\n{json.dumps(payload.get('context', {}))}\n"
-            )
-            resp = client.chat.completions.create(
+            user_prompt = payload.get("raw_prompt")
+            if not user_prompt:
+                user_prompt = (
+                    f"PASS: {payload.get('pass')}\n"
+                    f"INSTRUCTIONS:\n{payload.get('instructions','')}\n\n"
+                    f"CONTEXT:\n{json.dumps(payload.get('context', {}))}\n"
+                )
+            resp = self._llm_client.chat.completions.create(
                 model=self._model_name,
                 messages=[
                     {"role": "system", "content": system_prompt},

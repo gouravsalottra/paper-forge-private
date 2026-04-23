@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +27,14 @@ class HawkAgent:
     def run(self, revision_number: int = 1) -> dict:
         context = self._load_review_context()
         report = self._write_referee_report(context, revision_number)
+        if len(report.strip()) < 500:
+            # Enforce artifact quality/size contract.
+            for _ in range(3):
+                report = self._write_referee_report(context, revision_number)
+                if len(report.strip()) >= 500:
+                    break
+            if len(report.strip()) < 500:
+                raise RuntimeError("HAWK report generation failed size gate (<500 bytes).")
         routing = self._parse_routing(report)
         methodology_score = self._score_methodology_rubric(context)
         routing["methodology_score_10"] = methodology_score
@@ -256,19 +265,33 @@ MAJOR_REVISION with a [CODEC] mandatory item."""
                 return False
 
         load_dotenv()
-        from openai import OpenAI
+        from agents.llm_client import get_client
 
-        client = OpenAI()
-        resp = client.chat.completions.create(
-            model="gpt-5.4",
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            max_completion_tokens=max_completion_tokens,
-            temperature=0.1,
-        )
-        return (resp.choices[0].message.content or "").strip()
+        delay = 2.0
+        for attempt in range(1, 11):
+            try:
+                client, model = get_client("HAWK")
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    max_completion_tokens=max_completion_tokens,
+                    temperature=0.1,
+                    timeout=120,
+                )
+                return (resp.choices[0].message.content or "").strip()
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "86400" in msg:
+                    raise RuntimeError("Daily quota exhausted — do not retry.") from exc
+                retryable = ("rate limit" in msg) or ("429" in msg) or ("timeout" in msg) or ("temporar" in msg)
+                if attempt >= 10 or not retryable:
+                    raise
+                time.sleep(delay)
+                delay = min(delay * 2.0, 120.0)
+        raise RuntimeError("HAWK LLM call retries exhausted unexpectedly.")
 
     def _pap_lock_status(self) -> str:
         try:

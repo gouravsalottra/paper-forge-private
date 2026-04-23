@@ -7,6 +7,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from agents.llm_client import get_client
+
 
 class FixerAgent:
     """Reads codec_mismatch.md and attempts automated fixes."""
@@ -122,11 +124,10 @@ class FixerAgent:
 
     def _parse_mismatches(self, mismatch_text: str) -> list[dict]:
         """Use LLM to parse mismatch report into structured list."""
-        from openai import OpenAI
         from dotenv import load_dotenv
 
         load_dotenv()
-        client = OpenAI()
+        client, model = get_client("FIXER")
 
         prompt = (
             "Parse this CODEC mismatch report into a structured list.\n\n"
@@ -166,7 +167,7 @@ class FixerAgent:
         )
 
         resp = client.chat.completions.create(
-            model="gpt-5.4",
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=3000,
             temperature=0,
@@ -231,13 +232,11 @@ class FixerAgent:
         miner_path = Path("agents/miner/miner.py")
         content = miner_path.read_text(encoding="utf-8")
 
-        from openai import OpenAI
-
-        client = OpenAI()
+        client, model = get_client("FIXER")
         paper = Path("PAPER.md").read_text(encoding="utf-8")
 
         resp = client.chat.completions.create(
-            model="gpt-5.4",
+            model=model,
             messages=[{
                 "role": "user",
                 "content": (
