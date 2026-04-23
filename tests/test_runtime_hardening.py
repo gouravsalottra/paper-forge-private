@@ -43,18 +43,26 @@ def test_aria_dispatches_real_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     Path("PAPER.md").write_text("## Topic\nx\n## Hypothesis\ny\n", encoding="utf-8")
     pipeline = _make_pipeline(tmp_path)
 
-    called = {"forge": False}
+    # In production profile, FORGE defaults to modal backend.
+    called = {"modal": False}
+    monkeypatch.delenv("PAPER_FORGE_FORGE_BACKEND", raising=False)
 
-    def fake_run_forge(*, n_episodes: int) -> dict:
-        called["forge"] = True
-        assert n_episodes > 0
-        return {"result_flag": "DONE", "runs": 9}
+    def fake_subprocess_run(cmd, cwd, check, capture_output, text):
+        called["modal"] = True
+        assert cmd[:3] == ["modal", "run", "agents/forge/modal_run.py"]
+        out_dir = Path(cwd) / "outputs"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "sim_results.json").write_text("[]", encoding="utf-8")
+        class R:
+            returncode = 0
+            stdout = "ok"
+            stderr = ""
+        return R()
 
-    import agents.forge.full_run as forge_mod
-
-    monkeypatch.setattr(forge_mod, "run_full_sweep", fake_run_forge, raising=True)
+    import agents.aria.aria as aria_mod
+    monkeypatch.setattr(aria_mod.subprocess, "run", fake_subprocess_run, raising=True)
     out = pipeline._dispatch("FORGE", "forge_cluster", {})
-    assert called["forge"] is True
+    assert called["modal"] is True
     assert out["result_flag"] == "DONE"
 
 

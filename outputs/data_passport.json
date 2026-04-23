@@ -1,6 +1,9 @@
 {
   "file": "outputs/commodity_returns.csv",
   "sha256": "1350b9e3bf2788cbd366d9639aa60e1ba32c9919337262c3a229eee62ffb432f",
+  "checksums": {
+    "commodity_returns.csv": "1350b9e3bf2788cbd366d9639aa60e1ba32c9919337262c3a229eee62ffb432f"
+  },
   "row_count": 153,
   "date_range": {
     "start": "2000-01-01",
@@ -10,7 +13,7 @@
     "start": "2001-02-16",
     "end": "2021-06-09"
   },
-  "download_timestamp_utc": "2026-04-21T14:47:51+00:00",
+  "download_timestamp_utc": "2026-04-23T01:15:48+00:00",
   "tickers": {
     "CL=F": "crude_oil_wti",
     "NG=F": "natural_gas"

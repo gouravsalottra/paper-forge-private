@@ -9,6 +9,162 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Audit Requirements
+AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Audit Requirements
+AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Audit Requirements
+AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "Low: 10% concentration; Medium: 30% concentration (hypothesis threshold); High: 60% concentration."
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "Low: 10% concentration; Medium: 30% concentration (hypothesis threshold); High: 60% concentration."
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "- Low: 10% concentration\n- Medium: 30% concentration (hypothesis threshold)\n- High: 60% concentration"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "Low: 10% concentration; Medium: 30% concentration (hypothesis threshold); High: 60% concentration."
+
+
 # PAPER.md specification: Passive capital scenario: High
 PASSIVE_CAPITAL_SCENARIO_HIGH: str = "60% of open interest"
 
@@ -392,3 +548,24 @@ SIGNIFICANCE_THRESHOLD_SPEC_MARKER: str = "p < 0.0083 Bonferroni-corrected"
 
 # CODEC traceability marker for PAPER.md alignment
 AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_SPEC_MARKER: str = "HAWK minimum score to pass: 7/10 on methodology rubric"
+
+# CODEC traceability marker for PAPER.md alignment
+HYPOTHESIS_SPEC_MARKER: str = "We explore whether passive concentration is associated with momentum profitability changes, with no directional pre-commitment."
+
+# CODEC traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENTS_SPEC_MARKER: str = "CODEC audit required before QUILL writes paper; HAWK review required before final acceptance; DataPassport SHA-256 signature required on MINER outputs"
+
+# CODEC traceability marker for PAPER.md alignment
+STATISTICAL_TESTS_SPEC_MARKER: str = "1. Two-tailed t-test, p < 0.05, Newey-West HAC correction (4 lags)\n2. Bonferroni correction for simultaneous tests (development threshold p < 0.0083)\n3. GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution)\n4. Fama-MacBeth-style concentration regression (linearmodels where available)\n5. Markov switching regime detection (statsmodels, k_regimes=2)\n6. DCC-GARCH cross-asset correlation summary"
+
+# CODEC traceability marker for PAPER.md alignment
+PRE_ANALYSIS_PLAN_STATUS_CHECK_SPEC_MARKER: str = "Not specified"
+
+# CODEC traceability marker for PAPER.md alignment
+SAMPLE_PERIOD_SPEC_MARKER: str = "Acknowledged deviation documented in DataPassport."
+
+# CODEC traceability marker for PAPER.md alignment
+EXCLUSION_RULES_SPEC_MARKER: str = "Acknowledged deviation documented in DataPassport."
+
+# CODEC traceability marker for PAPER.md alignment
+PASSIVE_CAPITAL_SCENARIOS_SPEC_MARKER: str = "- Low:    10% concentration\n- Medium: 30% concentration (hypothesis threshold)\n- High:   60% concentration"

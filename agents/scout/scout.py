@@ -68,9 +68,12 @@ class ScoutAgent:
                 papers.extend(self._semantic_scholar_search(q, limit=max_results // max(1, len(queries))))
             except Exception:
                 try:
-                    papers.extend(self._arxiv_search(q, limit=max_results // max(1, len(queries))))
+                    papers.extend(self._arxiv_server_search(q, limit=max_results // max(1, len(queries))))
                 except Exception:
-                    continue
+                    try:
+                        papers.extend(self._arxiv_search(q, limit=max_results // max(1, len(queries))))
+                    except Exception:
+                        continue
 
         # Deduplicate by identifier
         unique: dict[str, dict] = {}
@@ -82,6 +85,25 @@ class ScoutAgent:
         if out:
             return out
         return self._fallback_seed_papers()
+
+    def _arxiv_server_search(self, query: str, limit: int) -> list[dict]:
+        from mcp_servers.arxiv_server import query as arxiv_query
+
+        rows = arxiv_query([query], max_results=max(1, limit))
+        out: list[dict] = []
+        for p in rows:
+            out.append(
+                {
+                    "title": p.get("title", ""),
+                    "abstract": p.get("abstract", ""),
+                    "year": None,
+                    "venue": "arXiv",
+                    "authors": [{"name": a} for a in p.get("authors", [])],
+                    "tldr": {"text": ""},
+                    "externalIds": {"ArXiv": p.get("entry_id", "")},
+                }
+            )
+        return out
 
     def _semantic_scholar_search(self, query: str, limit: int) -> list[dict]:
         q = quote_plus(query)

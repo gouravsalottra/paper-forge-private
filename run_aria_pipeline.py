@@ -23,6 +23,7 @@ def main() -> None:
 
     source = os.environ.get("PAPER_FORGE_MINER_SOURCE", "yfinance")
     os.environ.setdefault("PAPER_FORGE_MINER_SOURCE", source)
+    os.environ.setdefault("PAPER_FORGE_FORGE_EPISODES", "500")
 
     if args.resume:
         run_id = args.resume

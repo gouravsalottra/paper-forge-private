@@ -169,31 +169,113 @@ def test_codec_mismatch_report_contains_metadata(tmp_path: Path, monkeypatch: py
     assert "timestamp_utc:" in content
 
 
-def test_hawk_escalates_after_3_cycles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    pipeline = _make_pipeline(tmp_path, run_id="r-hawk")
+def test_hawk_loop_accepts_after_max_cycles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """HAWK loop must accept best draft after max_cycles, never halt."""
+    pipeline = _make_pipeline(tmp_path, run_id="r-hawk-accept")
 
-    def dispatch_revision_requested(*args, **kwargs):
-        return {"result_flag": "REVISION_REQUESTED"}
+    # HAWK always returns REVISION_REQUESTED
+    call_count = {"hawk": 0}
 
-    monkeypatch.setattr(pipeline, "_dispatch", dispatch_revision_requested)
+    def always_revision(agent, *args, **kwargs):
+        if agent == "HAWK":
+            call_count["hawk"] += 1
+        return {
+            "result_flag": "REVISION_REQUESTED",
+            "recommendation": "MAJOR_REVISION",
+            "routing": {
+                "mandatory_items": [],
+                "routes_to_forge": False,
+                "routes_to_sigma": False,
+                "routes_to_miner": False,
+                "routes_to_codec": False,
+            },
+        }
 
-    with pytest.raises(PipelineHaltError):
-        pipeline._run_hawk_loop(max_cycles=3)
+    monkeypatch.setattr(pipeline, "_dispatch", always_revision)
+
+    # Should complete without raising, not loop forever
+    pipeline._run_hawk_loop(max_cycles=3)
+
+    # Verify HAWK marked done, not failed
+    with sqlite3.connect(pipeline.db_path) as conn:
+        row = conn.execute(
+            "SELECT status FROM phases WHERE run_id=? AND phase_name='HAWK'",
+            (pipeline.run_id,),
+        ).fetchone()
+    assert row[0] == "done"
+    assert call_count["hawk"] <= 3
+
+
+def test_hawk_loop_terminates_despite_fixer_escalate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pipeline = _make_pipeline(tmp_path, run_id="r-fixer-escalate")
+
+    call_count = {"hawk": 0, "fixer": 0}
+
+    def fake_dispatch(agent, *args, **kwargs):
+        if agent == "QUILL":
+            return {"result_flag": "DONE"}
+        if agent == "FIXER":
+            call_count["fixer"] += 1
+            return {"result_flag": "ESCALATE"}
+        if agent == "HAWK":
+            call_count["hawk"] += 1
+            return {
+                "result_flag": "REVISION_REQUESTED",
+                "recommendation": "MAJOR_REVISION",
+                "routing": {
+                    "mandatory_items": [],
+                    "routes_to_forge": False,
+                    "routes_to_sigma": False,
+                    "routes_to_miner": False,
+                    "routes_to_codec": False,
+                },
+            }
+        return {"result_flag": "DONE"}
+
+    monkeypatch.setattr(pipeline, "_dispatch", fake_dispatch)
+    pipeline._run_hawk_loop(max_cycles=3)
 
     with sqlite3.connect(pipeline.db_path) as conn:
         row = conn.execute(
-            """
-            SELECT result_flag
-            FROM agent_results
-            WHERE run_id=? AND agent='HAWK' AND job='CYCLE3'
-            ORDER BY id DESC
-            LIMIT 1
-            """,
+            "SELECT status FROM phases WHERE run_id=? AND phase_name='HAWK'",
             (pipeline.run_id,),
         ).fetchone()
 
-    assert row is not None
-    assert row[0] == "REVISION_REQUESTED"
+    assert row[0] == "done"
+    assert call_count["hawk"] <= 3
+    # FIXER should run in non-final cycles, and never reset HAWK cycle counting.
+    assert 1 <= call_count["fixer"] <= 3
+
+
+def test_codec_retry_exhaustion_halts_without_skip_spam(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    pipeline = _make_pipeline(tmp_path, run_id="r-codec-halt")
+    pipeline.MAX_MAIN_LOOPS = 50
+
+    # Force planner to keep selecting CODEC to reproduce historical skip-spam behavior.
+    monkeypatch.setattr(pipeline, "_next_tool_call", lambda: "CODEC")
+    monkeypatch.setattr(pipeline, "_paper_is_publishable", lambda *a, **k: False)
+
+    def fail_codec(agent_name, *_args, **_kwargs):
+        if agent_name == "CODEC":
+            raise RuntimeError("DeploymentNotFound")
+        return {"result_flag": "DONE"}
+
+    monkeypatch.setattr(pipeline, "_dispatch", fail_codec)
+    pipeline.run()
+
+    with sqlite3.connect(pipeline.db_path) as conn:
+        run = conn.execute(
+            "SELECT status FROM pipeline_runs WHERE run_id=?",
+            (pipeline.run_id,),
+        ).fetchone()
+    assert run is not None
+    assert run[0] == "failed"
+
+    log_path = Path("paper_memory") / pipeline.run_id / "audit_log.txt"
+    text = log_path.read_text(encoding="utf-8")
+    # Should stop after first retry-exhaustion event; no repeated skip lines.
+    assert text.count("Skipping after") <= 1
 
 
 def test_quill_raises_on_forbidden_words(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -8,6 +8,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from agents.llm_client import get_client
+
 
 class CodecPass2:
     def __init__(self, run_id: str, db_path: str = "state.db", output_dir: str = "paper_memory") -> None:
@@ -41,9 +43,7 @@ class CodecPass2:
 
         load_dotenv()
 
-        from openai import OpenAI
-
-        client = OpenAI()
+        client, model = get_client("CODEC")
         system_prompt = (
             "You have not seen the codebase. You have not seen any prior analysis. "
             "You must work only from the provided research specification text."
@@ -60,7 +60,7 @@ class CodecPass2:
         )
 
         resp = client.chat.completions.create(
-            model="gpt-5.4",
+            model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
