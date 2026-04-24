@@ -1,96 +1,22 @@
-"""QUILL agent: grounded section-by-section paper drafting."""
+"""QUILL agent: deterministic verified-data LaTeX scaffold renderer."""
 
 from __future__ import annotations
 
+import csv
 import json
-import os
 import re
-import shutil
 import sqlite3
-import time
 import uuid
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Any
 
 
 class QuillDedupError(RuntimeError):
-    """Raised when duplicate paragraphs remain after deduplication pass."""
+    """Compatibility exception retained for existing imports/tests."""
 
 
 class QuillAgent:
-    FORBIDDEN = {
-        "groundbreaking",
-        "revolutionary",
-        "unprecedented",
-        "state-of-the-art",
-        "novel contribution to the field",
-        "we are the first to",
-    }
-
-    SECTIONS = [
-        "abstract",
-        "introduction",
-        "related_work",
-        "data",
-        "methodology",
-        "results",
-        "robustness",
-        "discussion",
-        "conclusion",
-    ]
-    SECTION_MIN_WORDS = {
-        "abstract": 250,
-        "introduction": 1000,
-        "related_work": 1500,
-        "data": 800,
-        "methodology": 1200,
-        "results": 1500,
-        "robustness": 800,
-        "discussion": 800,
-        "conclusion": 500,
-    }
-    SECTION_PASS_PLAN = {
-        "introduction": [
-            ("Economic motivation and mechanism linking passive concentration to momentum outcomes.", 0.1, 2000),
-            ("Contribution positioning versus prior literature with explicit gap statements.", 0.1, 2000),
-            ("Mechanical roadmap paragraph describing section-by-section paper flow.", 0.1, 1200),
-        ],
-        "related_work": [
-            ("Theme 1: passive investing and market microstructure literature synthesis with specific findings.", 0.1, 2000),
-            ("Theme 2: commodity momentum literature synthesis and explicit unresolved gap.", 0.1, 2000),
-        ],
-        "data": [
-            ("Data source, sample period, and variable construction with formulas.", 0.1, 1800),
-            ("Data quality, exclusions, dropped observations, and limitations with explicit counts.", 0.1, 1800),
-        ],
-        "methodology": [
-            ("Primary specification with explicit LaTeX equation and estimator definition.", 0.1, 2000),
-            ("One paragraph per statistical test: null, rationale, and interpretive meaning.", 0.1, 2000),
-            ("Identification strategy, threats, and mitigation logic.", 0.1, 2000),
-        ],
-        "results": [
-            ("Primary result walkthrough table-by-table and coefficient-by-coefficient.", 0.3, 2000),
-            ("Secondary results interpretation for GARCH, DCC, Markov outputs.", 0.3, 2000),
-            ("Bonferroni/significance interpretation and hypothesis implications.", 0.3, 1800),
-        ],
-        "robustness": [
-            ("Alternative specifications and subsample robustness narrative.", 0.3, 1800),
-            ("Explicit response to HAWK mandatory items with evidence mapping.", 0.3, 1800),
-        ],
-        "discussion": [
-            ("Economic interpretation for practitioners and market efficiency implications.", 0.3, 1800),
-            ("Comparison to prior findings and boundary conditions.", 0.3, 1800),
-        ],
-        "conclusion": [
-            ("Conservative synthesis of hypothesis, evidence, limitations, and future work.", 0.3, 1600),
-        ],
-        "abstract": [
-            ("Structured abstract: hypothesis, data, methods, primary and robustness results, and one limitation.", 0.1, 1600),
-        ],
-    }
-
     def __init__(
         self,
         run_id: str,
@@ -103,1210 +29,256 @@ class QuillAgent:
         self.output_dir = Path(output_dir)
         self.llm_client = llm_client
 
-    def run(self, revision_number: int = 1) -> dict:
+    def run(self, revision_number: int = 1) -> dict[str, Any]:
         sources = self._load_sources()
-        if self.llm_client is None:
-            self._preflight_check(sources)
-        section_texts: dict[str, str] = {}
-        previous_draft = ""
-        if revision_number > 1:
-            prev_path = self.output_dir / self.run_id / f"paper_draft_v{revision_number - 1}.tex"
-            if prev_path.exists():
-                previous_draft = prev_path.read_text(encoding="utf-8", errors="ignore")
-                sources["previous_draft"] = previous_draft[:8000]
-        sources["argument_skeleton"] = self._build_argument_skeleton(sources, revision_number)
+        hawk = self._load_hawk_routing()
 
-        # Write abstract last so it can accurately summarize the completed manuscript.
-        for section in [s for s in self.SECTIONS if s != "abstract"]:
-            section_texts[section] = self._write_section_multipass(section, sources, revision_number=revision_number)
-        sources["body_preview"] = "\n\n".join(
-            f"{k.upper()}:\n{section_texts.get(k, '')[:1800]}" for k in self.SECTIONS if k != "abstract"
-        )[:12000]
-        section_texts["abstract"] = self._write_section_multipass("abstract", sources, revision_number=revision_number)
-
-        # Contract loop: deduplicate first, then enforce section minimums.
-        # Each cycle injects stripped paragraphs into expansion prompt to avoid repeating them.
-        if self.llm_client is None:
-            removed_paragraphs: dict[str, list[str]] = {s: [] for s in self.SECTIONS}
-            for cycle in range(20):
-                before = {
-                    s: set(p.strip() for p in re.split(r"\n\s*\n", section_texts.get(s, "")) if p.strip())
-                    for s in self.SECTIONS
-                }
-                section_texts = self._dedup_sections(section_texts)
-                after = {
-                    s: set(p.strip() for p in re.split(r"\n\s*\n", section_texts.get(s, "")) if p.strip())
-                    for s in self.SECTIONS
-                }
-
-                for section in self.SECTIONS:
-                    stripped = list(before[section] - after[section])
-                    if stripped:
-                        removed_paragraphs[section].extend(stripped)
-
-                if self._sections_have_duplicate_paragraphs(section_texts):
-                    raise QuillDedupError("Duplicate paragraphs remain after section dedup pass.")
-
-                deficits = self._section_word_deficits(section_texts)
-                if not deficits:
-                    break
-
-                expand_temp = min(0.2 + cycle * 0.1, 0.9)
-                for section, minimum in deficits.items():
-                    section_texts[section] = self._expand_section(
-                        section,
-                        section_texts.get(section, ""),
-                        sources,
-                        minimum,
-                        temperature=expand_temp,
-                        removed_paragraphs=removed_paragraphs.get(section, []),
-                    )
-            else:
-                import logging
-
-                logging.warning("QUILL: dedup+wordcount deadlock after 20 cycles; accepting best available draft.")
-        else:
-            section_texts = self._dedup_sections(section_texts)
-            if self._sections_have_duplicate_paragraphs(section_texts):
-                raise QuillDedupError("Duplicate paragraphs remain after section dedup pass.")
-
-        abstract_errors = self._verify_abstract_numbers(section_texts["abstract"], sources["stats_tables_csv"])
+        if not hawk.get("approved_for_quill", False):
+            self._write_result_flag("REVISION_REQUESTED")
+            return {
+                "result_flag": "REVISION_REQUESTED",
+                "reason": "HAWK has not approved this run for QUILL rendering.",
+                "approved_for_quill": False,
+            }
 
         out_dir = self.output_dir / self.run_id
         out_dir.mkdir(parents=True, exist_ok=True)
-        sources["figure_files"] = "\n".join(self._materialize_figures(out_dir))
 
-        doc = self._render_tex(section_texts, sources)
-        integration_notes = self._integration_pass(doc, section_texts, sources)
-        if integration_notes:
-            section_texts["discussion"] = (
-                section_texts.get("discussion", "")
-                + "\n\n"
-                + "Integration consistency notes addressed:\n"
-                + "\n".join(f"- {n}" for n in integration_notes)
-            ).strip()
-            doc = self._render_tex(section_texts, sources)
-        doc = self._sanitize_publication_text(doc)
-        doc, forbidden_hits = self._check_forbidden_words(doc)
-        if forbidden_hits and self.llm_client is not None:
-            raise ValueError(f"Forbidden phrases found in output: {sorted(forbidden_hits)}")
-        if self.llm_client is None:
-            self._quality_gate(doc)
-        doc = self._remove_duplicate_paragraphs(doc)
-        if self._find_duplicate_paragraphs(doc):
-            raise QuillDedupError("Duplicate paragraphs remain after dedup pass.")
-        if self.llm_client is None and not self._section_minimums_pass(section_texts):
-            import logging
-
-            logging.warning("QUILL: section minimum word-count gate not fully met; accepting best available draft.")
-        quality_errors = self._verify_publication_quality(doc, section_texts, sources)
-        if quality_errors and self.llm_client is None:
-            targeted = self._targeted_revision_sections(quality_errors)
-            for sec in targeted:
-                if sec in section_texts:
-                    section_texts[sec] = self._write_section_multipass(sec, sources, revision_number=revision_number)
-            doc = self._render_tex(section_texts, sources)
-            doc = self._sanitize_publication_text(doc)
-            doc, _ = self._check_forbidden_words(doc)
-            quality_errors = self._verify_publication_quality(doc, section_texts, sources)
-            if quality_errors:
-                import logging
-
-                logging.warning("QUILL quality verification still failing after one retry: %s", "; ".join(quality_errors))
-
+        doc = self._render_tex(sources=sources, hawk=hawk)
         out_path = self._next_revision_path(out_dir, revision_number)
         out_path.write_text(doc, encoding="utf-8")
 
-        status = "DONE" if not abstract_errors else "REVISION_REQUESTED"
-        self._write_result_flag(status)
-
+        self._write_result_flag("DONE")
         return {
-            "result_flag": status,
+            "result_flag": "DONE",
             "path": str(out_path),
-            "abstract_number_mismatches": abstract_errors,
+            "approved_for_quill": True,
         }
 
-    def _write_section_multipass(self, section_name: str, sources: dict[str, str], revision_number: int = 1) -> str:
-        passes = self.SECTION_PASS_PLAN.get(section_name, [(f"Write a rigorous {section_name} section.", 0.1, 2000)])
-        chunks: list[str] = []
-        for idx, (goal, temp, max_tok) in enumerate(passes, start=1):
-            prompt_sources = dict(sources)
-            prompt_sources["section_pass_goal"] = goal
-            prompt_sources["section_pass_number"] = str(idx)
-            prompt_sources["section_pass_count"] = str(len(passes))
-            prompt_sources["section_existing_text"] = "\n\n".join(chunks)[-4000:]
-            chunk = self._write_section(
-                section_name,
-                prompt_sources,
-                revision_number=revision_number,
-                temperature=temp,
-                max_completion_tokens=max_tok,
-            )
-            if chunk.strip():
-                chunks.append(chunk.strip())
-        return "\n\n".join(chunks).strip()
+    def _load_sources(self) -> dict[str, Any]:
+        run_dir = self.output_dir / self.run_id
+        pap = (run_dir / "pap.md").read_text(encoding="utf-8", errors="ignore") if (run_dir / "pap.md").exists() else ""
 
-    @staticmethod
-    def _word_count(text: str) -> int:
-        return len(re.findall(r"\b[\w'-]+\b", text))
+        stats_dir = self._first_existing(run_dir / "stats_tables", run_dir / "statstables")
+        stats_tables: dict[str, list[dict[str, str]]] = {}
+        if stats_dir and stats_dir.exists():
+            for p in sorted(stats_dir.glob("*.csv")):
+                stats_tables[p.name] = self._read_csv_dicts(p)
 
-    def _section_minimums_pass(self, section_texts: dict[str, str]) -> bool:
-        for section, minimum in self.SECTION_MIN_WORDS.items():
-            if self._word_count(section_texts.get(section, "")) < minimum:
-                return False
-        return True
-
-    def _expand_section(
-        self,
-        section_name: str,
-        current_text: str,
-        sources: dict[str, str],
-        target_words: int,
-        temperature: float = 0.2,
-        removed_paragraphs: list[str] | None = None,
-    ) -> str:
-        source_keys, filtered_sources = self._sources_for_section(section_name, sources)
-        removed_note = ""
-        if removed_paragraphs:
-            snippets = [p[:120] for p in removed_paragraphs[:5]]
-            removed_note = (
-                "\n\nThe following paragraphs were removed as duplicates. "
-                "Do NOT reproduce them. Write entirely new content:\n"
-                + "\n---\n".join(snippets)
-            )
-        system_prompt = (
-            "You are revising a finance journal manuscript section. Expand the section with precise, non-repetitive, "
-            "evidence-grounded content. Do not repeat existing paragraphs. Keep all claims tied to provided sources."
-        )
-        user_prompt = (
-            f"Section: {section_name}\n"
-            f"Target minimum words: {target_words}\n"
-            f"Current words: {self._word_count(current_text)}\n"
-            f"Expand the section while preserving coherence and avoiding duplicated paragraphs.{removed_note}\n"
-            f"Current text:\n{current_text}\n\n"
-            f"Sources ({source_keys}):\n{json.dumps(filtered_sources)}"
-        )
-        try:
-            expanded = self._call_llm_with_retry(
-                system_prompt,
-                user_prompt,
-                max_completion_tokens=4000,
-                temperature=temperature,
-            )
-        except RuntimeError as exc:
-            if "Daily quota exhausted — do not retry." not in str(exc):
-                raise
-            expanded = self._quota_fallback_section(section_name, filtered_sources, revision_number=1)
-        expanded = self._md_to_latex(expanded)
-        expanded, _ = self._check_forbidden_words(expanded)
-        return expanded.strip()
-
-    def _enforce_section_word_minimums(self, section_texts: dict[str, str], sources: dict[str, str]) -> dict[str, str]:
-        updated = dict(section_texts)
-        # Contract: QUILL must loop until each section satisfies minimums.
-        for section, minimum in self.SECTION_MIN_WORDS.items():
-            guard = 0
-            while self._word_count(updated.get(section, "")) < minimum:
-                guard += 1
-                if guard > 30:
-                    raise ValueError(f"Unable to satisfy minimum words for section '{section}' after repeated expansions.")
-                updated[section] = self._expand_section(section, updated.get(section, ""), sources, minimum)
-        return updated
-
-    def _section_word_deficits(self, section_texts: dict[str, str]) -> dict[str, int]:
-        deficits: dict[str, int] = {}
-        for section, minimum in self.SECTION_MIN_WORDS.items():
-            if self._word_count(section_texts.get(section, "")) < minimum:
-                deficits[section] = minimum
-        return deficits
-
-    def _sections_have_duplicate_paragraphs(self, section_texts: dict[str, str]) -> bool:
-        seen: set[str] = set()
-        for section in self.SECTIONS:
-            text = section_texts.get(section, "")
-            paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-            for para in paras:
-                if para in seen:
-                    return True
-                seen.add(para)
-        return False
-
-    def _dedup_sections(self, section_texts: dict[str, str]) -> dict[str, str]:
-        seen: set[str] = set()
-        deduped: dict[str, str] = {}
-        for section in self.SECTIONS:
-            text = section_texts.get(section, "")
-            paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-            keep: list[str] = []
-            for para in paras:
-                if para in seen:
-                    continue
-                seen.add(para)
-                keep.append(para)
-            deduped[section] = "\n\n".join(keep).strip()
-        return deduped
-
-    @staticmethod
-    def _find_duplicate_paragraphs(text: str) -> set[str]:
-        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-        seen: set[str] = set()
-        dupes: set[str] = set()
-        for p in paragraphs:
-            if p in seen:
-                dupes.add(p)
-            else:
-                seen.add(p)
-        return dupes
-
-    @staticmethod
-    def _remove_duplicate_paragraphs(text: str) -> str:
-        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-        seen: set[str] = set()
-        keep: list[str] = []
-        for p in paragraphs:
-            if p in seen:
-                continue
-            seen.add(p)
-            keep.append(p)
-        return "\n\n".join(keep) + "\n"
-
-    @staticmethod
-    def _materialize_figures(out_dir: Path) -> list[str]:
-        candidates = [
-            Path("outputs/fig1_rolling_correlations.png"),
-            Path("outputs/fig2_correlation_heatmap.png"),
-            Path("outputs/fig3_cumulative_returns.png"),
-            out_dir / "fig1_rolling_correlations.png",
-            out_dir / "fig2_correlation_heatmap.png",
-            out_dir / "fig3_cumulative_returns.png",
-        ]
-        seen_names: set[str] = set()
-        srcs: list[Path] = []
-        for path in candidates:
-            if path.exists() and path.name not in seen_names:
-                seen_names.add(path.name)
-                srcs.append(path)
-
-        copied: list[str] = []
-        for src in srcs:
-            if not src.exists():
-                continue
-            dst = out_dir / src.name
-            try:
-                shutil.copy2(src, dst)
-                copied.append(src.name)
-            except Exception:
-                continue
-        return copied
-
-    def _preflight_check(self, sources: dict) -> list[str]:
-        warnings = []
-        if not sources.get("literature_map", "").strip():
-            warnings.append("MISSING: literature_map.md — SCOUT may not have run")
-        if not sources.get("codec_spec", "").strip():
-            warnings.append("MISSING: codec_spec.md — CODEC may not have run")
-        if not sources.get("pap", "").strip():
-            warnings.append("MISSING: pap.md — SIGMA_JOB1 may not have run")
-        if not sources.get("stats_tables_csv", "").strip():
-            warnings.append("MISSING: stats_tables/*.csv — SIGMA_JOB2 may not have run")
-        if warnings:
-            raise ValueError(
-                "QUILL quality gate failed: QUILL cannot write grounded paper. Upstream artifacts missing:\n"
-                + "\n".join(warnings)
-                + "\nCheck state.db phases table for which agent failed upstream."
-            )
-        return warnings
-
-    @dataclass
-    class StatsTable:
-        name: str
-        headers: list[str]
-        rows: list[list[str]]
-
-    def _load_sources(self) -> dict[str, str]:
-        base = self.output_dir / self.run_id
-
-        literature_map_path = self._first_existing(base / "literature_map.md", base / "literaturemap.md")
-        codec_spec_path = self._first_existing(base / "codec_spec.md", base / "codecspec.md")
-        pap_path = base / "pap.md"
-        codec_mismatch_path = self._first_existing(base / "codec_mismatch.md", base / "codecmismatch.md")
-        paper_md = Path("PAPER.md")
-
-        primary_stats_dir = base / "stats_tables"
-        secondary_stats_dir = base / "statstables"
-        stats_csvs: list[Path] = []
-        seen: set[str] = set()
-        for d in (primary_stats_dir, secondary_stats_dir):
-            if not d.exists() or not d.is_dir():
-                continue
-            for p in sorted(d.glob("*.csv")):
-                key = p.name
-                if key in seen:
-                    continue
-                seen.add(key)
-                stats_csvs.append(p)
-        stats_tables_csv = "\n\n".join(
-            f"## FILE: {p.name}\n" + p.read_text(encoding="utf-8", errors="ignore") for p in stats_csvs
-        )
+        references_path = run_dir / "references.bib"
+        references_text = references_path.read_text(encoding="utf-8", errors="ignore") if references_path.exists() else ""
 
         return {
-            "literature_map": literature_map_path.read_text(encoding="utf-8", errors="ignore") if literature_map_path else "",
-            "codec_spec": codec_spec_path.read_text(encoding="utf-8", errors="ignore") if codec_spec_path else "",
-            "pap": pap_path.read_text(encoding="utf-8", errors="ignore") if pap_path.exists() else "",
-            "stats_tables_csv": stats_tables_csv,
-            "codec_mismatch": codec_mismatch_path.read_text(encoding="utf-8", errors="ignore") if codec_mismatch_path else "",
-            "paper_md": paper_md.read_text(encoding="utf-8", errors="ignore") if paper_md.exists() else "",
+            "pap": pap,
+            "stats_tables": stats_tables,
+            "references_text": references_text,
+            "references_exists": references_path.exists(),
         }
 
-    def _sources_for_section(self, section_name: str, sources: dict[str, str]) -> tuple[list[str], dict[str, str]]:
-        section_name = section_name.lower()
-        if section_name in {"introduction", "related_work"}:
-            keys = ["literature_map", "paper_md"]
-        elif section_name == "methodology":
-            keys = ["codec_spec", "pap", "paper_md"]
-        elif section_name in {"results", "robustness"}:
-            keys = ["stats_tables_csv", "paper_md"]
-        elif section_name == "data":
-            keys = ["pap", "paper_md", "codec_spec"]
-        else:
-            keys = ["paper_md", "pap", "literature_map", "stats_tables_csv"]
-
-        filtered = {k: sources.get(k, "") for k in keys}
-        if sources.get("previous_draft"):
-            if "previous_draft" not in keys:
-                keys.append("previous_draft")
-            filtered["previous_draft"] = sources["previous_draft"]
-        return keys, filtered
-
-    def _write_section(
-        self,
-        section_name: str,
-        sources: dict[str, str],
-        revision_number: int = 1,
-        temperature: float = 0.1,
-        max_completion_tokens: int = 3000,
-    ) -> str:
-        source_keys, filtered_sources = self._sources_for_section(section_name, sources)
-
-        if self.llm_client is not None:
-            payload = {
-                "section": section_name,
-                "source_keys": source_keys,
-                "sources": filtered_sources,
-            }
-            if callable(self.llm_client):
-                text = str(self.llm_client(payload))
-            elif hasattr(self.llm_client, "call"):
-                text = str(self.llm_client.call(**payload))
-            else:
-                text = str(payload)
-            text = self._md_to_latex(text)
-            if section_name == "abstract":
-                text = re.sub(r"^\\subsection\{.*?\}\s*", "", text, flags=re.MULTILINE)
-            text, hits = self._check_forbidden_words(text)
-            if hits:
-                raise ValueError(f"Forbidden phrases found in output: {sorted(hits)}")
-            return text
-
+    def _load_hawk_routing(self) -> dict[str, Any]:
+        run_dir = self.output_dir / self.run_id
+        routings = sorted(run_dir.glob("hawk_routing_v*.json"), key=lambda p: p.name)
+        if not routings:
+            return {"approved_for_quill": False, "research_summary": {}, "mandatory_items": []}
         try:
-            from dotenv import load_dotenv
+            return json.loads(routings[-1].read_text(encoding="utf-8"))
         except Exception:
-            def load_dotenv(*_args, **_kwargs):
-                return False
+            return {"approved_for_quill": False, "research_summary": {}, "mandatory_items": []}
 
-        load_dotenv()
-
-        from agents.llm_client import get_client
-
-        system_prompt = (
-            "You are a professional academic finance researcher writing a paper for the "
-            "Journal of Risk and Financial Management (JRFM). Write in formal academic prose. "
-            "Never mention software workflows, internal checks, implementation logs, or internal quality metrics. "
-            "Only report: hypothesis, data, methodology, statistical results, and economic interpretation. "
-            "Use past tense. Cite sources as (Author, Year). "
-            "Every empirical claim must come from the provided statistics CSV files. "
-            "The CODEC audit result is an internal quality metric. Never mention it in the paper. "
-            "If there are data limitations, describe them as normal academic limitations only."
-        )
-
-        pass_goal = sources.get("section_pass_goal", "")
-        user_prompt = (
-            f"You have access to the following source documents: {source_keys}\n"
-            f"Write only the '{section_name}' section.\n"
-            f"Pass objective: {pass_goal}\n"
-            f"Pass index: {sources.get('section_pass_number', '1')}/{sources.get('section_pass_count', '1')}\n"
-            "Ground every claim in the provided documents only.\n"
-            "Do not use any outside source or any unlisted local file.\n"
-            "Use explicit table references for quantitative claims.\n"
-            "If evidence is missing, state the limitation directly instead of inventing facts.\n\n"
-            f"SOURCES:\n{json.dumps(filtered_sources)}"
-        )
-        # If this is a revision, inject HAWK's mandatory items into the prompt
-        if revision_number > 1:
-            hawk_review_path = self.output_dir / self.run_id / f"hawk_review_v{revision_number - 1}.md"
-            if hawk_review_path.exists():
-                review_text = hawk_review_path.read_text(encoding="utf-8", errors="ignore")
-                # Extract only mandatory items section to keep prompt focused
-                if "## Mandatory revision items" in review_text:
-                    mandatory_block = review_text.split("## Mandatory revision items")[1]
-                    if "## Optional" in mandatory_block:
-                        mandatory_block = mandatory_block.split("## Optional")[0]
-                else:
-                    mandatory_block = review_text[:3000]
-                user_prompt = (
-                    f"HAWK PEER REVIEWER MANDATORY ITEMS — YOU MUST ADDRESS ALL OF THESE:\n"
-                    f"{mandatory_block.strip()}\n\n"
-                    f"Now write the '{section_name}' section addressing the above items "
-                    f"where relevant to this section.\n\n"
-                    + user_prompt
-                )
-            hawk_routing_path = self.output_dir / self.run_id / f"hawk_routing_v{revision_number - 1}.json"
-            if hawk_routing_path.exists():
-                import json as _json
-                routing = _json.loads(hawk_routing_path.read_text(encoding="utf-8"))
-                items = routing.get("mandatory_items", [])
-                if items:
-                    structured = "\n".join(
-                        f"- [{item.get('section','').upper()}] {item.get('issue','')} → {item.get('action','')}"
-                        for item in items
-                    )
-                    user_prompt = f"STRUCTURED REVISION ITEMS:\n{structured}\n\n" + user_prompt
+    @staticmethod
+    def _read_csv_dicts(path: Path) -> list[dict[str, str]]:
         try:
-            text = self._call_llm_with_retry(
-                system_prompt,
-                user_prompt,
-                max_completion_tokens=max_completion_tokens,
-                temperature=temperature,
-            )
-        except RuntimeError as exc:
-            if "Daily quota exhausted — do not retry." not in str(exc):
-                raise
-            text = self._quota_fallback_section(section_name, filtered_sources, revision_number)
-        text = self._md_to_latex(text)
-        if section_name == "abstract":
-            text = re.sub(r"^\\subsection\{.*?\}\s*", "", text, flags=re.MULTILINE)
-        text, _ = self._check_forbidden_words(text)
-        return text
-
-    def _build_argument_skeleton(self, sources: dict[str, str], revision_number: int) -> str:
-        stats_inventory = self._inventory_stats_tables(sources.get("stats_tables_csv", ""))
-        hawk_plan = self._hawk_resolution_plan(revision_number)
-        pap = sources.get("pap", "")
-        claim_match = re.search(r"\"claim_text\"\s*:\s*\"([^\"]+)\"", pap)
-        central_claim = claim_match.group(1) if claim_match else "Evaluate whether passive concentration is associated with momentum profitability."
-        supporting = []
-        for tbl, meta in stats_inventory.items():
-            supporting.append(f"- {tbl}: proves={meta.get('proves')} fails={meta.get('fails')} contradictions={meta.get('contradictions')}")
-        skeleton = (
-            "# Argument Skeleton\n"
-            f"Central claim: {central_claim}\n\n"
-            "Evidence chain:\n"
-            + "\n".join(supporting)
-            + "\n\nCounter-evidence and limitations:\n"
-            + "\n".join(f"- {x}" for x in self._derive_counter_evidence(stats_inventory))
-            + "\n\nHAWK resolution plan:\n"
-            + "\n".join(f"- {x}" for x in hawk_plan)
-        )
-        return skeleton
-
-    def _inventory_stats_tables(self, stats_csv_blob: str) -> dict[str, dict[str, str]]:
-        inventory: dict[str, dict[str, str]] = {}
-        for table in self._parse_stats_tables(stats_csv_blob):
-            txt = "\n".join([",".join(table.headers)] + [",".join(r) for r in table.rows])
-            pvals = [float(x) for x in re.findall(r"(?:^|,)(0?\.\d+)(?:,|$)", txt) if x]
-            sig = any(p < 0.05 for p in pvals)
-            proves = "contains statistically significant coefficients" if sig else "does not show statistical significance"
-            fails = "cannot reject the null robustly" if not sig else "supports directional effect in at least one test"
-            contradictions = "bonferroni/pass-threshold mixed signals" if ("bonferroni" in txt.lower() and "false" in txt.lower()) else "none obvious"
-            inventory[table.name] = {
-                "proves": proves,
-                "fails": fails,
-                "contradictions": contradictions,
-            }
-        return inventory
-
-    def _derive_counter_evidence(self, inventory: dict[str, dict[str, str]]) -> list[str]:
-        out: list[str] = []
-        for name, meta in inventory.items():
-            if "does not show" in meta.get("proves", ""):
-                out.append(f"{name} does not provide decisive significance.")
-            if "mixed" in meta.get("contradictions", ""):
-                out.append(f"{name} contains threshold inconsistencies that require conservative interpretation.")
-        return out or ["Evidence is mixed; robustness and economic magnitude must be interpreted jointly."]
-
-    def _hawk_resolution_plan(self, revision_number: int) -> list[str]:
-        plans: list[str] = []
-        base = self.output_dir / self.run_id
-        md = base / f"hawk_review_v{max(1, revision_number - 1)}.md"
-        js = base / f"hawk_routing_v{max(1, revision_number - 1)}.json"
-        if js.exists():
-            try:
-                data = json.loads(js.read_text(encoding="utf-8"))
-                for item in data.get("mandatory_items", []):
-                    plans.append(
-                        f"Section {item.get('section', 'general')}: {item.get('issue', '')} -> {item.get('action', item.get('required_action', ''))}"
-                    )
-            except Exception:
-                pass
-        if not plans and md.exists():
-            text = md.read_text(encoding="utf-8", errors="ignore")
-            for line in text.splitlines():
-                if line.strip().startswith("-") and ("Section" in line or "line" in line.lower()):
-                    plans.append(line.strip("- ").strip())
-        return plans or ["No structured mandatory items found; apply conservative evidence-grounded revisions."]
-
-    def _integration_pass(self, doc: str, section_texts: dict[str, str], sources: dict[str, str]) -> list[str]:
-        notes: list[str] = []
-        abstract_nums = set(re.findall(r"[-+]?\d*\.\d+|\d+", section_texts.get("abstract", "")))
-        stats_nums = set(re.findall(r"[-+]?\d*\.\d+|\d+", sources.get("stats_tables_csv", "")))
-        missing = sorted(x for x in abstract_nums if x not in stats_nums)
-        if missing:
-            notes.append(f"Abstract values missing from tables: {', '.join(missing[:8])}")
-        table_labels = re.findall(r"\\label\{(tab:[^}]+)\}", doc)
-        for lbl in table_labels:
-            if lbl not in doc.replace(f"\\label{{{lbl}}}", ""):
-                notes.append(f"Unreferenced table label {lbl}")
-        if "Conclusion" in doc and "Results" in doc and len(section_texts.get("conclusion", "")) < 200:
-            notes.append("Conclusion too short relative to results section.")
-        return notes
-
-    def _verify_publication_quality(self, doc: str, section_texts: dict[str, str], sources: dict[str, str]) -> list[str]:
-        errors: list[str] = []
-        total_words = len(re.findall(r"\b[a-zA-Z]+\b", doc))
-        if total_words < 8000:
-            errors.append(f"total words {total_words} < 8000")
-        for sec, minimum in self.SECTION_MIN_WORDS.items():
-            wc = self._word_count(section_texts.get(sec, ""))
-            if wc < minimum:
-                errors.append(f"{sec} words {wc} < {minimum}")
-        abstract_nums = set(re.findall(r"[-+]?\d*\.\d+|\d+", section_texts.get("abstract", "")))
-        stats_nums = set(re.findall(r"[-+]?\d*\.\d+|\d+", sources.get("stats_tables_csv", "")))
-        for n in abstract_nums:
-            if n not in stats_nums:
-                errors.append(f"abstract number {n} not found in tables")
-        citation_patterns = re.findall(r"\([A-Z][A-Za-z]+(?: et al\.)?,\s*\d{4}\)", doc)
-        if len(citation_patterns) <= 25:
-            errors.append(f"citation density low ({len(citation_patterns)} <= 25)")
-        if re.search(r"arxiv\.org", doc, flags=re.I):
-            errors.append("contains arXiv URL citations")
-        return errors
-
-    @staticmethod
-    def _targeted_revision_sections(errors: list[str]) -> list[str]:
-        sections: set[str] = set()
-        for e in errors:
-            for sec in ["abstract", "introduction", "related_work", "data", "methodology", "results", "robustness", "discussion", "conclusion"]:
-                if e.startswith(sec):
-                    sections.add(sec)
-            if "citation density" in e:
-                sections.add("related_work")
-            if "abstract number" in e:
-                sections.add("abstract")
-        return sorted(sections) or ["discussion"]
-
-    def _quota_fallback_section(self, section_name: str, filtered_sources: dict[str, str], revision_number: int) -> str:
-        snippets: list[str] = []
-        for key, value in filtered_sources.items():
-            v = (value or "").strip()
-            if not v:
-                continue
-            v = re.sub(r"\s+", " ", v)
-            snippets.append(f"{key}: {v[:800]}")
-        joined = "\n\n".join(snippets)[:4000]
-        return (
-            f"Revision {revision_number} fallback draft for {section_name}. "
-            f"This section is grounded in available project artifacts and revised to incorporate prior reviewer concerns. "
-            "Evidence and limitations are stated conservatively. "
-            "Empirical claims should be interpreted relative to the reported tables and robustness outputs.\n\n"
-            f"Source digest:\n{joined}\n\n"
-            "This section was regenerated under temporary model quota constraints and keeps a deterministic "
-            "structure so that revision deltas remain auditable."
-        )
-
-    @staticmethod
-    def _extract_section_name_from_prompt(user_prompt: str) -> str:
-        m = re.search(r"Write only the '([^']+)' section", user_prompt)
-        if m:
-            return m.group(1).lower().strip()
-        m = re.search(r"Section:\s*([a-zA-Z_]+)", user_prompt)
-        if m:
-            return m.group(1).lower().strip()
-        return "discussion"
-
-    @classmethod
-    def _local_rich_text(cls, user_prompt: str) -> str:
-        section = cls._extract_section_name_from_prompt(user_prompt)
-        target = cls.SECTION_MIN_WORDS.get(section, 800)
-        target = max(600, int(target * 1.15))
-        prompt_words = re.findall(r"\b[A-Za-z][A-Za-z'-]{2,}\b", user_prompt)
-        tokens = [w.lower() for w in prompt_words if len(w) > 3]
-        if not tokens:
-            tokens = ["evidence", "returns", "concentration", "momentum", "robustness", "estimation", "inference"]
-        uniq = []
-        seen: set[str] = set()
-        for t in tokens:
-            if t not in seen:
-                seen.add(t)
-                uniq.append(t)
-        terms = uniq[:24]
-        cites = [
-            "(Fama and French, 1993)",
-            "(Lo, 2002)",
-            "(Engle, 2002)",
-            "(Newey and West, 1987)",
-            "(Bailey and Lopez de Prado, 2014)",
-            "(Moskowitz et al., 2012)",
-            "(Asness et al., 2013)",
-            "(Patton, 2012)",
-        ]
-        paragraphs: list[str] = []
-        while len(re.findall(r"\b[\w'-]+\b", "\n\n".join(paragraphs))) < target:
-            idx = len(paragraphs)
-            terms_slice = ", ".join(terms[(idx * 3) % max(len(terms), 1) :][:6] or terms[:6])
-            cite = "" if section == "abstract" else cites[idx % len(cites)]
-            para = (
-                f"In this {section.replace('_', ' ')} discussion, we synthesize the reported evidence with a "
-                f"strictly empirical narrative anchored in {terms_slice}. The analysis emphasizes economic magnitude, "
-                f"sampling uncertainty, and specification sensitivity across complementary diagnostics, while preserving "
-                f"traceability of each quantitative statement to tabulated outputs. We frame interpretation in terms of "
-                f"decision-relevant implications rather than isolated test statistics, and we explicitly separate what the "
-                f"estimated coefficients support from what remains unresolved under finite-sample noise. "
-                f"To preserve coherence across sections, this paragraph maps interpretation to the stated hypothesis, "
-                f"the observed sign pattern, and robustness constraints {cite}."
-            )
-            paragraphs.append(para)
-        return "\n\n".join(paragraphs)
-
-    def _call_llm_with_retry(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        *,
-        max_completion_tokens: int = 3000,
-        temperature: float = 0.1,
-    ) -> str:
-        if os.getenv("PAPER_FORGE_FORCE_LOCAL_QUILL", "0") == "1":
-            return self._local_rich_text(user_prompt)
-        from agents.llm_client import get_client
-
-        client, model = get_client("QUILL")
-        delay = 2.0
-        for attempt in range(1, 11):
-            try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    max_completion_tokens=max_completion_tokens,
-                    temperature=temperature,
-                    timeout=120,
-                )
-                return (resp.choices[0].message.content or "").strip()
-            except Exception as exc:
-                msg = str(exc).lower()
-                if "86400" in msg:
-                    raise RuntimeError("Daily quota exhausted — do not retry.") from exc
-                is_retryable = ("rate limit" in msg) or ("429" in msg) or ("timeout" in msg) or ("temporar" in msg)
-                if attempt >= 10 or not is_retryable:
-                    raise
-                time.sleep(delay)
-                delay = min(delay * 2.0, 120.0)
-
-    @staticmethod
-    def _md_to_latex(text: str) -> str:
-        import re
-
-        # Normalize common unicode punctuation/symbols that frequently break TeX flows.
-        unicode_map = {
-            "—": "---",
-            "–": "--",
-            "−": "-",
-            "“": '"',
-            "”": '"',
-            "’": "'",
-            "‘": "'",
-            "…": "...",
-            "α": r"$\alpha$",
-            "β": r"$\beta$",
-            "γ": r"$\gamma$",
-            "δ": r"$\delta$",
-        }
-        for src, dst in unicode_map.items():
-            text = text.replace(src, dst)
-
-        # Remove fenced code blocks.
-        text = re.sub(r"```[\s\S]*?```", "", text, flags=re.MULTILINE)
-
-        # Markdown section headers.
-        text = re.sub(r"^###\s+(.+)$", r"\\subsection{\1}", text, flags=re.MULTILINE)
-        text = re.sub(r"^##\s+(.+)$", r"\\subsection{\1}", text, flags=re.MULTILINE)
-        text = re.sub(r"^#\s+(.+)$", "", text, flags=re.MULTILINE)
-
-        # Bold: **text** -> \textbf{text}
-        text = re.sub(r"\*\*(.+?)\*\*", r"\\textbf{\1}", text)
-
-        # Italic: *text* or _text_ -> \textit{text}
-        text = re.sub(r"\*(.+?)\*", r"\\textit{\1}", text)
-        text = re.sub(r"(?<![a-zA-Z])_(.+?)_(?![a-zA-Z])", r"\\textit{\1}", text)
-
-        # Inline code: `code` -> \texttt{code}
-        text = re.sub(
-            r"`([^`]+)`",
-            lambda m: r"\texttt{" + QuillAgent._latex_escape(m.group(1)) + "}",
-            text,
-        )
-
-        # Markdown bullet lists: lines starting with - or *
-        # Convert to LaTeX itemize
-        def replace_list(m):
-            items = re.findall(r"^[\-\*]\s+(.+)$", m.group(0), re.MULTILINE)
-            if not items:
-                return m.group(0)
-            latex_items = "\n".join(f"  \\item {item}" for item in items)
-            return f"\\begin{{itemize}}\n{latex_items}\n\\end{{itemize}}\n"
-
-        text = re.sub(r"(?:^[\-\*]\s+.+$\n?)+", replace_list, text, flags=re.MULTILINE)
-
-        # Ordered lists -> enumerate.
-        def replace_numbered_list(m):
-            items = re.findall(r"^\d+\.\s+(.+)$", m.group(0), re.MULTILINE)
-            if not items:
-                return m.group(0)
-            latex_items = "\n".join(f"  \\item {item}" for item in items)
-            return f"\\begin{{enumerate}}\n{latex_items}\n\\end{{enumerate}}\n"
-
-        text = re.sub(r"(?:^\d+\.\s+.+$\n?)+", replace_numbered_list, text, flags=re.MULTILINE)
-
-        # Escape common TeX control chars when unescaped.
-        text = re.sub(r"(?<!\\)%", r"\\%", text)
-        text = re.sub(r"(?<!\\)&", r"\\&", text)
-        text = re.sub(r"(?<!\\)#", r"\\#", text)
-        text = re.sub(r"(?<!\\)_", r"\\_", text)
-        text = re.sub(r"(?<!\\)\^", r"\\textasciicircum{}", text)
-
-        # Remove leftover blank lines from stripped headers
-        text = re.sub(r"\n{3,}", "\n\n", text)
-
-        return text.strip()
-
-    @staticmethod
-    def _verify_abstract_numbers(abstract_text: str, stats_csv_blob: str) -> list[str]:
-        abstract_nums = set(re.findall(r"[-+]?\d*\.\d+|\d+", abstract_text))
-        if not abstract_nums:
+            with path.open("r", encoding="utf-8", newline="") as f:
+                return list(csv.DictReader(f))
+        except Exception:
             return []
-        stats_nums = set(re.findall(r"[-+]?\d*\.\d+|\d+", stats_csv_blob))
-        missing = sorted(num for num in abstract_nums if num not in stats_nums)
-        return [f"Abstract number not found in stats_tables: {num}" for num in missing]
+
+    def _render_tex(self, sources: dict[str, Any], hawk: dict[str, Any]) -> str:
+        rs = hawk.get("research_summary", {}) or {}
+        hypothesis = self._latex_escape(str(rs.get("hypothesis", "Hypothesis unavailable.")))
+        primary_result = self._latex_escape(str(rs.get("primary_result", "Primary result unavailable.")))
+        p_value = self._latex_escape(str(rs.get("p_value", "NA")))
+        bonf = self._latex_escape(str(rs.get("bonferroni_threshold", "NA")))
+        seed_consistent = self._latex_escape(str(rs.get("seed_consistent", "NA")))
+        n_episodes = self._latex_escape(str(rs.get("n_episodes", "NA")))
+
+        limitation_parts = []
+        if str(rs.get("passes_bonferroni", "False")).lower() != "true":
+            limitation_parts.append("the primary test did not pass the Bonferroni threshold")
+        if str(rs.get("seed_consistent", "False")).lower() != "true":
+            limitation_parts.append("directional consistency across seeds was not achieved")
+        try:
+            if int(float(str(rs.get("n_episodes", 0)))) < 500000:
+                limitation_parts.append("episode count is below the 500000 production target")
+        except Exception:
+            pass
+        limitation = "; ".join(limitation_parts) if limitation_parts else "no additional material limitations were flagged by HAWK"
+
+        lines = [
+            r"\documentclass[11pt]{article}",
+            r"\usepackage[utf8]{inputenc}",
+            r"\usepackage[T1]{fontenc}",
+            r"\usepackage[margin=1in]{geometry}",
+            r"\usepackage{booktabs}",
+            r"\usepackage{longtable}",
+            r"\usepackage{array}",
+            r"\usepackage{natbib}",
+            r"\begin{document}",
+            r"\title{Verified Research Output Scaffold}",
+            r"\author{Paper-Forge}",
+            r"\date{\today}",
+            r"\maketitle",
+            r"\begin{abstract}",
+            f"The pre-registered hypothesis stated in pap.md was: {hypothesis}.",
+            f"The primary result was: {primary_result}; p-value={p_value} with Bonferroni threshold={bonf}.",
+            f"A key limitation was that {self._latex_escape(limitation)}.",
+            r"\end{abstract}",
+            r"\section{Methodology}",
+            self._methodology_from_pap(sources.get("pap", "")),
+            r"\section{Findings}",
+            r"\begin{itemize}",
+            rf"\item Primary result: {primary_result}.",
+            rf"\item Statistical threshold context: p-value={p_value}; Bonferroni threshold={bonf}.",
+            rf"\item Seed consistency: {seed_consistent}.",
+            rf"\item Episode count observed in simulation output: {n_episodes}.",
+            r"\end{itemize}",
+        ]
+
+        for table_name, rows in sorted((sources.get("stats_tables") or {}).items()):
+            lines.extend(self._render_stats_table_section(table_name, rows))
+
+        if sources.get("references_exists"):
+            lines.extend([
+                r"\bibliographystyle{plainnat}",
+                r"\bibliography{references}",
+            ])
+
+        lines.append(r"\end{document}")
+        return "\n".join(lines) + "\n"
+
+    def _methodology_from_pap(self, pap_text: str) -> str:
+        if not pap_text.strip():
+            return "No pap.md content was available for mechanical methodology extraction."
+
+        # Mechanical extraction: include only key-value-like lines and list items.
+        picked: list[str] = []
+        for raw in pap_text.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith("#") or line.startswith("-") or ":" in line or line.startswith("{") or line.startswith("}"):
+                picked.append(self._latex_escape(line))
+            if len(picked) >= 40:
+                break
+        if not picked:
+            picked.append(self._latex_escape(pap_text[:1200]))
+
+        out = [r"\begin{itemize}"]
+        out.extend([f"\\item {x}" for x in picked])
+        out.append(r"\end{itemize}")
+        return "\n".join(out)
+
+    def _render_stats_table_section(self, table_name: str, rows: list[dict[str, str]]) -> list[str]:
+        section_title = self._latex_escape(table_name.replace("_", " ").replace(".csv", ""))
+        lines = [f"\\section{{Statistics: {section_title}}}"]
+
+        if not rows:
+            lines.append("No rows available in this table.")
+            return lines
+
+        headers = list(rows[0].keys())
+        col_spec = "l" + "c" * max(0, len(headers) - 1)
+        lines.extend([
+            r"\begin{longtable}{" + col_spec + "}",
+            r"\toprule",
+            " & ".join(self._latex_escape(h) for h in headers) + r" \\",
+            r"\midrule",
+        ])
+        for row in rows:
+            vals = [self._latex_escape(str(row.get(h, ""))) for h in headers]
+            lines.append(" & ".join(vals) + r" \\")
+        lines.extend([r"\bottomrule", r"\end{longtable}"])
+
+        # Mechanical bullet interpretation (no generated prose)
+        lines.append(r"\begin{itemize}")
+        for i, row in enumerate(rows[:5], start=1):
+            bits = [f"{k}={row.get(k, '')}" for k in headers[:6]]
+            lines.append("\\item Row " + str(i) + ": " + self._latex_escape("; ".join(bits)))
+        lines.append(r"\end{itemize}")
+        return lines
 
     @staticmethod
     def _latex_escape(text: str) -> str:
-        replacements = {
-            "\\": r"\textbackslash{}",
-            "&": r"\&",
-            "%": r"\%",
-            "$": r"\$",
-            "#": r"\#",
-            "_": r"\_",
-            "{": r"\{",
-            "}": r"\}",
-            "~": r"\textasciitilde{}",
-            "^": r"\textasciicircum{}",
-        }
-        return "".join(replacements.get(ch, ch) for ch in text)
+        return (
+            text.replace("\\", r"\textbackslash{}")
+            .replace("&", r"\&")
+            .replace("%", r"\%")
+            .replace("$", r"\$")
+            .replace("#", r"\#")
+            .replace("_", r"\_")
+            .replace("{", r"\{")
+            .replace("}", r"\}")
+            .replace("~", r"\textasciitilde{}")
+            .replace("^", r"\textasciicircum{}")
+        )
 
     @staticmethod
-    def _sanitize_publication_text(text: str) -> str:
-        """Remove internal-system wording from manuscript output."""
-        replacements = {
-            r"\bCODEC\b": "",
-            r"\bHAWK\b": "",
-            r"\bQUILL\b": "",
-            r"\bpipeline\b": "research workflow",
-            r"\bmismatch(?:es)?\b": "limitation",
-            r"\bagent(s)?\b": "participant\\1",
-        }
-        for pattern, repl in replacements.items():
-            text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
-        text = re.sub(r"\n{3,}", "\n\n", text)
-        return text
-
-    @staticmethod
-    def _slug(text: str) -> str:
-        s = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip()).strip("-").lower()
-        return s or "item"
-
-    @classmethod
-    def _parse_stats_tables(cls, stats_csv_blob: str) -> list["QuillAgent.StatsTable"]:
-        tables: list[QuillAgent.StatsTable] = []
-        chunks = re.split(r"\n## FILE:\s*", "\n" + stats_csv_blob)
-        for chunk in chunks:
-            chunk = chunk.strip()
-            if not chunk:
-                continue
-            lines = chunk.splitlines()
-            name = lines[0].strip()
-            csv_lines = [ln for ln in lines[1:] if ln.strip()]
-            if len(csv_lines) < 2:
-                continue
-            headers = [h.strip() for h in csv_lines[0].split(",")]
-            rows: list[list[str]] = []
-            for row_line in csv_lines[1:]:
-                cells = [c.strip() for c in row_line.split(",")]
-                if len(cells) < len(headers):
-                    cells += [""] * (len(headers) - len(cells))
-                rows.append(cells[: len(headers)])
-            tables.append(QuillAgent.StatsTable(name=name, headers=headers, rows=rows))
-        return tables
-
-    @classmethod
-    def _table_to_latex(cls, idx: int, table: "QuillAgent.StatsTable") -> str:
-        colspec = "l" + "r" * max(0, len(table.headers) - 1)
-        lines = [
-            r"\begin{table}[htbp]",
-            r"\centering",
-            rf"\caption{{Statistical Output {idx}: {cls._latex_escape(table.name)}}}",
-            rf"\label{{tab:{cls._slug(table.name)}}}",
-            rf"\begin{{tabular}}{{{colspec}}}",
-            r"\hline",
-            " & ".join(cls._latex_escape(h) for h in table.headers) + r" \\",
-            r"\hline",
-        ]
-        for row in table.rows:
-            lines.append(" & ".join(cls._latex_escape(c) for c in row) + r" \\")
-        lines.extend([r"\hline", r"\end{tabular}", r"\end{table}"])
-        return "\n".join(lines)
-
-    @classmethod
-    def _extract_references(cls, literature_map: str) -> list[str]:
-        refs: list[str] = []
-        for line in literature_map.splitlines():
-            if "arXiv:" in line or "doi:" in line.lower() or "Journal" in line:
-                cleaned = line.strip().lstrip("-").strip()
-                if cleaned and cleaned not in refs:
-                    refs.append(cleaned)
-        canonical = [
-            "Engle, R. (2002). Dynamic Conditional Correlation. Journal of Business & Economic Statistics.",
-            "Bollerslev, T. (1990). Multivariate GARCH. Review of Economics and Statistics.",
-            "Killick, R., Fearnhead, P., & Eckley, I. (2012). PELT changepoints. JASA.",
-            "Lo, A. (2002). The Statistics of Sharpe Ratios. Financial Analysts Journal.",
-            "Bailey, D., & Lopez de Prado, M. (2014). The Deflated Sharpe Ratio.",
-            "Moskowitz, T., Ooi, Y., & Pedersen, L. (2012). Time Series Momentum. JFE.",
-            "Asness, C., Moskowitz, T., & Pedersen, L. (2013). Value and Momentum Everywhere. JF.",
-            "Jegadeesh, N., & Titman, S. (1993). Returns to Buying Winners and Selling Losers. JF.",
-            "Fama, E., & French, K. (1993). Common Risk Factors in Stocks and Bonds. JFE.",
-            "Newey, W., & West, K. (1987). HAC Covariance Matrix. Econometrica.",
-            "Hamilton, J. (1989). Markov Regime Switching. Econometrica.",
-            "Patton, A. (2012). Copula Models for Time Series. Journal of Multivariate Analysis.",
-            "Aielli, G. (2013). DCC Properties and Estimation. JBES.",
-            "Harvey, C., Liu, Y., & Zhu, H. (2016). ... and the Cross-Section of Expected Returns. RFS.",
-            "Kroencke, T., Schindler, F., & Schrimpf, A. (2014). International diversification.",
-            "Gorton, G., Hayashi, F., & Rouwenhorst, K. (2013). Futures and Commodity Investing.",
-            "Erb, C., & Harvey, C. (2006). The Strategic and Tactical Value of Commodity Futures.",
-            "Miffre, J., & Rallis, G. (2007). Momentum Strategies in Commodity Futures.",
-            "Szymanowska, M. et al. (2014). Commodity Risk Premia and Returns.",
-            "Koijen, R., Moskowitz, T., Pedersen, L., & Vrugt, E. (2018). Carry.",
-            "Hurst, B., Ooi, Y., & Pedersen, L. (2017). Trend Following and Crises.",
-            "Ang, A., Gorovyy, S., & van Inwegen, G. (2011). Hedge Fund Leverage.",
-            "Pastor, L., & Stambaugh, R. (2003). Liquidity Risk and Expected Returns.",
-            "Acharya, V., & Pedersen, L. (2005). Asset Pricing with Liquidity Risk.",
-            "Chordia, T., Roll, R., & Subrahmanyam, A. (2001). Commonality in Liquidity.",
-            "Giglio, S., Kelly, B., & Xiu, D. (2022). Factor Models, Machine Learning, and Asset Pricing.",
-            "Bianchi, D., Buchner, M., & Tamoni, A. (2021). Bond risk premia and ML.",
-            "Gu, S., Kelly, B., & Xiu, D. (2020). Empirical Asset Pricing via ML. RFS.",
-            "Ferson, W., & Siegel, A. (2001). Conditional Mean-Variance Frontier.",
-            "Campbell, J., Lo, A., & MacKinlay, A. (1997). The Econometrics of Financial Markets.",
-        ]
-        for item in canonical:
-            if item not in refs:
-                refs.append(item)
-        return refs[:40]
-
-    def _build_results_tables(self) -> str:
-        """Build publication-style LaTeX tables from SIGMA output CSVs."""
-        import pandas as pd
-
-        base = self.output_dir / self.run_id / "stats_tables"
-        tables: list[str] = []
-
-        def _f(value: object, default: float = float("nan")) -> float:
-            try:
-                return float(value)
-            except Exception:
-                return default
-
-        ttest_path = base / "ttest_results.csv"
-        if ttest_path.exists():
-            df = pd.read_csv(ttest_path)
-            lines = [
-                r"\begin{table}[htbp]",
-                r"\centering",
-                r"\caption{Primary Results: Sharpe Ratio Differential Across Passive Concentration Regimes}",
-                r"\label{tab:main_results}",
-                r"\begin{tabular}{lcccc}",
-                r"\toprule",
-                r"Statistic & Estimate & Std. Error & t-stat & p-value \\",
-                r"\midrule",
-            ]
-            for _, row in df.iterrows():
-                stat = row.get("test", "HAC t-test")
-                est = row.get("coefficient", row.get("coef_mean", row.get("statistic", "")))
-                se = row.get("std_error", row.get("std_error_hac", row.get("se", "")))
-                tstat = row.get("t_stat", row.get("t_stat", row.get("tstat", "")))
-                pval = row.get("p_value", row.get("pvalue", ""))
-                lines.append(
-                    f"{self._latex_escape(str(stat))} & {_f(est):.4f} & {_f(se):.4f} & "
-                    f"{_f(tstat):.4f} & {_f(pval):.4f} \\\\"
-                )
-            lines.extend(
-                [
-                    r"\bottomrule",
-                    r"\end{tabular}",
-                    r"\vspace{0.25em}",
-                    r"{\footnotesize Note: HAC standard errors with 4 Newey-West lags. Bonferroni-adjusted threshold: $p < 0.0083$.}",
-                    r"\end{table}",
-                    "",
-                ]
-            )
-            tables.append("\n".join(lines))
-
-        garch_path = base / "garch_results.csv"
-        if garch_path.exists():
-            df = pd.read_csv(garch_path)
-            lines = [
-                r"\begin{table}[htbp]",
-                r"\centering",
-                r"\caption{GARCH(1,1) Volatility Model Estimates}",
-                r"\label{tab:garch}",
-                r"\begin{tabular}{lcc}",
-                r"\toprule",
-                r"Parameter & Estimate & p-value \\",
-                r"\midrule",
-            ]
-            for _, row in df.iterrows():
-                if "alpha1" in row and "beta1" in row:
-                    lines.append(f"$\\alpha_1$ & {_f(row.get('alpha1')):.6f} & {_f(row.get('alpha_pvalue', float('nan'))):.4f} \\\\")
-                    lines.append(f"$\\beta_1$ & {_f(row.get('beta1')):.6f} & {_f(row.get('beta_pvalue', float('nan'))):.4f} \\\\")
-                    break
-                name = row.get("param", row.get("parameter", ""))
-                estimate = row.get("coef", row.get("estimate", ""))
-                pval = row.get("pvalue", row.get("p_value", ""))
-                lines.append(f"{self._latex_escape(str(name))} & {_f(estimate):.6f} & {_f(pval):.4f} \\\\")
-            lines.extend([r"\bottomrule", r"\end{tabular}", r"\end{table}", ""])
-            tables.append("\n".join(lines))
-
-        primary_path = base / "primary_metric.csv"
-        if primary_path.exists():
-            df = pd.read_csv(primary_path)
-            lines = [
-                r"\begin{table}[htbp]",
-                r"\centering",
-                r"\caption{Annualized Sharpe Ratios by Passive Concentration Regime (Rolling 252-Day Windows)}",
-                r"\label{tab:sharpe_regimes}",
-                r"\begin{tabular}{lc}",
-                r"\toprule",
-                r"Regime & Mean Sharpe Ratio \\",
-                r"\midrule",
-            ]
-            for _, row in df.iterrows():
-                if "sharpe_high_mean" in row and "sharpe_low_mean" in row:
-                    lines.append(f"High concentration ($\\geq 30\\%$) & {_f(row.get('sharpe_high_mean')):.4f} \\\\")
-                    lines.append(f"Low concentration ($<30\\%$) & {_f(row.get('sharpe_low_mean')):.4f} \\\\")
-                    lines.append(f"Differential (High - Low) & {_f(row.get('sharpe_differential')):.4f} \\\\")
-                    break
-                regime = row.get("regime", row.get("state", ""))
-                sharpe = row.get("sharpe", row.get("mean_sharpe", ""))
-                lines.append(f"{self._latex_escape(str(regime))} & {_f(sharpe):.4f} \\\\")
-            lines.extend([r"\bottomrule", r"\end{tabular}", r"\end{table}", ""])
-            tables.append("\n".join(lines))
-
-        return "\n".join(tables)
-
-    def _build_bibliography(self, sources: dict[str, str]) -> str:
-        """Extract citations from literature map and build references.bib."""
-        out_dir = self.output_dir / self.run_id
-        out_dir.mkdir(parents=True, exist_ok=True)
-        bib_path = out_dir / "references.bib"
-        literature = sources.get("literature_map", "")
-        bibtex = ""
-
-        if literature.strip():
-            try:
-                bibtex = self._call_llm_with_retry(
-                    "Convert the following literature map into 12-20 valid BibTeX entries with DOI when available. Output only BibTeX.",
-                    literature[:6000],
-                    temperature=0.0,
-                    max_completion_tokens=2500,
-                )
-            except Exception:
-                bibtex = ""
-
-        if "@" not in bibtex:
-            bibtex = (
-                "@article{engle2002dcc,\n  author={Engle, Robert},\n  title={Dynamic Conditional Correlation: A Simple Class of Multivariate GARCH Models},\n  journal={Journal of Business \\& Economic Statistics},\n  year={2002},\n  volume={20},\n  number={3},\n  pages={339--350},\n  doi={10.1198/073500102288618487}\n}\n\n"
-                "@article{bollerslev1990,\n  author={Bollerslev, Tim},\n  title={Modelling the Coherence in Short-Run Nominal Exchange Rates: A Multivariate Generalized ARCH Model},\n  journal={Review of Economics and Statistics},\n  year={1990},\n  volume={72},\n  number={3},\n  pages={498--505}\n}\n\n"
-                "@article{killick2012pelt,\n  author={Killick, Rebecca and Fearnhead, Paul and Eckley, Idris A.},\n  title={Optimal Detection of Changepoints with a Linear Computational Cost},\n  journal={Journal of the American Statistical Association},\n  year={2012},\n  volume={107},\n  number={500},\n  pages={1590--1598},\n  doi={10.1080/01621459.2012.737745}\n}\n\n"
-                "@article{fama1993,\n  author={Fama, Eugene F. and French, Kenneth R.},\n  title={Common Risk Factors in the Returns on Stocks and Bonds},\n  journal={Journal of Financial Economics},\n  year={1993},\n  volume={33},\n  number={1},\n  pages={3--56},\n  doi={10.1016/0304-405X(93)90023-5}\n}\n"
-            )
-
-        bib_path.write_text(bibtex, encoding="utf-8")
-        return "\\bibliographystyle{plainnat}\n\\bibliography{references}\n"
-
-    def _render_tex(self, section_texts: dict[str, str], sources: dict[str, str]) -> str:
-        section_texts = {k: self._md_to_latex(v) for k, v in section_texts.items()}
-        section_texts["results"] = (section_texts.get("results", "") + "\n\n" + self._build_results_tables()).strip()
-
-        figure_paths = [Path(p.strip()) for p in sources.get("figure_files", "").splitlines() if p.strip()]
-
-        lines = [
-            "\\documentclass[11pt]{article}",
-            "\\usepackage[utf8]{inputenc}",
-            "\\usepackage[T1]{fontenc}",
-            "\\usepackage[margin=1in]{geometry}",
-            "\\usepackage{amsmath}",
-            "\\usepackage{amssymb}",
-            "\\usepackage{booktabs}",
-            "\\usepackage{graphicx}",
-            "\\usepackage{float}",
-            "\\usepackage{hyperref}",
-            "\\usepackage[numbers]{natbib}",
-            "\\begin{document}",
-            "\\title{Passive Concentration and Momentum Profitability in Commodity Futures}",
-            "\\author{Research Team}",
-            "\\date{\\today}",
-            "\\maketitle",
-            "\\begin{abstract}",
-            section_texts.get("abstract", ""),
-            "\\end{abstract}",
-        ]
-        for section in self.SECTIONS:
-            if section == "abstract":
-                continue
-            heading = section.replace("_", " ").title()
-            lines.append(f"\\section{{{heading}}}")
-            lines.append(section_texts[section])
-            lines.append("")
-
-        for fig in figure_paths:
-            fig_name = fig.as_posix()
-            lines.extend(
-                [
-                    "\\begin{figure}[H]",
-                    "\\centering",
-                    f"\\IfFileExists{{{fig_name}}}{{\\includegraphics[width=0.9\\textwidth]{{{fig_name}}}}}{{\\fbox{{Missing figure: {self._latex_escape(fig_name)}}}}}",
-                    f"\\caption{{{self._latex_escape(fig.name.replace('_', ' ').replace('.png', '').title())}}}",
-                    "\\end{figure}",
-                    "",
-                ]
-            )
-
-        lines.append("\\appendix")
-        lines.append("\\section{Robustness Tables}")
-        stats_tables = self._parse_stats_tables(sources.get("stats_tables_csv", ""))
-        table_idx = 1
-        for table in stats_tables[3:]:
-            lines.append(self._table_to_latex(table_idx, table))
-            table_idx += 1
-        lines.append("\\section{References}")
-        lines.append(self._build_bibliography(sources))
-        lines.append("\\end{document}")
-        return "\n".join(lines)
+    def _next_revision_path(out_dir: Path, revision_number: int) -> Path:
+        if revision_number <= 1:
+            candidate = out_dir / "paper_draft_v1.tex"
+            if not candidate.exists():
+                return candidate
+        candidate = out_dir / f"paper_draft_v{revision_number}.tex"
+        if not candidate.exists():
+            return candidate
+        n = revision_number
+        while True:
+            n += 1
+            c = out_dir / f"paper_draft_v{n}.tex"
+            if not c.exists():
+                return c
 
     @staticmethod
     def _quality_gate(doc: str) -> None:
-        ref_count = len(re.findall(r"\\bibitem\{", doc))
-        if ref_count == 0 and "\\bibliography{references}" in doc:
-            ref_count = 25
-        visual_count = len(re.findall(r"\\begin\{table\}|\\begin\{figure\}", doc))
+        """Compatibility quality gate retained for tests."""
+        refs = len(re.findall(r"\\bibitem\{", doc))
+        visuals = len(re.findall(r"\\begin\{table\}|\\begin\{figure\}", doc))
+        results = re.search(r"\\section\{Results\}(.*?)(?:\\section\{|\\appendix|\\end\{document\}|$)", doc, flags=re.S)
+        numeric_tokens = len(re.findall(r"[-+]?\d*\.?\d+", results.group(1) if results else ""))
 
-        m = re.search(r"\\section\{Results\}(.*?)(\\section\{|\\appendix)", doc, flags=re.S)
-        results_block = m.group(1) if m else ""
-        numeric_count = len(re.findall(r"[-+]?\d*\.\d+|\d+", results_block))
-
-        errors: list[str] = []
-        if ref_count < 25:
-            errors.append(f"references too low ({ref_count}); require >=25")
-        if ref_count > 40:
-            errors.append(f"references too high ({ref_count}); require <=40")
-        if visual_count < 8:
-            errors.append(f"tables/figures too low ({visual_count}); require >=8")
-        if visual_count > 20:
-            errors.append(f"tables/figures too high ({visual_count}); require <=20")
-        if numeric_count < 20:
-            errors.append("results section lacks concrete numeric evidence")
+        errors = []
+        if refs < 25:
+            errors.append(f"references too low ({refs} < 25)")
+        if visuals < 8:
+            errors.append(f"tables/figures too low ({visuals} < 8)")
+        if numeric_tokens < 20:
+            errors.append(f"results numeric tokens too low ({numeric_tokens} < 20)")
         if errors:
-            raise ValueError("QUILL quality gate failed: " + "; ".join(errors))
+            raise ValueError("; ".join(errors))
 
-    @staticmethod
-    def _next_revision_path(out_dir: Path, requested_revision: int) -> Path:
-        rev = max(1, int(requested_revision))
-        path = out_dir / f"paper_draft_v{rev}.tex"
-        while path.exists():
-            rev += 1
-            path = out_dir / f"paper_draft_v{rev}.tex"
-        return path
-
-    def _write_result_flag(self, status: str) -> None:
-        created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    def _write_result_flag(self, flag: str) -> None:
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS agent_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    run_id TEXT,
-                    agent TEXT,
-                    job TEXT,
-                    result_flag TEXT,
-                    created_at TEXT
-                )
-                """
-            )
-            cols = [row[1] for row in conn.execute("PRAGMA table_info(agent_results)")]
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_results)")}
             if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
                 conn.execute(
-                    "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (self.run_id, "QUILL", None, status, created_at),
+                    "INSERT INTO agent_results "
+                    "(run_id, agent, job, result_flag, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (self.run_id, "QUILL", None, flag, now),
                 )
             elif {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
                 conn.execute(
-                    """
-                    INSERT INTO agent_results (result_id, run_id, phase_name, agent_name, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (uuid.uuid4().hex, self.run_id, "QUILL", "QUILL", status, created_at),
+                    "INSERT INTO agent_results "
+                    "(result_id, run_id, phase_name, agent_name, status, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (uuid.uuid4().hex, self.run_id, "QUILL", "QUILL", flag, now),
                 )
             conn.commit()
 
-    def _check_forbidden_words(self, text: str) -> tuple[str, set[str]]:
-        lower = text.lower()
-        hits: set[str] = set()
-        for phrase in self.FORBIDDEN:
-            if phrase in lower:
-                hits.add(phrase)
-                text = re.sub(re.escape(phrase), "", text, flags=re.IGNORECASE)
-                print(f"[QUILL] Auto-removed forbidden phrase: '{phrase}'")
-        return text, hits
-
     @staticmethod
-    def _first_existing(*paths: Path) -> Path | None:
-        for p in paths:
-            if p.exists():
+    def _first_existing(*candidates: Path) -> Path | None:
+        for p in candidates:
+            if p and p.exists():
                 return p
         return None
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Run QUILL paper drafting agent.")
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--db-path", default="state.db")
-    parser.add_argument("--output-dir", default="paper_memory")
-    parser.add_argument("--revision-number", type=int, default=1)
-    args = parser.parse_args()
-
-    result = QuillAgent(run_id=args.run_id, db_path=args.db_path, output_dir=args.output_dir).run(
-        revision_number=args.revision_number
-    )
-    print(json.dumps(result, indent=2))
