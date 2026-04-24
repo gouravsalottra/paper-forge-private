@@ -1,14 +1,15 @@
-"""HAWK agent: Journal of Finance-standard referee and pipeline router."""
+"""HAWK agent: programmatic research-quality reviewer (pre-QUILL gate)."""
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 import sqlite3
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 class HawkAgent:
@@ -24,351 +25,341 @@ class HawkAgent:
         self.output_dir = Path(output_dir)
         self.llm_client = llm_client
 
-    def run(self, revision_number: int = 1) -> dict:
-        context = self._load_review_context()
-        report = self._write_referee_report(context, revision_number)
-        if len(report.strip()) < 500:
-            # Enforce artifact quality/size contract.
-            for _ in range(3):
-                report = self._write_referee_report(context, revision_number)
-                if len(report.strip()) >= 500:
-                    break
-            if len(report.strip()) < 500:
-                raise RuntimeError("HAWK report generation failed size gate (<500 bytes).")
-        routing = self._parse_routing(report)
-        routing["mandatory_items"] = self._normalize_mandatory_items(routing.get("mandatory_items", []))
-        methodology_score = self._score_methodology_rubric(context)
-        routing["methodology_score_10"] = methodology_score
+    def run(self, revision_number: int = 1) -> dict[str, Any]:
+        _ = revision_number  # retained for interface compatibility
+        context = self._load_context()
+        review = self._programmatic_review(context)
 
         out_dir = self.output_dir / self.run_id
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        report_path = out_dir / f"hawk_review_v{revision_number}.md"
-        routing_path = out_dir / f"hawk_routing_v{revision_number}.json"
-        report_path.write_text(report, encoding="utf-8")
+        next_rev = self._next_revision_number(out_dir)
+        routing_path = out_dir / f"hawk_routing_v{next_rev}.json"
+        review_path = out_dir / f"hawk_review_v{next_rev}.md"
 
-        flag = self._decide(routing, revision_number)
-        routing["result_flag"] = flag
-        routing_path.write_text(json.dumps(routing, indent=2), encoding="utf-8")
-        self._write_result_flag(flag)
+        routing_path.write_text(json.dumps(review, indent=2), encoding="utf-8")
+        review_path.write_text(self._render_markdown(review), encoding="utf-8")
+
+        self._write_result_flag(review["result_flag"])
 
         return {
-            "result_flag": flag,
-            "recommendation": routing.get("recommendation", "MAJOR_REVISION"),
-            "report_path": str(report_path),
+            "result_flag": review["result_flag"],
+            "approved_for_quill": review["approved_for_quill"],
+            "routing": review,
             "routing_path": str(routing_path),
-            "routing": routing,
+            "report_path": str(review_path),
+            "mandatory_items": review.get("mandatory_items", []),
         }
 
-    @staticmethod
-    def _normalize_mandatory_items(items: list[dict]) -> list[dict]:
-        normalized: list[dict] = []
-        for item in items or []:
-            if not isinstance(item, dict):
-                continue
-            section = str(item.get("section") or item.get("agent") or "").strip().lower() or "general"
-            issue = str(item.get("issue") or "").strip()
-            action = str(item.get("action") or item.get("required_action") or "").strip()
-            normalized.append(
-                {
-                    "section": section,
-                    "issue": issue,
-                    "action": action,
-                    "blocking": bool(item.get("blocking", True)),
-                }
+    def _programmatic_review(self, context: dict[str, Any]) -> dict[str, Any]:
+        mandatory_items: list[dict[str, Any]] = []
+
+        hypothesis = self._extract_hypothesis(context.get("pap_text", ""))
+        expected_negative = self._hypothesis_expects_negative(hypothesis)
+
+        primary = context.get("primary_metric", {})
+        sharpe_diff = self._to_float(primary.get("sharpe_differential"))
+        meets_min_effect = self._to_bool(primary.get("meets_minimum_effect"))
+
+        # CHECK 1 — Hypothesis fidelity
+        if expected_negative and sharpe_diff is not None and sharpe_diff > 0:
+            mandatory_items.append(
+                self._item(
+                    check="Hypothesis fidelity",
+                    finding=f"Hypothesis implies negative differential, observed differential={sharpe_diff:.6f} (positive).",
+                    issue="Observed direction contradicts pre-registered hypothesis direction.",
+                    action="Re-run FORGE or revise model specification to test directional mechanism; do not claim confirmatory support.",
+                    routes_to="FORGE",
+                    blocking=True,
+                )
             )
-        return normalized
 
-    def _load_review_context(self) -> dict:
-        base = self.output_dir / self.run_id
-        drafts = sorted(
-            base.glob("paper_draft_v*.tex"),
-            key=lambda p: int(re.search(r"_v(\d+)\.tex$", p.name).group(1))
-            if re.search(r"_v(\d+)\.tex$", p.name)
-            else -1,
-        )
-        paper = drafts[-1].read_text(encoding="utf-8") if drafts else ""
+        # CHECK 2 — Statistical significance
+        ttest = context.get("ttest", {})
+        p_val = self._to_float(ttest.get("p_value"))
+        bonf = self._to_float(ttest.get("bonferroni_threshold"))
+        passes_bonf = bool(p_val is not None and bonf is not None and p_val < bonf)
+        if not passes_bonf:
+            mandatory_items.append(
+                self._item(
+                    check="Statistical significance",
+                    finding=f"p_value={self._fmt(p_val)}, bonferroni_threshold={self._fmt(bonf)}.",
+                    issue="Finding does not clear Bonferroni threshold; suggestive but not confirmatory.",
+                    action="Disclose non-confirmatory status in findings and avoid confirmatory language.",
+                    routes_to="SIGMA",
+                    blocking=False,
+                )
+            )
 
-        stats_parts: list[str] = []
-        seen: set[str] = set()
-        for d in [base / "stats_tables", base / "statstables"]:
-            if d.exists():
-                for p in sorted(d.glob("*.csv")):
-                    if p.name in seen:
-                        continue
-                    seen.add(p.name)
-                    stats_parts.append(f"## {p.name}\n" + p.read_text(encoding="utf-8"))
-        stats = "\n\n".join(stats_parts)
+        # CHECK 3 — Seed consistency
+        seed = context.get("seed_consistency", {})
+        seed_consistent = self._to_bool(seed.get("consistent"))
+        if not seed_consistent:
+            mandatory_items.append(
+                self._item(
+                    check="Seed consistency",
+                    finding=f"consistent={seed.get('consistent')}.",
+                    issue="Mixed directional evidence across seeds.",
+                    action="Increase seed count and/or report findings as exploratory only.",
+                    routes_to="FORGE",
+                    blocking=False,
+                )
+            )
 
-        codec_spec_path = self._first_existing(base / "codec_spec.md", base / "codecspec.md")
-        mismatch_path = self._first_existing(base / "codec_mismatch.md", base / "codecmismatch.md")
-        codec_spec = codec_spec_path.read_text(encoding="utf-8") if codec_spec_path else ""
-        mismatch = mismatch_path.read_text(encoding="utf-8") if mismatch_path else ""
+        # CHECK 4 — CODEC mismatch
+        codec_text = context.get("codec_mismatch_text", "")
+        codec_fail_items = self._extract_codec_fail_items(codec_text)
+        codec_clean = len(codec_fail_items) == 0
+        if not codec_clean:
+            mandatory_items.append(
+                self._item(
+                    check="CODEC mismatch",
+                    finding="; ".join(codec_fail_items[:5]) or "CODEC report contains FAIL items.",
+                    issue="CODEC audit contains FAIL conditions.",
+                    action="Run FIXER and resolve all CODEC FAIL mismatches before manuscript generation.",
+                    routes_to="FIXER",
+                    blocking=True,
+                )
+            )
 
-        pap_status = self._pap_lock_status()
+        # CHECK 5 — Minimum effect size
+        if not meets_min_effect:
+            mandatory_items.append(
+                self._item(
+                    check="Minimum effect size",
+                    finding=f"meets_minimum_effect={primary.get('meets_minimum_effect')} with sharpe_differential={self._fmt(sharpe_diff)}.",
+                    issue="Finding does not meet pre-registered minimum effect threshold.",
+                    action="Route to FORGE for stronger simulation evidence or report null economic significance.",
+                    routes_to="FORGE",
+                    blocking=True,
+                )
+            )
+
+        # CHECK 6 — Sample size adequacy
+        n_episodes = context.get("n_episodes", 0)
+        if n_episodes < 10000:
+            mandatory_items.append(
+                self._item(
+                    check="Sample size adequacy",
+                    finding=f"n_episodes={n_episodes}.",
+                    issue="Simulation underpowered for publication-grade inference.",
+                    action="Run n_episodes >= 500000 before publication claims.",
+                    routes_to="FORGE",
+                    blocking=False,
+                )
+            )
+
+        hard_blocks = [m for m in mandatory_items if m.get("blocking")]
+        approved_for_quill = codec_clean and meets_min_effect and len(hard_blocks) == 0
+
+        result_flag = "APPROVED" if approved_for_quill else "REVISION_REQUESTED"
+
+        review = {
+            "result_flag": result_flag,
+            "approved_for_quill": approved_for_quill,
+            "mandatory_items": mandatory_items,
+            "research_summary": {
+                "hypothesis": hypothesis,
+                "primary_result": f"Sharpe differential = {self._fmt(sharpe_diff)} ({'negative' if (sharpe_diff is not None and sharpe_diff < 0) else 'positive/non-negative'})",
+                "p_value": self._fmt(p_val),
+                "bonferroni_threshold": self._fmt(bonf),
+                "passes_bonferroni": passes_bonf,
+                "seed_consistent": seed_consistent,
+                "codec_clean": codec_clean,
+                "n_episodes": n_episodes,
+                "production_ready": bool(approved_for_quill and n_episodes >= 500000 and passes_bonf and seed_consistent),
+            },
+        }
+        return review
+
+    @staticmethod
+    def _item(
+        *,
+        check: str,
+        finding: str,
+        issue: str,
+        action: str,
+        routes_to: str,
+        blocking: bool,
+    ) -> dict[str, Any]:
+        return {
+            "check": check,
+            "finding": finding,
+            "issue": issue,
+            "action": action,
+            "routes_to": routes_to,
+            "blocking": blocking,
+        }
+
+    def _load_context(self) -> dict[str, Any]:
+        run_dir = self.output_dir / self.run_id
+        pap_path = run_dir / "pap.md"
+        codec_path = self._first_existing(run_dir / "codec_mismatch.md", run_dir / "codecmismatch.md")
+        stats_dir = self._first_existing(run_dir / "stats_tables", run_dir / "statstables")
+
+        stats_map: dict[str, list[dict[str, str]]] = {}
+        if stats_dir and stats_dir.exists():
+            for csv_file in sorted(stats_dir.glob("*.csv")):
+                stats_map[csv_file.name] = self._read_csv_dicts(csv_file)
+
+        # seed consistency can appear in run root or stats_tables
+        seed_rows = []
+        for candidate in [run_dir / "seed_consistency.csv", (stats_dir / "seed_consistency.csv") if stats_dir else None]:
+            if candidate and candidate.exists():
+                seed_rows = self._read_csv_dicts(candidate)
+                if seed_rows:
+                    break
+
+        sim_path = Path("outputs") / "sim_results.json"
+        sim_data = []
+        if sim_path.exists():
+            try:
+                sim_data = json.loads(sim_path.read_text(encoding="utf-8"))
+                if not isinstance(sim_data, list):
+                    sim_data = []
+            except Exception:
+                sim_data = []
+
+        episodes = 0
+        if sim_data:
+            vals = [int(x.get("n_episodes", 0)) for x in sim_data if isinstance(x, dict)]
+            episodes = max(vals) if vals else 0
 
         return {
-            "paper_draft": paper,
-            "stats_tables_csv": stats,
-            "codec_spec": codec_spec,
-            "codec_mismatch": mismatch,
-            "pap_lock_status": pap_status,
+            "pap_text": pap_path.read_text(encoding="utf-8", errors="ignore") if pap_path.exists() else "",
+            "codec_mismatch_text": codec_path.read_text(encoding="utf-8", errors="ignore") if codec_path else "",
+            "primary_metric": (stats_map.get("primary_metric.csv") or [{}])[0],
+            "ttest": (stats_map.get("ttest_results.csv") or [{}])[0],
+            "seed_consistency": seed_rows[0] if seed_rows else {},
+            "n_episodes": episodes,
+            "stats_map": stats_map,
         }
 
-    def _write_referee_report(self, context: dict, revision_number: int) -> str:
-        system_prompt = """You are a senior referee for the Journal of Finance.
-You have reviewed 200+ empirical finance papers over 20 years.
-You are rigorous, direct, and specific. You identify exact problems.
-
-Your referee report must follow this EXACT structure:
-
-## Summary
-One paragraph: what the paper attempts, whether the identification is valid,
-and your overall read. Be direct. Do not hedge.
-
-## Mandatory revision items
-Each item must have ALL of these:
-- Section and line reference (e.g., "Section 3, line 47")
-- The exact problem stated as economic/statistical logic
-- What specific analysis or evidence would resolve it
-- Which pipeline component is responsible (tag EXACTLY one):
-  [FORGE] if the simulation needs redesigning
-  [SIGMA] if an additional statistical test must be run
-  [MINER] if there is a data quality or coverage issue
-  [QUILL] if the writing is unclear, inconsistent, or overclaiming
-  [CODEC] if the code does not implement what the paper claims
-
-## Optional suggestions
-Improvements that would strengthen but are not blocking.
-Each tagged with the responsible component.
-
-## Decision
-Exactly one of: REJECT / MAJOR_REVISION / MINOR_REVISION / ACCEPT
-
-Decision rules:
-- REJECT: fundamental identification flaw, results not reproducible,
-  or critical CODEC mismatch unresolved
-- MAJOR_REVISION: missing pre-committed tests, weak identification,
-  numbers inconsistent between abstract and tables
-- MINOR_REVISION: presentation issues, missing robustness checks,
-  minor inconsistencies
-- ACCEPT: all pre-committed tests run and reported, results honestly
-  stated, methods match code, CODEC clean
-
-Never give numeric scores. Never be vague. Every mandatory item
-must have an exact fix that a researcher can execute.
-
-If CODEC mismatch shows FAIL: this is automatically a REJECT or
-MAJOR_REVISION with a [CODEC] mandatory item."""
-
-        paper = context.get("paper_draft", "")
-        if len(paper) > 12000:
-            paper = paper[:8000] + "\n\n[...middle truncated...]\n\n" + paper[-4000:]
-
-        user_prompt = (
-            f"Referee report for revision {revision_number}.\n\n"
-            f"PAPER DRAFT:\n{paper}\n\n"
-            f"STATISTICAL RESULTS:\n{context.get('stats_tables_csv','')[:4000]}\n\n"
-            f"CODEC AUDIT STATUS:\n{context.get('codec_mismatch','')[:2000]}\n\n"
-            f"PAP LOCK STATUS:\n{context.get('pap_lock_status','')}\n\n"
-            "Write the complete referee report now."
-        )
-
-        return self._call_llm(system_prompt, user_prompt, max_completion_tokens=3000)
-
-    def _parse_routing(self, report: str) -> dict:
-        prompt = (
-            "Extract routing instructions from this referee report as JSON.\n\n"
-            "Return EXACTLY this structure:\n"
-            "{\n"
-            '  "recommendation": "REJECT|MAJOR_REVISION|MINOR_REVISION|ACCEPT",\n'
-            '  "mandatory_items": [\n'
-            "    {\n"
-            '      "item_number": 1,\n'
-            '      "agent": "FORGE|SIGMA|MINER|QUILL|CODEC",\n'
-            '      "issue": "exact problem description",\n'
-            '      "required_action": "exactly what must be done",\n'
-            '      "blocking": true\n'
-            "    }\n"
-            "  ],\n"
-            '  "optional_items": [\n'
-            "    {\n"
-            '      "item_number": 1,\n'
-            '      "agent": "QUILL",\n'
-            '      "suggestion": "description"\n'
-            "    }\n"
-            "  ],\n"
-            '  "routes_to_forge": false,\n'
-            '  "routes_to_sigma": false,\n'
-            '  "routes_to_miner": false,\n'
-            '  "routes_to_quill": false,\n'
-            '  "routes_to_codec": false\n'
-            "}\n\n"
-            "Set routes_to_X = true if ANY mandatory item has agent = X.\n"
-            "Return ONLY valid JSON. No markdown fences.\n\n"
-            f"REFEREE REPORT:\n{report}"
-        )
-        raw = self._call_llm(
-            "You extract structured JSON from referee reports.",
-            prompt,
-            max_completion_tokens=2000,
-        )
+    @staticmethod
+    def _read_csv_dicts(path: Path) -> list[dict[str, str]]:
         try:
-            clean = re.sub(r"```json|```", "", raw).strip()
-            parsed = json.loads(clean)
-            parsed.setdefault("mandatory_items", [])
-            parsed.setdefault("optional_items", [])
-            for key in ["routes_to_forge", "routes_to_sigma", "routes_to_miner", "routes_to_quill", "routes_to_codec"]:
-                parsed.setdefault(key, False)
-            return parsed
+            with path.open("r", encoding="utf-8", newline="") as f:
+                return list(csv.DictReader(f))
         except Exception:
-            return {
-                "recommendation": "MAJOR_REVISION",
-                "mandatory_items": [],
-                "optional_items": [],
-                "routes_to_forge": False,
-                "routes_to_sigma": False,
-                "routes_to_miner": False,
-                "routes_to_quill": True,
-                "routes_to_codec": False,
-            }
+            return []
 
     @staticmethod
-    def _decide(routing: dict, revision_number: int) -> str:
-        rec = routing.get("recommendation", "MAJOR_REVISION")
-        mandatory = routing.get("mandatory_items", [])
-        blocking = [m for m in mandatory if m.get("blocking", True)]
-
-        # Zero blocking items = nothing left to fix = ACCEPT
-        if not blocking:
-            return "APPROVED"
-
-        if rec == "ACCEPT":
-            return "APPROVED"
-
-        if rec == "REJECT":
-            return "ESCALATE" if revision_number >= 3 else "REVISION_REQUESTED"
-
-        if blocking and revision_number >= 5:
-            return "ESCALATE"
-
-        return "REVISION_REQUESTED"
-
-    def _score_methodology_rubric(self, context: dict) -> float:
-        prompt = (
-            "Score the paper methodology from 1 to 10 using strict finance-review standards.\n"
-            "Return JSON only: {\"methodology_score_10\": <number>}.\n\n"
-            f"PAPER:\n{context.get('paper_draft', '')[:6000]}\n\n"
-            f"STATS:\n{context.get('stats_tables_csv', '')[:3000]}\n"
-        )
-        raw = self._call_llm(
-            "You are a strict methodology scorer. Return valid JSON only.",
-            prompt,
-            max_completion_tokens=300,
-        )
-        try:
-            clean = re.sub(r"```json|```", "", raw).strip()
-            parsed = json.loads(clean)
-            score = float(parsed.get("methodology_score_10", 0.0))
-            return max(0.0, min(10.0, score))
-        except Exception:
-            return 0.0
-
-    def _call_llm(self, system: str, user: str, max_completion_tokens: int = 2000) -> str:
-        if self.llm_client is not None:
-            if callable(self.llm_client):
-                return str(self.llm_client({"system": system, "user": user}))
-
-        try:
-            from dotenv import load_dotenv
-        except Exception:
-            def load_dotenv(*a, **k):
-                return False
-
-        load_dotenv()
-        from agents.llm_client import get_client
-
-        delay = 2.0
-        for attempt in range(1, 11):
-            try:
-                client, model = get_client("HAWK")
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    max_completion_tokens=max_completion_tokens,
-                    temperature=0.1,
-                    timeout=120,
-                )
-                return (resp.choices[0].message.content or "").strip()
-            except Exception as exc:
-                msg = str(exc).lower()
-                if "86400" in msg:
-                    return self._quota_fallback_response(system, user)
-                retryable = ("rate limit" in msg) or ("429" in msg) or ("timeout" in msg) or ("temporar" in msg)
-                if attempt >= 10 or not retryable:
-                    raise
-                time.sleep(delay)
-                delay = min(delay * 2.0, 120.0)
-        raise RuntimeError("HAWK LLM call retries exhausted unexpectedly.")
+    def _extract_hypothesis(pap_text: str) -> str:
+        if not pap_text.strip():
+            return "Hypothesis not found in pap.md"
+        m = re.search(r'"claim_text"\s*:\s*"([^"]+)"', pap_text)
+        if m:
+            return m.group(1).strip()
+        # fallback: first hypothesis-like line
+        for line in pap_text.splitlines():
+            line_l = line.lower().strip()
+            if "hypothesis" in line_l or "claim" in line_l:
+                return line.strip()
+        return pap_text.strip()[:300]
 
     @staticmethod
-    def _quota_fallback_response(system: str, user: str) -> str:
-        if "return exact json" in user.lower() and "mandatory_items" in user:
-            return json.dumps(
-                {
-                    "recommendation": "MINOR_REVISION",
-                    "mandatory_items": [
-                        {
-                            "section": "results",
-                            "issue": "Clarify alignment between reported tables and narrative claims.",
-                            "action": "Add explicit table-by-table interpretation with conservative wording.",
-                            "blocking": True,
-                        }
-                    ],
-                    "optional_items": [],
-                    "routes_to_forge": False,
-                    "routes_to_sigma": False,
-                    "routes_to_miner": False,
-                    "routes_to_quill": True,
-                    "routes_to_codec": False,
-                }
-            )
-        if "methodology_score_10" in user:
-            return '{"methodology_score_10": 6.0}'
-        return (
-            "## Summary\n"
-            "The manuscript is directionally coherent but requires clearer evidence-to-claim mapping.\n\n"
-            "## Mandatory revision items\n"
-            "- Section 6, line 1: The interpretation is broad relative to the tabulated evidence. [QUILL]\n"
-            "- Required action: tighten conclusions to table-supported statements only.\n\n"
-            "## Optional suggestions\n"
-            "- Add one paragraph connecting robustness outputs to economic interpretation. [QUILL]\n\n"
-            "## Decision\n"
-            "MINOR_REVISION\n"
-        )
+    def _hypothesis_expects_negative(hypothesis: str) -> bool:
+        h = hypothesis.lower()
+        if any(k in h for k in ["reduce", "decrease", "lower", "negative", "decline", "attenuat", "weaker"]):
+            return True
+        if any(k in h for k in ["increase", "higher", "positive", "rise", "strengthen"]):
+            return False
+        return True
 
-    def _pap_lock_status(self) -> str:
+    @staticmethod
+    def _extract_codec_fail_items(codec_text: str) -> list[str]:
+        if not codec_text.strip():
+            return ["codec_mismatch.md missing"]
+        out: list[str] = []
+        verdict_fail = re.search(r"verdict\s*:\s*FAIL", codec_text, flags=re.I)
+        if verdict_fail:
+            out.append("verdict: FAIL")
+        for line in codec_text.splitlines():
+            l = line.strip()
+            if not l:
+                continue
+            if l.lower().startswith("issue:"):
+                out.append(l)
+            if "fatal" in l.lower() or "mismatch" in l.lower() and l.startswith("-"):
+                out.append(l)
+        # dedupe preserve order
+        seen = set()
+        uniq = []
+        for x in out:
+            if x in seen:
+                continue
+            seen.add(x)
+            uniq.append(x)
+        return uniq
+
+    @staticmethod
+    def _to_float(v: Any) -> float | None:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                row = conn.execute(
-                    "SELECT locked_at, locked_by, pap_sha256, forge_started_at "
-                    "FROM pap_lock WHERE run_id=? ORDER BY locked_at DESC LIMIT 1",
-                    (self.run_id,),
-                ).fetchone()
-            if row is None:
-                return "NO_PAP_LOCK_ROW — pre-registration not completed"
-            locked_at, locked_by, pap_sha, forge_started = row
-            return (
-                f"locked_at={locked_at}; locked_by={locked_by}; "
-                f"pap_sha256={'present' if pap_sha else 'MISSING'}; "
-                f"forge_started_at={forge_started}; "
-                f"temporal_ordering={'VERIFIED' if locked_at and forge_started and locked_at < forge_started else 'CHECK NEEDED'}"
+            if v is None or str(v).strip() == "":
+                return None
+            return float(v)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _to_bool(v: Any) -> bool:
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return False
+        s = str(v).strip().lower()
+        return s in {"1", "true", "yes", "y"}
+
+    @staticmethod
+    def _fmt(v: float | None) -> str:
+        if v is None:
+            return "NA"
+        return f"{v:.6f}"
+
+    @staticmethod
+    def _next_revision_number(run_dir: Path) -> int:
+        nums = []
+        for p in run_dir.glob("hawk_routing_v*.json"):
+            m = re.search(r"_v(\d+)\.json$", p.name)
+            if m:
+                nums.append(int(m.group(1)))
+        return (max(nums) + 1) if nums else 1
+
+    @staticmethod
+    def _render_markdown(review: dict[str, Any]) -> str:
+        rs = review.get("research_summary", {})
+        lines = [
+            "# HAWK Research Review",
+            "",
+            f"result_flag: {review.get('result_flag')}",
+            f"approved_for_quill: {review.get('approved_for_quill')}",
+            "",
+            "## Research Summary",
+            f"- hypothesis: {rs.get('hypothesis')}",
+            f"- primary_result: {rs.get('primary_result')}",
+            f"- p_value: {rs.get('p_value')}",
+            f"- bonferroni_threshold: {rs.get('bonferroni_threshold')}",
+            f"- passes_bonferroni: {rs.get('passes_bonferroni')}",
+            f"- seed_consistent: {rs.get('seed_consistent')}",
+            f"- codec_clean: {rs.get('codec_clean')}",
+            f"- n_episodes: {rs.get('n_episodes')}",
+            f"- production_ready: {rs.get('production_ready')}",
+            "",
+            "## Mandatory Items",
+        ]
+        items = review.get("mandatory_items", [])
+        if not items:
+            lines.append("- none")
+        for item in items:
+            lines.extend(
+                [
+                    f"- [{item.get('check')}] blocking={item.get('blocking')} route={item.get('routes_to')}",
+                    f"  finding: {item.get('finding')}",
+                    f"  issue: {item.get('issue')}",
+                    f"  action: {item.get('action')}",
+                ]
             )
-        except Exception as exc:
-            return f"PAP_LOCK_LOOKUP_ERROR: {exc}"
+        return "\n".join(lines) + "\n"
 
     def _write_result_flag(self, flag: str) -> None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -393,6 +384,6 @@ MAJOR_REVISION with a [CODEC] mandatory item."""
     @staticmethod
     def _first_existing(*candidates: Path) -> Path | None:
         for p in candidates:
-            if p.exists():
+            if p and p.exists():
                 return p
         return None

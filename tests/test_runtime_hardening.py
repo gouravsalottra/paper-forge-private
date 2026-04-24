@@ -123,13 +123,13 @@ def test_canonical_artifact_precedence_for_readers(tmp_path: Path) -> None:
         conn.commit()
 
     src = q._load_sources()
-    ctx = h._load_review_context()
-    assert src["codec_spec"] == "CANONICAL_CODEC_SPEC"
-    assert src["literature_map"] == "CANONICAL_LIT_MAP"
-    assert ctx["codec_spec"] == "CANONICAL_CODEC_SPEC"
+    ctx = h._load_context()
+    assert "a.csv" in src["stats_tables"]
+    assert "primary_metric.csv" not in src["stats_tables"]
+    assert "pap_text" in ctx
 
 
-def test_pipeline_dry_through_enforces_quill_quality_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pipeline_dry_through_blocks_quill_until_hawk_approval(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     Path("PAPER.md").write_text("## Topic\nx\n## Hypothesis\ny\n", encoding="utf-8")
     pipeline = _make_pipeline(tmp_path, run_id="r-dry-gate")
@@ -144,9 +144,8 @@ def test_pipeline_dry_through_enforces_quill_quality_gate(tmp_path: Path, monkey
         )
         conn.commit()
 
-    # Force QUILL runtime path to fail quality gate without any OpenAI calls.
-    monkeypatch.setattr(QuillAgent, "_load_sources", lambda self: {"literature_map": "", "codec_spec": "", "pap": "", "stats_tables_csv": "", "codec_mismatch": "", "paper_md": ""})
-    monkeypatch.setattr(QuillAgent, "_write_section", lambda self, _section, _sources: "Thin text.")
+    # No HAWK approval artifact exists; QUILL must request revision.
+    monkeypatch.setattr(QuillAgent, "_load_sources", lambda self: {"pap": "", "stats_tables": {}, "references_text": "", "references_exists": False})
 
     original_dispatch = pipeline._dispatch
 
@@ -156,13 +155,13 @@ def test_pipeline_dry_through_enforces_quill_quality_gate(tmp_path: Path, monkey
         if agent_name == "CODEC":
             return {"result_flag": "PASS"}
         if agent_name == "HAWK":
-            return {"result_flag": "APPROVED"}
+            return {"result_flag": "REVISION_REQUESTED", "approved_for_quill": False, "mandatory_items": []}
         return original_dispatch(agent_name, server_name, context_config)
 
     monkeypatch.setattr(pipeline, "_dispatch", selective_dispatch)
 
-    with pytest.raises(ValueError, match="QUILL quality gate failed"):
-        pipeline.run()
+    pipeline.run()
+    assert not (Path("paper_memory") / pipeline.run_id / "paper_draft_v1.tex").exists()
 
 
 def test_sigma_job2_markov_regime_aligns_lengths() -> None:

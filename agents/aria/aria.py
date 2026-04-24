@@ -18,7 +18,7 @@ from agents.aria.routing_config import AGENT_SERVER_MAP, AGENT_TIMEOUTS_SECONDS
 
 
 class ARIAPipeline:
-    PHASE_ORDER = ["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "QUILL", "HAWK"]
+    PHASE_ORDER = ["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "HAWK", "QUILL"]
     GOAL = "produce publishable paper"
     MAX_MAIN_LOOPS = 120
 
@@ -82,18 +82,21 @@ class ARIAPipeline:
 
             next_step = self._next_tool_call()
             if next_step is None:
-                # No deterministic upstream gap left, run review/edit loop.
+                # No deterministic upstream gap left.
                 self._run_step("HAWK", retries, max_retries)
-                self._run_step("QUILL", retries, max_retries)
-                self._run_step("FIXER", retries, max_retries)
+                if self._hawk_is_approved_for_quill():
+                    self._run_step("QUILL", retries, max_retries)
+                else:
+                    self._run_step("FIXER", retries, max_retries)
                 self._promote_latest_draft_to_v1_if_publishable()
                 continue
 
             if next_step == "HAWK":
-                # Quality-improvement loop: review then revise.
                 self._run_step("HAWK", retries, max_retries)
-                self._run_step("QUILL", retries, max_retries)
-                self._run_step("FIXER", retries, max_retries)
+                if self._hawk_is_approved_for_quill():
+                    self._run_step("QUILL", retries, max_retries)
+                else:
+                    self._run_step("FIXER", retries, max_retries)
             else:
                 self._run_step(next_step, retries, max_retries)
             self._promote_latest_draft_to_v1_if_publishable()
@@ -163,10 +166,12 @@ class ARIAPipeline:
                 retries[phase] = 0
                 return
 
-            # HAWK signals quality state; never hard-fail user flow.
             if phase == "HAWK":
                 self._advance_phase("HAWK", "done")
-                self._log_audit("HAWK", "INFO", f"HAWK result_flag={flag}.")
+                approved = bool(result.get("approved_for_quill"))
+                self._log_audit("HAWK", "INFO", f"HAWK result_flag={flag}; approved_for_quill={approved}.")
+                if not approved:
+                    self._route_hawk_mandatory_items(result.get("mandatory_items", []) or [])
                 retries[phase] = 0
                 return
 
@@ -228,10 +233,11 @@ class ARIAPipeline:
             return "SIGMA_JOB2"
         if not (base / "codec_spec.md").exists() and self._phase_status("CODEC") != "done":
             return "CODEC"
-        if not v1.exists() and self._phase_status("QUILL") != "done":
-            return "QUILL"
-        if not self._paper_is_publishable(v1) and self._phase_status("HAWK") != "done":
+        # HAWK gates QUILL and runs before manuscript rendering.
+        if not self._hawk_is_approved_for_quill():
             return "HAWK"
+        if not v1.exists():
+            return "QUILL"
         return None
 
     def _latest_paper_draft_path(self) -> Path | None:
@@ -240,6 +246,54 @@ class ARIAPipeline:
         if not drafts:
             return None
         return drafts[-1]
+
+    def _latest_hawk_routing(self) -> dict[str, Any]:
+        run_dir = Path("paper_memory") / self.run_id
+        routings = sorted(run_dir.glob("hawk_routing_v*.json"), key=lambda p: p.name)
+        if not routings:
+            return {}
+        try:
+            import json
+
+            return json.loads(routings[-1].read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+    def _hawk_is_approved_for_quill(self) -> bool:
+        routing = self._latest_hawk_routing()
+        return bool(routing.get("approved_for_quill"))
+
+    def _route_hawk_mandatory_items(self, items: list[dict[str, Any]]) -> None:
+        route_map = {
+            "FORGE": "FORGE",
+            "SIGMA": "SIGMA_JOB2",
+            "SIGMA_JOB2": "SIGMA_JOB2",
+            "FIXER": "FIXER",
+            "MINER": "MINER",
+            "CODEC": "CODEC",
+        }
+        for item in items:
+            if not item.get("blocking", False):
+                continue
+            target = route_map.get(str(item.get("routes_to", "")).upper())
+            if not target:
+                continue
+            try:
+                if target == "FORGE":
+                    self._check_forge_gate_for_revision()
+                result = self._dispatch(target, self._server_for_phase(target), self._context_config_for_phase(target))
+                self._write_result_flag(agent=target, job="hawk_route", flag=str(result.get("result_flag", "DONE")))
+                self._log_audit(
+                    "HAWK",
+                    "INFO",
+                    f"Routed blocking item to {target}: {item.get('check', 'unknown')} -> {result.get('result_flag', 'DONE')}",
+                )
+            except Exception as exc:
+                self._log_audit(
+                    "HAWK",
+                    "WARN",
+                    f"Routing to {target} failed for item {item.get('check', 'unknown')}: {type(exc).__name__}: {exc}",
+                )
 
     def _promote_latest_draft_to_v1_if_publishable(self) -> None:
         base = Path("paper_memory") / self.run_id
@@ -278,6 +332,15 @@ class ARIAPipeline:
         min_unique_words = int(os.getenv("PAPER_FORGE_PUBLISHABLE_UNIQUE_WORDS", "1500"))
         if len(unique_words) < min_unique_words:
             return False
+
+        # Reject papers with high paragraph duplication.
+        paras = [p.strip() for p in re.split(r"\n\s*\n", text) if len(p.strip()) > 100]
+        if len(paras) >= 6:
+            sample = paras[:40]
+            pairs = [(i, j) for i in range(len(sample)) for j in range(i + 1, len(sample))]
+            similar = sum(1 for i, j in pairs if self._cosine_sim(sample[i], sample[j]) > 0.7)
+            if pairs and (similar / len(pairs)) > 0.15:
+                return False
 
         if self._find_exact_duplicate_paragraphs(text):
             return False

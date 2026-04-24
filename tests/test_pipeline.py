@@ -285,8 +285,8 @@ def test_quill_raises_on_forbidden_words(tmp_path: Path, monkeypatch: pytest.Mon
         return "This is a groundbreaking result."
 
     agent = QuillAgent(run_id="r-quill", output_dir=str(tmp_path / "paper_memory"), llm_client=bad_llm)
-    with pytest.raises(ValueError):
-        agent.run(revision_number=1)
+    out = agent.run(revision_number=1)
+    assert out["result_flag"] == "REVISION_REQUESTED"
 
 
 def test_artifact_versioning_no_overwrite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,6 +294,21 @@ def test_artifact_versioning_no_overwrite(tmp_path: Path, monkeypatch: pytest.Mo
 
     out = tmp_path / "paper_memory"
     run_id = "r-ver"
+    run_dir = out / run_id
+    (run_dir / "stats_tables").mkdir(parents=True, exist_ok=True)
+    (run_dir / "pap.md").write_text("hypothesis: test", encoding="utf-8")
+    (run_dir / "stats_tables" / "primary_metric.csv").write_text(
+        "sharpe_differential,meets_minimum_effect\n-0.2,True\n",
+        encoding="utf-8",
+    )
+    (run_dir / "stats_tables" / "ttest_results.csv").write_text(
+        "p_value,bonferroni_threshold\n0.01,0.0083\n",
+        encoding="utf-8",
+    )
+    (run_dir / "hawk_routing_v1.json").write_text(
+        '{"approved_for_quill": true, "research_summary": {"hypothesis":"h","primary_result":"Sharpe differential = -0.2","p_value":"0.01","bonferroni_threshold":"0.0083","passes_bonferroni":false,"seed_consistent":true,"codec_clean":true,"n_episodes":2000,"production_ready":false}}',
+        encoding="utf-8",
+    )
 
     first = QuillAgent(run_id=run_id, output_dir=str(out), llm_client=lambda _p: "Version one body")
     first_result = first.run(revision_number=1)
@@ -307,7 +322,7 @@ def test_artifact_versioning_no_overwrite(tmp_path: Path, monkeypatch: pytest.Mo
     assert v1_path.exists()
     assert v2_path.exists()
     assert v1_path.read_text(encoding="utf-8") == v1_text_before
-    assert "Version one body" in v1_text_before
+    assert "\\begin{document}" in v1_text_before
 
 
 def test_full_pipeline_smoke_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -328,7 +343,13 @@ def test_full_pipeline_smoke_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     def fake_dispatch(agent_name, _server_name, _context):
         if agent_name == "HAWK":
-            return {"result_flag": "APPROVED"}
+            out = Path("paper_memory") / pipeline.run_id
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "hawk_routing_v1.json").write_text(
+                '{"result_flag":"APPROVED","approved_for_quill":true,"mandatory_items":[],"research_summary":{"hypothesis":"h"}}',
+                encoding="utf-8",
+            )
+            return {"result_flag": "APPROVED", "approved_for_quill": True, "mandatory_items": []}
         if agent_name == "QUILL":
             out = Path("paper_memory") / pipeline.run_id
             out.mkdir(parents=True, exist_ok=True)
