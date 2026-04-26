@@ -23,7 +23,7 @@ def main() -> None:
 
     source = os.environ.get("PAPER_FORGE_MINER_SOURCE", "yfinance")
     os.environ.setdefault("PAPER_FORGE_MINER_SOURCE", source)
-    os.environ.setdefault("PAPER_FORGE_FORGE_EPISODES", "500")
+    os.environ.setdefault("PAPER_FORGE_FORGE_EPISODES", "500000")
 
     if args.resume:
         run_id = args.resume
@@ -43,7 +43,7 @@ def main() -> None:
 
 def _reset_from_phase(run_id: str, from_phase: str) -> None:
     """Reset a phase and all downstream phases to pending for resume."""
-    phase_order = ["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "QUILL", "HAWK"]
+    phase_order = ["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "HAWK", "QUILL"]
     if from_phase not in phase_order:
         print(f"Unknown phase: {from_phase}")
         print(f"Valid phases: {phase_order}")

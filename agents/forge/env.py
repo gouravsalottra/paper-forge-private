@@ -789,7 +789,16 @@ class CommodityFuturesEnv(AECEnv):
         }
 
         self._agent_cycle = self._build_agent_cycle(self.possible_agents)
+        self._agent_to_idx = {agent: idx for idx, agent in enumerate(self.possible_agents)}
+        self._n_agents = len(self.possible_agents)
         self._pending_actions: Dict[str, int] = {}
+        self._pending_action_buffer = np.zeros(self._n_agents, dtype=np.int8)
+        self._pending_action_mask = np.zeros(self._n_agents, dtype=bool)
+        self._pending_count = 0
+        self._flow_buffer = np.zeros(self._n_agents, dtype=np.float32)
+        self._obs_buffers = {
+            agent: np.zeros(10, dtype=np.float32) for agent in self.possible_agents
+        }
 
         self.reset()
 
@@ -829,24 +838,23 @@ class CommodityFuturesEnv(AECEnv):
         }
 
         self._pending_actions.clear()
+        self._pending_action_buffer.fill(0)
+        self._pending_action_mask.fill(False)
+        self._pending_count = 0
         self.agent_selection = self.agents[0]
 
     def observe(self, agent: str) -> np.ndarray:
-        obs = np.array(
-            [
-                self._price_history[0],
-                self._price_history[1],
-                self._price_history[2],
-                self._price_history[3],
-                self._price_history[4],
-                self._current_volatility,
-                self.passive_concentration,
-                self.portfolio_values[agent],
-                self.cash[agent],
-                float(self.current_step),
-            ],
-            dtype=np.float32,
-        )
+        obs = self._obs_buffers[agent]
+        obs[0] = self._price_history[0]
+        obs[1] = self._price_history[1]
+        obs[2] = self._price_history[2]
+        obs[3] = self._price_history[3]
+        obs[4] = self._price_history[4]
+        obs[5] = self._current_volatility
+        obs[6] = self.passive_concentration
+        obs[7] = self.portfolio_values[agent]
+        obs[8] = self.cash[agent]
+        obs[9] = float(self.current_step)
         return obs
 
     def step(self, action: int) -> None:
@@ -863,11 +871,18 @@ class CommodityFuturesEnv(AECEnv):
             action_int = 1
 
         self._pending_actions[agent] = action_int
+        idx = self._agent_to_idx[agent]
+        if not self._pending_action_mask[idx]:
+            self._pending_action_mask[idx] = True
+            self._pending_count += 1
+        self._pending_action_buffer[idx] = action_int
 
-        if len(self._pending_actions) == len(self.agents):
+        if self._pending_count == self._n_agents:
             self._clear_rewards()
             self._apply_market_step()
             self._pending_actions.clear()
+            self._pending_action_mask.fill(False)
+            self._pending_count = 0
 
             if self.current_step >= self.episode_length:
                 for name in self.agents:
@@ -888,7 +903,8 @@ class CommodityFuturesEnv(AECEnv):
         prev_values = self.portfolio_values.copy()
         old_price = self.price
 
-        net_order_flow = float(sum(self._action_to_flow(a) for a in self._pending_actions.values()))
+        np.copyto(self._flow_buffer, self._action_to_flow(self._pending_action_buffer))
+        net_order_flow = float(np.sum(self._flow_buffer))
         concentration = self.passive_concentration
         # Economic mechanism:
         # 1) Larger passive concentration increases common-factor shock variance.
@@ -898,7 +914,7 @@ class CommodityFuturesEnv(AECEnv):
         flow_impact = 0.0003 * (1.0 + 5.0 * (concentration**2))
         concentration_drag = 0.0002 * (concentration**2)
         self.price = self.price * (1.0 + flow_impact * net_order_flow + noise - concentration_drag)
-        self.price = max(self.price, 1e-6)
+        self.price = float(np.maximum(self.price, 1e-6))
 
         step_return = (self.price / old_price) - 1.0
         self._returns_window.append(step_return)
@@ -915,7 +931,7 @@ class CommodityFuturesEnv(AECEnv):
         else:
             mean = self._returns_sum / n
             var = (self._returns_sumsq - n * mean * mean) / (n - 1)
-            self._current_volatility = float(np.sqrt(max(var, 0.0)))
+            self._current_volatility = float(np.sqrt(np.maximum(var, 0.0)))
 
         self._price_history.append(self.price)
         self._price_history = self._price_history[-5:]
@@ -936,10 +952,10 @@ class CommodityFuturesEnv(AECEnv):
             old_value = prev_values[agent]
             new_value = self.cash[agent] + self.positions[agent] * self.price
             self.portfolio_values[agent] = new_value
-            denom = max(abs(old_value), 10_000.0)
+            denom = float(np.maximum(np.abs(old_value), 10_000.0))
             pct = (new_value - old_value) / denom
             rf_daily = 0.05 / 252
-            crowding_cost = 0.00005 * (concentration**2) * (abs(self.positions[agent]) / self.max_position_units)
+            crowding_cost = 0.00005 * (concentration**2) * (np.abs(self.positions[agent]) / self.max_position_units)
             volatility_penalty = 0.15 * (concentration**2) * self._current_volatility
             self.rewards[agent] = float(pct - rf_daily - crowding_cost - volatility_penalty)
             self._cumulative_rewards[agent] = self.rewards[agent]
@@ -947,12 +963,12 @@ class CommodityFuturesEnv(AECEnv):
         self.current_step += 1
 
     @staticmethod
-    def _action_to_flow(action: int) -> int:
-        if action == 1:
-            return 1
-        if action == 2:
-            return -1
-        return 0
+    def _action_to_flow(action):
+        arr = np.asarray(action)
+        flow = np.where(arr == 1, 1, np.where(arr == 2, -1, 0))
+        if np.isscalar(action):
+            return int(flow.item())
+        return flow
 
     def _rolling_volatility(self) -> float:
         if len(self._returns_window) < 2:

@@ -47,5 +47,5 @@ class CEM:
 
     @staticmethod
     def act(obs: np.ndarray, weights: np.ndarray) -> int:
-        logits = np.asarray(obs) @ np.asarray(weights)
+        logits = obs @ weights
         return int(np.argmax(logits))
