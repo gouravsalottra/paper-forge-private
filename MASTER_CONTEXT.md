@@ -1,3 +1,16 @@
+# MASTER_CONTEXT — Paper-Forge Ground Truth
+# Last updated: 2026-04-23
+# This file is the single source of truth for any new session.
+# Read this before reading any other file.
+
+## PRE-REGISTERED SPECIFICATION (from PAPER.md — do not contradict)
+Seeds (pre-registered): [1337, 42, 9999]
+Concentrations: [0.10, 0.30, 0.60]
+Episodes required: 500,000 minimum
+Significance threshold: p < 0.05 (primary), p < 0.0083 (Bonferroni, 6 tests)
+Minimum effect size: Sharpe differential >= -0.15
+Concentration threshold: 30% (pre-registered, not chosen after data)
+
 # Paper-Forge Current State
 
 ## What works

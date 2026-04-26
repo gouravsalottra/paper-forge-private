@@ -7,6 +7,7 @@ import time
 import re
 import subprocess
 import math
+import logging
 from collections import Counter
 from datetime import datetime, timezone
 import os
@@ -15,6 +16,8 @@ from typing import Any
 
 from agents.aria.exceptions import ForgeGateError, IntegrityViolationError, PipelineHaltError, ServerUnavailableError
 from agents.aria.routing_config import AGENT_SERVER_MAP, AGENT_TIMEOUTS_SECONDS
+
+logger = logging.getLogger(__name__)
 
 
 class ARIAPipeline:
@@ -227,7 +230,7 @@ class ARIAPipeline:
             return "MINER"
         if not (base / "pap.md").exists() and self._phase_status("SIGMA_JOB1") != "done":
             return "SIGMA_JOB1"
-        if not (Path("outputs") / "sim_results.json").exists() and self._phase_status("FORGE") != "done":
+        if self._phase_status("FORGE") != "done":
             return "FORGE"
         if (not stats_dir.exists() or not any(stats_dir.glob("*.csv"))) and self._phase_status("SIGMA_JOB2") != "done":
             return "SIGMA_JOB2"
@@ -682,8 +685,13 @@ class ARIAPipeline:
                 source = "wrds"
             return run_miner_pipeline(run_id=self.run_id, output_dir="paper_memory", source=source)
         if agent_name == "FORGE":
-            n_episodes = int(os.getenv("PAPER_FORGE_FORGE_EPISODES", "500"))
+            n_episodes = int(os.getenv("PAPER_FORGE_FORGE_EPISODES", "500000"))
             backend = os.getenv("PAPER_FORGE_FORGE_BACKEND", "modal").strip().lower() or "modal"
+            if n_episodes < 500000:
+                logger.warning(
+                    f"n_episodes={n_episodes} is below required 500000. "
+                    "Results will be statistically invalid."
+                )
             if backend == "modal":
                 cmd = ["modal", "run", "agents/forge/modal_run.py", "--n-episodes", str(n_episodes)]
                 completed = subprocess.run(
@@ -707,6 +715,7 @@ class ARIAPipeline:
                         "error": "modal run succeeded but outputs/sim_results.json missing",
                         "stdout": completed.stdout[-2000:],
                     }
+                logger.error("Modal failed. Set PAPER_FORGE_FORGE_BACKEND=local to use CPU runner.")
                 return {
                     "result_flag": "FAIL",
                     "backend": "modal",
@@ -714,9 +723,14 @@ class ARIAPipeline:
                     "stdout": completed.stdout[-2000:],
                     "stderr": completed.stderr[-2000:],
                 }
-
-            from agents.forge.full_run import run_full_sweep
-            return run_full_sweep(n_episodes=n_episodes)
+            if backend == "local":
+                from agents.forge.full_run import run_full_sweep
+                return run_full_sweep(n_episodes=n_episodes)
+            return {
+                "result_flag": "FAIL",
+                "backend": backend,
+                "error": f"Unsupported PAPER_FORGE_FORGE_BACKEND={backend!r}; use 'modal' or 'local'.",
+            }
         if agent_name == "CODEC":
             from agents.codec.codec import CodecAgent
 
