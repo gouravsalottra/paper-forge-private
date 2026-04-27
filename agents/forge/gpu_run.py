@@ -465,7 +465,7 @@ def run_all_gpu(
         print(f"\nInterrupted at episode {episodes_done}. Saving partial results...")
 
     # Final results
-    results = _build_results(scenarios, rewards_history, episodes_done * POPULATION, cem, env, device)
+    results = _build_results(scenarios, rewards_history, episodes_done, cem, env, device)
 
     # Compute Bonferroni p-value
     from scipy import stats as scipy_stats
