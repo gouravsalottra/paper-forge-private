@@ -465,7 +465,9 @@ def run_all_gpu(
         print(f"\nInterrupted at episode {episodes_done}. Saving partial results...")
 
     # Final results
-    results = _build_results(scenarios, rewards_history, episodes_done, cem, env, device)
+    print("Evaluating converged weights...", flush=True)
+    eval_sharpes = evaluate_best_weights(cem, scenarios, device)
+    results = _build_results(scenarios, rewards_history, episodes_done, cem, env, device, eval_sharpes)
 
     # Compute Bonferroni p-value
     from scipy import stats as scipy_stats
@@ -501,6 +503,31 @@ def run_all_gpu(
 
     return results
 
+@torch.no_grad()
+def evaluate_best_weights(cem, scenarios, device):
+    n_sc = len(scenarios)
+    conc = torch.tensor([c for c, s in scenarios], dtype=torch.float32, device=device)
+    env_eval = BatchedForgeEnv(concentrations=conc, device=device)
+    env_eval.reset()
+    best_w = cem.best()
+    step_rewards = []
+    for step in range(EPISODE_LENGTH):
+        obs = env_eval.observe()
+        logits = torch.bmm(obs.unsqueeze(1), best_w).squeeze(1)
+        meta_action = logits.argmax(dim=1)
+        rule_acts = get_rule_actions(env_eval.price_history, step, n_sc, device)
+        all_actions = torch.cat([rule_acts, meta_action.unsqueeze(1)], dim=1)
+        r = env_eval.step(all_actions)
+        step_rewards.append(r)
+    step_rewards = torch.stack(step_rewards, dim=1)
+    sharpes = []
+    for i in range(n_sc):
+        arr = step_rewards[i]
+        std = arr.std(unbiased=False)
+        s = float((arr.mean() / std * 252.0**0.5).item()) if float(std.item()) > 1e-8 else 0.0
+        sharpes.append(s)
+    return sharpes
+
 
 def _build_results(
     scenarios: list[tuple[float, int]],
@@ -509,6 +536,7 @@ def _build_results(
     cem: BatchedCEM,
     env: BatchedForgeEnv,
     device: torch.device,
+    eval_sharpes=None,
 ) -> list[dict]:
     """
     Build sim_results.json schema from current state.
@@ -521,14 +549,7 @@ def _build_results(
     for i, (concentration, seed) in enumerate(scenarios):
         rh = rewards_history[i]
 
-        # Compute Sharpe from trailing rewards (matches runner.py sharpe())
-        if len(rh) >= 2:
-            arr = torch.tensor(rh[-252:], dtype=torch.float32)
-            mean = arr.mean()
-            std = arr.std(unbiased=False)
-            sharpe = float((mean / std * (252.0 ** 0.5)).item()) if float(std.item()) > 1e-8 else 0.0
-        else:
-            sharpe = 0.0
+        sharpe = eval_sharpes[i] if eval_sharpes is not None else 0.0
 
         mean_reward = float(np.mean(rh)) if rh else 0.0
 
