@@ -438,7 +438,7 @@ def run_all_gpu(
             for i in range(n_scenarios):
                 rewards_history[i].append(float(max_scores[i].item()))
 
-            episodes_done = episode
+            episodes_done = episode * POPULATION
 
             # Progress print every 10k episodes
             if episode % 10_000 == 0 or episode == n_episodes:
@@ -456,7 +456,7 @@ def run_all_gpu(
             # Checkpoint every 50k episodes
             if episode % max(1, checkpoint_every // POPULATION) == 0:
                 partial = _build_results(
-                    scenarios, rewards_history, episode, cem, env, device
+                    scenarios, rewards_history, episode * POPULATION, cem, env, device
                 )
                 output_path_obj.write_text(json.dumps(partial, indent=2), encoding="utf-8")
                 print(f"  Checkpoint saved: {output_path_obj} ({len(partial)} scenarios)")
@@ -465,7 +465,7 @@ def run_all_gpu(
         print(f"\nInterrupted at episode {episodes_done}. Saving partial results...")
 
     # Final results
-    results = _build_results(scenarios, rewards_history, episodes_done, cem, env, device)
+    results = _build_results(scenarios, rewards_history, episodes_done * POPULATION, cem, env, device)
 
     # Compute Bonferroni p-value
     from scipy import stats as scipy_stats
