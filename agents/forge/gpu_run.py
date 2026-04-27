@@ -412,7 +412,9 @@ def run_all_gpu(
     print(f"\nStarting simulation...")
 
     try:
-        for episode in range(1, n_episodes + 1):
+      with torch.no_grad():
+        n_generations = max(1, n_episodes // POPULATION)
+        for episode in range(1, n_generations + 1):
             # Sample CEM candidates for all scenarios
             # candidates: (n_scenarios, population, obs_dim, action_dim)
             candidates = cem.ask()
@@ -452,7 +454,7 @@ def run_all_gpu(
                 )
 
             # Checkpoint every 50k episodes
-            if episode % checkpoint_every == 0:
+            if episode % max(1, checkpoint_every // POPULATION) == 0:
                 partial = _build_results(
                     scenarios, rewards_history, episode, cem, env, device
                 )
@@ -557,15 +559,24 @@ def benchmark(device: torch.device) -> float:
     env = BatchedForgeEnv(concentrations=conc_expanded, device=device)
     cem = BatchedCEM(n_scenarios=n_scenarios, device=device)
 
+    print("Warming up CUDA kernels (first run: 2-5 min)...", flush=True)
+    with torch.no_grad():
+        _c = cem.ask()
+        _w = _c.view(n_scenarios * POPULATION, OBS_DIM, ACTION_DIM)
+        run_episode_batch(env, _w, {})
+    torch.cuda.synchronize()
+    print("Warmup done. Benchmarking...", flush=True)
     t0 = time.time()
-    for _ in range(100):
+    with torch.no_grad():
+      for _ in range(10):
         candidates = cem.ask()
         weights = candidates.view(n_scenarios * POPULATION, OBS_DIM, ACTION_DIM)
         scores_raw = run_episode_batch(env, weights, {})
         scores = scores_raw.view(n_scenarios, POPULATION)
         cem.tell(scores, candidates)
+    torch.cuda.synchronize()
     elapsed = time.time() - t0
-    return elapsed / 100.0
+    return elapsed / 10.0
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
