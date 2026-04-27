@@ -38,6 +38,1354 @@ TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (prod
 
 
 # PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
 PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
 
 

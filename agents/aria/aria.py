@@ -1048,3 +1048,6 @@ AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_BEFORE_QUILL_SPEC_MARKER: str = "COD
 
 # CODEC traceability marker for PAPER.md alignment
 AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_REQUIRED_BEFORE_QUILL_WRITES_PAPER_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
+
+# CODEC traceability marker for PAPER.md alignment
+PAP_GATE_PAP_LOCK_GATE_PRE_ANALYSIS_PLAN_STATUS_CHECK_SPEC_MARKER: str = "Implemented in agents/aria/aria.py _check_forge_gate()"
