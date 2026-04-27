@@ -13,7 +13,7 @@
     "start": "2001-02-16",
     "end": "2021-06-09"
   },
-  "download_timestamp_utc": "2026-04-23T01:15:48+00:00",
+  "download_timestamp_utc": "2026-04-27T04:22:39+00:00",
   "tickers": {
     "CL=F": "crude_oil_wti",
     "NG=F": "natural_gas"
@@ -66,5 +66,6 @@
       "natural_gas"
     ],
     "dropped_series": []
-  }
+  },
+  "episode_count_note": "Dev run uses 2,000 episodes. PAPER.md specifies 500,000 minimum. Full run requires Modal GPU dispatch: modal run --detach agents/forge/modal_run.py"
 }
