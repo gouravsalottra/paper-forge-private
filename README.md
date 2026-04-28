@@ -266,10 +266,11 @@ paper-forge/
 │   │   └── sigma_job2.py             ← Edit statistical tests here for new research
 │   │
 │   ├── forge/
-│   │   ├── env.py                    ← PettingZoo environment — edit for new simulation
-│   │   ├── runner.py                 ← CEM/PPO training loop
+│   │   ├── env.py                    ← PettingZoo environment
+│   │   ├── runner.py                 ← CEM training loop
 │   │   ├── cem.py                    ← Cross-entropy method optimizer
-│   │   └── modal_run.py              ← GPU dispatch
+│   │   ├── gpu_run.py                ← Vectorized CUDA GPU runner (production)
+│   │   └── modal_run.py              ← Deprecated — Modal credits exhausted
 │   │
 │   ├── codec/
 │   │   ├── codec.py
