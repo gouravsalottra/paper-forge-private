@@ -74,10 +74,10 @@ Your hypothesis is SHA-256 hashed and committed to a SQLite `pap_lock` table **b
   │ SIGMA    │              SHA-256 signed
   │  JOB 1  │  ← Commits hypothesis, seals pap_lock
   └────┬─────┘
-       │  SQL gate enforced ──────────────────────────────────┐
-       ▼                                                       │
-   ┌───────┐                                                   │
-   │ FORGE │  500k episodes · PettingZoo · Modal GPU           │
+       │  SQL gate enforced ───────────────────────────────────────┐
+       ▼                                                            │
+   ┌───────┐                                                        │
+   │ FORGE │  500k episodes · PettingZoo AEC · CUDA GPU (gpu_run.py)│
    └───┬───┘                                              BLOCKED if
        │                                               hypothesis not locked
        ▼
@@ -664,9 +664,6 @@ PAPER_FORGE_MINER_SOURCE=yfinance
 # WRDS credentials (production only)
 WRDS_USERNAME=your_wrds_username
 
-# Modal GPU secret name
-MODAL_SECRET_NAME=paper-forge-runtime
-
 # Episode count override (default: 500000)
 PAPER_FORGE_FORGE_EPISODES=500
 ```
@@ -715,6 +712,9 @@ These were learned from real build failures. Do not undo them in any new session
 - **QUILL is a scaffold, not a finished paper.** Introduction, related work, discussion, and conclusion must be written by the researcher.
 - **Bid-ask filter calibration.** The intraday H-L/close spread proxy is too aggressive on daily futures data. Production runs should use tick-level spread from WRDS.
 - **This is research infrastructure, not a paper mill.** A null result is a valid output. The system reports failures honestly.
+- **FIXER infinite loop.** If SIGMA_JOB2 produces stderr output (DataScaleWarning, 
+  statsmodels RuntimeWarning), FIXER treats it as a failure and loops indefinitely. 
+  Interrupt with Ctrl+C and resume with `--from HAWK` to bypass FIXER.
 
 ---
 
