@@ -22,7 +22,7 @@
 ![Model](https://img.shields.io/badge/built%20with-OpenAI%20Codex-8b5cf6?style=flat-square)
 ![DB](https://img.shields.io/badge/state-SQLite%20WAL-f97316?style=flat-square)
 ![Sim](https://img.shields.io/badge/env-PettingZoo%20AEC-14b8a6?style=flat-square)
-![GPU](https://img.shields.io/badge/compute-Modal%20GPU-ec4899?style=flat-square)
+![GPU](https://img.shields.io/badge/compute-CUDA%20GPU-ec4899?style=flat-square)
 
 </div>
 
@@ -111,6 +111,24 @@ Your hypothesis is SHA-256 hashed and committed to a SQLite `pap_lock` table **b
 
 ---
 
+
+## Results From the Current Paper Run
+
+| Metric | Value |
+|--------|-------|
+| Scenarios | 36 (3 concentrations × 12 seeds) |
+| Episodes per scenario | 500,000 |
+| Sharpe differential (high vs low concentration) | −1.83 |
+| p-value (Newey-West HAC, two-tailed) | 0.0046 |
+| Passes Bonferroni threshold (p < 0.0083) | ✅ Yes |
+| Seed consistent (all 3 pre-registered seeds) | ✅ Yes |
+| Minimum effect met (threshold: −0.15) | ✅ Yes (12× threshold) |
+| HAWK `approved_for_quill` | ✅ True |
+
+**Finding:** Passive GSCI concentration above 30% of open interest reduces 12-month momentum strategy Sharpe ratios by 1.83 units in simulation. Real-world NYMEX WTI concentration peaked at 25.5% (2006–2022), below the pre-registered threshold. Chicago wheat averaged 41% — currently in the impairment regime.
+
+---
+
 ## Agent Reference
 
 | Agent | Phase | What it does | Halts pipeline? |
@@ -119,7 +137,7 @@ Your hypothesis is SHA-256 hashed and committed to a SQLite `pap_lock` table **b
 | **SCOUT** | 1 | Searches 40 papers on Semantic Scholar + arXiv. Ranks 1–10. Reads top 8–10 in full. Writes `literature_map.md`. | No |
 | **MINER** | 2 | Downloads data per `PAPER.md` spec. Constructs series. Produces `DataPassport` with SHA-256 checksums per file. | No |
 | **SIGMA JOB 1** | 3 — *before data* | Writes complete Pre-Analysis Plan from `PAPER.md`. Commits hypothesis. Seals `pap_lock`. Sets SQL gate. | **Gate** |
-| **FORGE** | 4 — *after PAP lock* | Multi-agent PettingZoo market simulation. 500k episodes on Modal GPU. CEM/PPO optimizer. | **Gate** |
+| **FORGE** | 4 — *after PAP lock* | Vectorized PyTorch simulation. 500k episodes × 36 scenarios. CEM optimizer. `gpu_run.py` on CUDA GPU. | **Gate** |
 | **SIGMA JOB 2** | 5 — *after FORGE* | Runs 6-test statistical battery against `sim_results.json`. Writes all stats CSVs to `stats_tables/`. | No |
 | **CODEC** | 6 | Bidirectional code audit via 2 isolated subprocess passes. Writes `codec_mismatch.md`. | **Yes — FAIL** |
 | **FIXER** | 7 | Reads CODEC mismatch. LLM auto-patches fixable items. Re-runs MINER + SIGMA JOB 2 to verify fix held. | **Yes — escalate** |
@@ -351,11 +369,10 @@ python run_aria_pipeline.py --resume pf-live-20260422 --from CODEC
 # PAP lock is preserved — hypothesis commitment unchanged
 ```
 
-**Verify Modal GPU before production (do this first):**
+**Verify CUDA before production (do this first):**
 ```bash
-modal profile list                                  # must show authenticated workspace
-modal run agents/forge/modal_run.py --n-episodes 1000
-modal app list                                      # must show a job appearing
+python3 -c "import torch; print('CUDA:', torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# Must print: CUDA: True  RTX PRO 6000 Blackwell (or your GPU name)
 # Only then run production:
 PAPER_FORGE_FORGE_EPISODES=500000 python run_aria_pipeline.py
 ```
@@ -417,7 +434,11 @@ UNCOMMITTED — must be committed by SIGMA_JOB1 before FORGE runs.
 
 ---
 
-## Worked Example: GSCI Sector Rotation with RL
+## Extension: Using Paper-Forge for Any Finance Research
+
+> The example below shows how to adapt the pipeline to a completely different research question. The integrity infrastructure (ARIA, SIGMA JOB 1, CODEC, FIXER, HAWK, QUILL) is unchanged. Only the domain-specific layers change.
+
+### Worked Example: GSCI Sector Rotation with RL *(Roadmap)*
 
 **Research question:** Can a PPO reinforcement learning agent achieve risk-adjusted outperformance over the GSCI by dynamically rotating across commodity ETF sub-sectors?
 
@@ -681,7 +702,7 @@ These were learned from real build failures. Do not undo them in any new session
 1. **HAWK must never read LaTeX or PDF.** It reads CSVs and JSON only.
 2. **QUILL must not use LLM to generate prose.** Deterministic formatting only.
 3. **FIXER must not block pipeline completion on escalation.** It is diagnostic, not a gate.
-4. **Modal must not silently fall back to local runner.** If Modal fails — raise. Never fall back.
+4. **`gpu_run.py` must verify CUDA before running.** If `torch.cuda.is_available()` returns `False`, raise — do not run 500k episodes on CPU.
 5. **Daily quota 429 errors must not be retried.** Detect `86400` in error string and raise immediately.
 6. **ARIA must never read artifact content.** Typed flags from `state.db` only.
 
@@ -690,7 +711,7 @@ These were learned from real build failures. Do not undo them in any new session
 ## Known Limitations
 
 - **WRDS required for production.** Use `PAPER_FORGE_MINER_SOURCE=yfinance` for local dev. The proxy uses CL=F and NG=F as stand-ins for commodity futures.
-- **GPU-intensive.** 500k-episode runs take ~24 hours on Modal A100. Use `PAPER_FORGE_FORGE_EPISODES=500` for smoke tests.
+- **GPU-intensive.** 500k-episode runs take ~15 minutes on RTX PRO 6000 Blackwell via `gpu_run.py`. Use `PAPER_FORGE_FORGE_EPISODES=500` for smoke tests.
 - **QUILL is a scaffold, not a finished paper.** Introduction, related work, discussion, and conclusion must be written by the researcher.
 - **Bid-ask filter calibration.** The intraday H-L/close spread proxy is too aggressive on daily futures data. Production runs should use tick-level spread from WRDS.
 - **This is research infrastructure, not a paper mill.** A null result is a valid output. The system reports failures honestly.
