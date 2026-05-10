@@ -8,8 +8,20 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
+from pydantic import BaseModel
+
+from agents.aria.exceptions import StructuredOutputError
 from agents.llm_client import get_client, track_usage
+
+
+class SpecAuditResult(BaseModel):
+    verdict: Literal["PASS", "FAIL"]
+    assumptions: list[str]
+    underspecified_details: list[str]
+    reproducibility_score: int
+    rationale: str
 
 
 class CodecPass2:
@@ -51,35 +63,48 @@ class CodecPass2:
         )
         user_prompt = (
             "Reimplement the methodology from this spec alone.\n"
-            "Requirements:\n"
-            "1) list full implementation steps in order\n"
-            "2) specify assumptions needed due to underspecification\n"
-            "3) flag every underspecified detail\n"
-            "4) rate reproducibility from 1 to 5 with rationale\n"
-            "5) do not reference any codebase files\n\n"
+            "Return strict JSON with keys:\n"
+            "{\n"
+            '  "verdict": "PASS" | "FAIL",\n'
+            '  "assumptions": [str],\n'
+            '  "underspecified_details": [str],\n'
+            '  "reproducibility_score": int,\n'
+            '  "rationale": str\n'
+            "}\n"
+            "Do not reference any codebase files.\n\n"
             f"PAPER SPEC START\n{paper_text}\nPAPER SPEC END"
         )
         self._prompt_sha256 = hashlib.sha256(
             f"{system_prompt}\n{user_prompt}".encode("utf-8")
         ).hexdigest()
 
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0,
-        )
-        track_usage(
-            resp,
-            run_id=self.run_id,
-            phase_name="CODEC",
-            agent_name="CODEC_PASS2",
-            model=model,
-            db_path=self.db_path,
-        )
-        return (resp.choices[0].message.content or "").strip()
+        raw = "{}"
+        for attempt in range(2):
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0,
+                response_format={"type": "json_object"},
+            )
+            track_usage(
+                resp,
+                run_id=self.run_id,
+                phase_name="CODEC",
+                agent_name="CODEC_PASS2",
+                model=model,
+                db_path=self.db_path,
+            )
+            raw = (resp.choices[0].message.content or "{}").strip()
+            try:
+                parsed = SpecAuditResult.model_validate(json.loads(raw))
+                return json.dumps(parsed.model_dump(), indent=2)
+            except Exception:
+                if attempt == 1:
+                    raise StructuredOutputError("SPECAUDIT", raw)
+        raise StructuredOutputError("SPECAUDIT", raw)
 
     def _write_result_flag(self, status: str) -> None:
         created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")

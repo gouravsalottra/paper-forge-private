@@ -36,7 +36,7 @@ class SigmaJob2:
         sim_df = self._load_sim_results()
         seed = REQUIRED_SEEDS[0]
         returns = sim_df["mean_reward"].to_numpy(dtype=float)
-        primary_metric = self._rolling_sharpe_differential(sim_df)
+        primary_metric = self._concentration_sharpe_differential(sim_df)
         sharpe_differential = float(primary_metric.get("sharpe_differential", float("nan")))
         minimum_effect_passed = bool(primary_metric.get("meets_minimum_effect", False))
         print(f"[SIGMA] Sharpe differential: {sharpe_differential:.4f}")
@@ -343,7 +343,7 @@ class SigmaJob2:
         }
 
     @staticmethod
-    def _rolling_sharpe_differential(sim_df: pd.DataFrame) -> dict:
+    def _concentration_sharpe_differential(sim_df: pd.DataFrame) -> dict:
         """
         Compute the primary metric from PAPER.md:
         Annualized Sharpe differential = mean(Sharpe|high_conc)
@@ -543,9 +543,9 @@ class SigmaJob2:
                 "reason": f"Missing seeds: {missing_seeds}",
                 "required_seeds": sorted(required_seeds),
                 "actual_seeds": sorted(actual_seeds),
-                "finding_valid": True,
-                "conclusion": "Exploratory design remains valid despite missing required seeds.",
-                "note": "Mixed directional evidence across seeds - consistent with exploratory hypothesis",
+                "finding_valid": False,
+                "conclusion": "Seed data missing — finding cannot be validated",
+                "note": "Seed policy violated; validation blocked until all required seeds are present.",
             }
 
         consistency_by_concentration = {}

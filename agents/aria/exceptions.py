@@ -46,3 +46,13 @@ class TokenBudgetExceededError(RuntimeError):
             f"runaway costs. Set a higher hard_limit_usd in token_limits "
             f"table if this was intentional."
         )
+
+
+class StructuredOutputError(RuntimeError):
+    """Raised when an LLM response cannot be parsed into required structured schema."""
+
+    def __init__(self, source: str, raw_response: str) -> None:
+        self.source = source
+        self.raw_response = raw_response
+        preview = (raw_response or "")[:500]
+        super().__init__(f"{source} structured output parse failed. Raw response preview:\n{preview}")

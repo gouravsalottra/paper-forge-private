@@ -7,9 +7,26 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
+from pydantic import BaseModel
+
+from agents.aria.exceptions import StructuredOutputError
 from agents.llm_client import get_client
 from agents.llm_client import track_usage
+
+
+class CodeMismatch(BaseModel):
+    location_in_code: str
+    location_in_spec: str
+    nature: str
+    auto_fixable: bool
+
+
+class CodeAuditResult(BaseModel):
+    verdict: Literal["PASS", "FAIL"]
+    mismatches: list[CodeMismatch]
+    unverified_params: list[str]
 
 
 class CodecAgent:
@@ -262,14 +279,77 @@ class CodecAgent:
             "\"paper_value\": ..., \"code_value\": ..., \"match\": ...}]}\n\n"
             f"CODEBASE:\n{code_text[:8000]}"
         )
-        raw = self._call_llm({"pass": "PARAM_CHECK", "instructions": prompt, "context": {}})
-        try:
-            import re
+        raw = ""
+        if self.llm_client is None:
+            system_prompt = "Return strict JSON only."
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ]
+            for attempt in range(2):
+                resp = self._llm_client.chat.completions.create(
+                    model=self._model_name,
+                    messages=messages,
+                    temperature=0 if attempt else 0,
+                    response_format={"type": "json_object"},
+                )
+                track_usage(
+                    resp,
+                    run_id=self.run_id,
+                    phase_name="CODEC",
+                    agent_name="CODEC",
+                    model=self._model_name,
+                    db_path=self.db_path,
+                )
+                raw = (resp.choices[0].message.content or "{}").strip()
+                try:
+                    parsed = json.loads(raw)
+                    break
+                except Exception:
+                    if attempt == 1:
+                        raise StructuredOutputError("CODEAUDIT", raw)
+            else:
+                raise StructuredOutputError("CODEAUDIT", raw)
+        else:
+            raw = self._call_llm({"pass": "PARAM_CHECK", "instructions": prompt, "context": {}})
+            try:
+                import re
 
-            clean = re.sub(r"```json|```", "", raw).strip()
-            return json.loads(clean)
-        except Exception:
-            return {"params": []}
+                clean = re.sub(r"```json|```", "", raw).strip()
+                parsed = json.loads(clean)
+            except Exception:
+                # Backward-compatible behavior for injected test doubles that return plain text.
+                parsed = {"params": []}
+
+        params = parsed.get("params", [])
+        mismatches = []
+        unverified = []
+        for p in params:
+            if p.get("code_value") == "NOT FOUND":
+                unverified.append(str(p.get("parameter_name", "")))
+            elif p.get("match") is False:
+                mismatches.append(
+                    {
+                        "location_in_code": str(p.get("code_value", "")),
+                        "location_in_spec": str(p.get("parameter_name", "")),
+                        "nature": f"paper={p.get('paper_value')} code={p.get('code_value')}",
+                        "auto_fixable": False,
+                    }
+                )
+        verdict = "FAIL" if mismatches else "PASS"
+        validated = CodeAuditResult.model_validate(
+            {"verdict": verdict, "mismatches": mismatches, "unverified_params": unverified}
+        )
+        out = dict(parsed)
+        out["_codeaudit"] = validated.model_dump()
+        return out
+
+    @staticmethod
+    def _parse_codeaudit_result(raw_response: str) -> CodeAuditResult:
+        try:
+            return CodeAuditResult.model_validate(json.loads(raw_response or "{}"))
+        except Exception as exc:
+            raise StructuredOutputError("CODEAUDIT", raw_response) from exc
 
     def _compare(self, pass1: str, pass2: str) -> str:
         """Domain-aware CODEC comparison.

@@ -9,9 +9,20 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
+from pydantic import BaseModel, Field
+
+from agents.aria.exceptions import StructuredOutputError
 from agents.prompt_loader import load_prompt
+
+
+class HawkReview(BaseModel):
+    result_flag: Literal["APPROVED", "REVISION_REQUESTED", "ESCALATE"]
+    methodology_score: float = Field(ge=1.0, le=10.0)
+    mandatory_revision_items: list[str]
+    approved_for_quill: bool
+    reasoning: str
 
 
 class HawkAgent:
@@ -407,3 +418,11 @@ class HawkAgent:
             if p and p.exists():
                 return p
         return None
+
+    @staticmethod
+    def _parse_hawk_review_response(raw_response: str) -> HawkReview:
+        try:
+            data = json.loads(raw_response or "{}")
+            return HawkReview.model_validate(data)
+        except Exception as exc:
+            raise StructuredOutputError("HAWK", raw_response) from exc

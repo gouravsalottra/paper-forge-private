@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from agents.aria.exceptions import StructuredOutputError
 from agents.llm_client import get_client, track_usage
 
 
@@ -166,36 +167,44 @@ class FixerAgent:
             f"MISMATCH REPORT:\n{mismatch_text}"
         )
 
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_completion_tokens=3000,
-            temperature=0,
-        )
-        track_usage(
-            resp,
-            run_id=self.run_id,
-            phase_name="FIXER",
-            agent_name="FIXER",
-            model=model,
-            db_path=self.db_path,
-        )
-        raw = (resp.choices[0].message.content or "{}").strip()
-        try:
-            clean = re.sub(r"```json|```", "", raw).strip()
-            parsed = json.loads(clean).get("mismatches", [])
-            normalized: list[dict] = []
-            for m in parsed:
-                param_l = str(m.get("parameter", "")).strip().lower()
-                if any((k in param_l) or (param_l in k) for k in self.AUTO_CLASSIFY_MISSING_COMMENT):
-                    m["auto_fixable"] = True
-                    m["fix_type"] = "missing_comment"
-                    if not m.get("fix_description"):
-                        m["fix_description"] = "Documented/implemented in dev profile; add explicit spec marker."
-                normalized.append(m)
-            return normalized
-        except Exception:
-            return []
+        raw = "{}"
+        parsed: list[dict] | None = None
+        for attempt in range(2):
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_completion_tokens=3000,
+                temperature=0,
+                response_format={"type": "json_object"},
+            )
+            track_usage(
+                resp,
+                run_id=self.run_id,
+                phase_name="FIXER",
+                agent_name="FIXER",
+                model=model,
+                db_path=self.db_path,
+            )
+            raw = (resp.choices[0].message.content or "{}").strip()
+            try:
+                clean = re.sub(r"```json|```", "", raw).strip()
+                parsed = json.loads(clean).get("mismatches", [])
+                break
+            except Exception:
+                if attempt == 1:
+                    raise StructuredOutputError("AUTOREPAIR", raw)
+        if parsed is None:
+            raise StructuredOutputError("AUTOREPAIR", raw)
+        normalized: list[dict] = []
+        for m in parsed:
+            param_l = str(m.get("parameter", "")).strip().lower()
+            if any((k in param_l) or (param_l in k) for k in self.AUTO_CLASSIFY_MISSING_COMMENT):
+                m["auto_fixable"] = True
+                m["fix_type"] = "missing_comment"
+                if not m.get("fix_description"):
+                    m["fix_description"] = "Documented/implemented in dev profile; add explicit spec marker."
+            normalized.append(m)
+        return normalized
 
     def _fix_mismatch(self, mismatch: dict) -> dict:
         """Attempt to fix a single mismatch. Returns fix result."""
