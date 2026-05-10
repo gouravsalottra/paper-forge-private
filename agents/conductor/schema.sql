@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
     status TEXT NOT NULL,
     started_at TEXT,
     finished_at TEXT,
-    completed_at TEXT,
     paper_md_path TEXT,
     seed_query TEXT,
     meta_json TEXT
@@ -20,7 +19,6 @@ CREATE TABLE IF NOT EXISTS phases (
     status TEXT NOT NULL,
     started_at TEXT,
     finished_at TEXT,
-    completed_at TEXT,
     details_json TEXT,
     UNIQUE(run_id, phase_name)
 );

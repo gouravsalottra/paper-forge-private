@@ -93,7 +93,13 @@ class ConductorPipeline:
             next_step = self._next_tool_call()
             if next_step is None:
                 # No deterministic upstream gap left.
-                self._run_step("REVIEWER", retries, max_retries)
+                try:
+                    self._run_hawk_loop(max_cycles=3)
+                except PipelineHaltError as exc:
+                    self._log_audit("REVIEWER", "ERROR", f"REVIEWER halted loop: {exc}")
+                    self._set_run_status("failed")
+                    self._terminal_failure = True
+                    return
                 if self._hawk_is_approved_for_quill():
                     self._run_step("WRITER", retries, max_retries)
                 else:
@@ -102,7 +108,13 @@ class ConductorPipeline:
                 continue
 
             if next_step == "REVIEWER":
-                self._run_step("REVIEWER", retries, max_retries)
+                try:
+                    self._run_hawk_loop(max_cycles=3)
+                except PipelineHaltError as exc:
+                    self._log_audit("REVIEWER", "ERROR", f"REVIEWER halted loop: {exc}")
+                    self._set_run_status("failed")
+                    self._terminal_failure = True
+                    return
                 if self._hawk_is_approved_for_quill():
                     self._run_step("WRITER", retries, max_retries)
                 else:
@@ -263,8 +275,6 @@ class ConductorPipeline:
                 self._set_run_status("failed")
                 self._terminal_failure = True
                 return
-            if phase == "WRITER" and isinstance(exc, ValueError) and "quality gate failed" in str(exc).lower():
-                raise
             time.sleep(min(5, 1 + attempt))
 
     def _next_tool_call(self) -> str | None:
@@ -616,6 +626,7 @@ class ConductorPipeline:
                 {"revision_number": cycle, **self._context_config_for_phase("REVIEWER")},
             )
             hawk_flag = str(hawk_result.get("result_flag", "REVISION_REQUESTED"))
+            approved_for_quill = bool(hawk_result.get("approved_for_quill"))
             routing = hawk_result.get("routing", {}) or {}
             recommendation = hawk_result.get("recommendation", "MAJOR_REVISION")
             mandatory_items = routing.get("mandatory_items", []) or []
@@ -624,7 +635,7 @@ class ConductorPipeline:
             print(f"REVIEWER recommendation: {recommendation}")
             print(f"Mandatory items: {len(mandatory_items)}")
 
-            if hawk_flag == "APPROVED":
+            if hawk_flag == "APPROVED" or approved_for_quill:
                 self._advance_phase("REVIEWER", "done")
                 print(f"\nREVIEWER ACCEPTED the paper on cycle {cycle}.")
                 print(f"Read: runs/{self.run_id}/hawk_review_v{cycle}.md")
@@ -773,14 +784,13 @@ class ConductorPipeline:
                 db_path=self.db_path,
             )
             return agent.run()
-        if agent_name.startswith("SIGMA"):
-            if agent_name == "PREREGISTER":
-                from agents.preregister.preregister import SigmaJob1
+        if agent_name == "PREREGISTER":
+            from agents.preregister.preregister import SigmaJob1
 
-                agent = SigmaJob1(run_id=self.run_id, db_path=self.db_path)
-                result = agent.run()
-                return {"result_flag": "DONE", "details": result}
-
+            agent = SigmaJob1(run_id=self.run_id, db_path=self.db_path)
+            result = agent.run()
+            return {"result_flag": "DONE", "details": result}
+        if agent_name == "STATSRUN" or agent_name.startswith("SIGMA"):
             from agents.statsrun.statsrun_job import SigmaJob2
 
             agent = SigmaJob2(run_id=self.run_id, db_path=self.db_path, output_dir="runs")
@@ -874,7 +884,7 @@ class ConductorPipeline:
         now = self._now()
         with sqlite3.connect(self.db_path) as conn:
             phase_cols = self._table_columns(conn, "phases")
-            finished_col = "completed_at" if "completed_at" in phase_cols else "finished_at"
+            finished_col = "finished_at"
 
             row = conn.execute(
                 "SELECT 1 FROM phases WHERE run_id=? AND phase_name=? LIMIT 1",
@@ -1096,7 +1106,7 @@ class ConductorPipeline:
     def _ensure_run_rows(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             run_cols = set(self._table_columns(conn, "pipeline_runs"))
-            finished_col = "completed_at" if "completed_at" in run_cols else "finished_at"
+            finished_col = "finished_at"
             seed_col = "seed_query" if "seed_query" in run_cols else None
             meta_col = "meta_json" if "meta_json" in run_cols else None
             paper_col = "paper_md_path" if "paper_md_path" in run_cols else None
@@ -1150,7 +1160,7 @@ class ConductorPipeline:
     def _set_run_status(self, status: str) -> None:
         with sqlite3.connect(self.db_path) as conn:
             run_cols = set(self._table_columns(conn, "pipeline_runs"))
-            finished_col = "completed_at" if "completed_at" in run_cols else "finished_at"
+            finished_col = "finished_at"
             if status == "done":
                 conn.execute(
                     f"UPDATE pipeline_runs SET status=?, {finished_col}=? WHERE run_id=?",

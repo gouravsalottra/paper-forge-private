@@ -46,7 +46,7 @@ class PhaseRunner:
     def _write_phase_status(self, phase_name: str, status: str, duration: float) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cols = {r[1] for r in conn.execute("PRAGMA table_info(phases)")}
-            finished_col = "finished_at" if "finished_at" in cols else "completed_at"
+            finished_col = "finished_at" if "finished_at" in cols else "finished_at"
             conn.execute(
                 f"UPDATE phases SET status=?, {finished_col}=?, details_json=? WHERE run_id=? AND phase_name=?",
                 (
