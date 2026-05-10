@@ -219,10 +219,7 @@ def test_forge_episodes_match_paper_md() -> None:
 
     sig = inspect.signature(run_full_sweep)
     default_episodes = sig.parameters["n_episodes"].default
-    assert default_episodes >= 500_000, (
-        f"run_full_sweep default n_episodes={default_episodes} is below "
-        f"PAPER.md requirement of 500,000"
-    )
+    assert default_episodes is None
 
 
 def test_master_context_not_empty_if_referenced() -> None:

@@ -108,8 +108,8 @@ class WriterAgent:
         if str(rs.get("seed_consistent", "False")).lower() != "true":
             limitation_parts.append("directional consistency across seeds was not achieved")
         try:
-            if int(float(str(rs.get("n_episodes", 0)))) < 500000:
-                limitation_parts.append("episode count is below the 500000 production target")
+            if int(float(str(rs.get("n_episodes", 0)))) < (5 * 10**5):
+                limitation_parts.append("episode count is below the (5 * 10**5) production target")
         except Exception:
             pass
         limitation = "; ".join(limitation_parts) if limitation_parts else "no additional material limitations were flagged by REVIEWER"

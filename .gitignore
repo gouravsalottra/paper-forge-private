@@ -8,6 +8,10 @@ data/uploads/
 runs/
 paper_memory/
 outputs/
+examples/gsci_momentum/results/
+examples/*/results/
+examples/*/runs/
+examples/*/pipeline.db
 
 # Python cache/artifacts
 __pycache__/

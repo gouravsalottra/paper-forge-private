@@ -1,6 +1,7 @@
 openai==2.7.2
-pettingzoo==1.24.3
-gymnasium==1.2.3
+# Note: pettingzoo and gymnasium are required only for the
+# GSCI momentum example in examples/gsci_momentum/
+# Install separately if needed: pip install pettingzoo gymnasium
 arch==8.0.0
 statsmodels==0.14.4
 linearmodels==7.0

@@ -4,6 +4,8 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 import json
+import sys
+import builtins
 
 from .auth_manager import authenticate_wrds
 from .protocol_writer import IntakeSession, ProtocolWriter
@@ -18,6 +20,10 @@ class IntakeAgent:
 
     def run(self, resume_session: str | None = None) -> None:
         _ = resume_session
+        if self.no_llm and not sys.stdin.isatty() and builtins.input is _ORIGINAL_INPUT:
+            self._run_stub_noninteractive()
+            return
+
         print("Welcome to Paper-Forge. Tell me about your research idea.")
         lines = []
         while True:
@@ -71,6 +77,22 @@ class IntakeAgent:
         ProtocolWriter().write(session, self.output_path)
         self._save_session(session)
 
+    def _run_stub_noninteractive(self) -> None:
+        session = IntakeSession(
+            research_question="Sample research question for testing purposes",
+            research_mode="exploratory",
+            claim_type="descriptive",
+            hypothesis="",
+            primary_metric="",
+            minimum_effect_size="",
+            significance_threshold="",
+            data_source="yfinance",
+            sample_period="2015-2024",
+            statistical_tests=["descriptive_stats"],
+        )
+        ProtocolWriter().write(session, self.output_path)
+        self._save_session(session)
+
     def _save_session(self, session: IntakeSession) -> None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         p = self.output_path.parent / f"intake_session_{stamp}.json"
@@ -81,3 +103,6 @@ class IntakeAgent:
         if not run_dir.exists():
             raise FileNotFoundError(f"Exploratory run not found: {run_id}")
         raise ValueError("Upgrade flow not yet implemented for this run.")
+
+
+_ORIGINAL_INPUT = builtins.input

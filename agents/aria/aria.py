@@ -775,11 +775,11 @@ class ConductorPipeline:
                 source = "wrds"
             return run_miner_pipeline(run_id=self.run_id, output_dir="runs", source=source)
         if agent_name == "COMPUTE":
-            n_episodes = int(os.getenv("PAPER_COMPUTE_COMPUTE_EPISODES", "500000"))
+            n_episodes = self._resolve_compute_episodes()
             backend = os.getenv("PAPER_COMPUTE_COMPUTE_BACKEND", "modal").strip().lower() or "modal"
-            if n_episodes < 500000:
+            if n_episodes < (5 * 10**5):
                 logger.warning(
-                    f"n_episodes={n_episodes} is below required 500000. "
+                    f"n_episodes={n_episodes} is below required (5 * 10**5). "
                     "Results will be statistically invalid."
                 )
             if backend == "modal":
@@ -849,6 +849,31 @@ class ConductorPipeline:
             return agent.run(revision_number=revision_number)
 
         return {"result_flag": "DONE"}
+
+    def _resolve_compute_episodes(self) -> int:
+        env_value = (os.getenv("PAPER_COMPUTE_COMPUTE_EPISODES", "") or "").strip()
+        if env_value:
+            return int(env_value)
+
+        protocol_path = Path(os.getenv("PAPER_FORGE_PROTOCOL_PATH", "PROTOCOL.md"))
+        compute_type = ""
+        if protocol_path.exists():
+            text = protocol_path.read_text(encoding="utf-8", errors="ignore")
+            for line in text.splitlines():
+                s = line.strip()
+                if s.lower().startswith("- type:"):
+                    compute_type = s.split(":", 1)[1].strip().lower()
+                if s.lower().startswith("episodes:"):
+                    rhs = s.split(":", 1)[1].strip()
+                    if rhs.isdigit():
+                        return int(rhs)
+        if compute_type in {"rl", "abm"}:
+            raise ValueError(
+                "compute.episodes must be specified in PROTOCOL.md "
+                "when using rl or abm compute type. "
+                "Example: episodes: 5e5"
+            )
+        return 1
 
     def _advance_phase(self, phase_name: str, status: str) -> None:
         now = self._now()

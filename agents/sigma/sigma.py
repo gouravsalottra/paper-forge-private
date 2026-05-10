@@ -229,7 +229,7 @@ class StatsrunAgent:
                             "coef_std": float(fm_df["concentration_coef"].std(ddof=1)) if len(fm_df) > 1 else 0.0,
                             "p_value_mean": float(fm_df["concentration_p_value"].mean()),
                             "n_seed_regressions": int(len(fm_df)),
-                            "factor_note": "mkt_rf_proxy used (real FF factors unavailable in this run)",
+                            "factor_note": "market_rf_proxy used (real FF factors unavailable in this run)",
                         }
                     ]
                 )

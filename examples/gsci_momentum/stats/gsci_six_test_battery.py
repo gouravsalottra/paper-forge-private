@@ -430,7 +430,7 @@ class SigmaJob2:
             df["time_idx"] = pd.Categorical(df["concentration"].round(2)).codes
             df["passive_above_threshold"] = (df["concentration"] >= 0.30).astype(float)
             # Dev proxy factors for FF-style exposure tracking.
-            df["market_rf_proxy"] = df["mean_reward"]
+            df["mkt_rf_proxy"] = df["mean_reward"]
             df["smb_proxy"] = df["concentration"] - df["concentration"].mean()
             df["hml_proxy"] = df["sharpe"] - df["sharpe"].mean()
             df["momentum_factor_proxy"] = df["sharpe"].diff().fillna(0.0)
@@ -441,7 +441,7 @@ class SigmaJob2:
 
             mod = FamaMacBeth(
                 panel["sharpe"],
-                panel[["market_rf_proxy", "smb_proxy", "hml_proxy"]],
+                panel[["mkt_rf_proxy", "smb_proxy", "hml_proxy"]],
             )
             fit = mod.fit(cov_type="kernel", bandwidth=2)
 
@@ -449,13 +449,13 @@ class SigmaJob2:
             pvals = fit.pvalues.to_dict()
             return {
                 "method": "FamaMacBeth_OLS",
-                "concentration_coef": float(params.get("market_rf_proxy", float("nan"))),
-                "concentration_pvalue": float(pvals.get("market_rf_proxy", float("nan"))),
+                "concentration_coef": float(params.get("mkt_rf_proxy", float("nan"))),
+                "concentration_pvalue": float(pvals.get("mkt_rf_proxy", float("nan"))),
                 "passive_dummy_coef": float(params.get("smb_proxy", float("nan"))),
                 "passive_dummy_pvalue": float(pvals.get("smb_proxy", float("nan"))),
                 "rsquared": float(fit.rsquared),
                 "n_obs": int(fit.nobs),
-                "factors_used": "market_rf_proxy, smb_proxy, hml_proxy",
+                "factors_used": "mkt_rf_proxy, smb_proxy, hml_proxy",
                 "note": (
                     "Dev run: FF factors from WRDS not available. "
                     "Using explicit three-factor proxy structure for Fama-MacBeth; "
@@ -483,20 +483,20 @@ class SigmaJob2:
         """
         try:
             df = sim_df.copy()
-            df["market_rf_proxy"] = df["mean_reward"]
+            df["mkt_rf_proxy"] = df["mean_reward"]
             df["smb_proxy"] = df["concentration"] - df["concentration"].mean()
             df["hml_proxy"] = df["sharpe"] - df["sharpe"].mean()
 
-            X = sm.add_constant(df[["market_rf_proxy", "smb_proxy", "hml_proxy"]])
+            X = sm.add_constant(df[["mkt_rf_proxy", "smb_proxy", "hml_proxy"]])
             y = df["sharpe"]
             fit = sm.OLS(y, X).fit()
             return {
                 "method": "FamaFrench3_OLS",
                 "const_coef": float(fit.params.get("const", np.nan)),
-                "mkt_rf_coef": float(fit.params.get("market_rf_proxy", np.nan)),
+                "mkt_rf_coef": float(fit.params.get("mkt_rf_proxy", np.nan)),
                 "smb_coef": float(fit.params.get("smb_proxy", np.nan)),
                 "hml_coef": float(fit.params.get("hml_proxy", np.nan)),
-                "mkt_rf_pvalue": float(fit.pvalues.get("market_rf_proxy", np.nan)),
+                "mkt_rf_pvalue": float(fit.pvalues.get("mkt_rf_proxy", np.nan)),
                 "smb_pvalue": float(fit.pvalues.get("smb_proxy", np.nan)),
                 "hml_pvalue": float(fit.pvalues.get("hml_proxy", np.nan)),
                 "rsquared": float(fit.rsquared),

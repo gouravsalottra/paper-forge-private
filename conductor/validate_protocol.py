@@ -20,6 +20,15 @@ class ProtocolValidator:
         for key in self.REQUIRED_ALWAYS:
             if not sections.get(key, "").strip():
                 errors.append(f"missing required field: {key}")
+        for key, value in sections.items():
+            v = value.strip()
+            if v.startswith("[FILL IN"):
+                errors.append(
+                    "PROTOCOL.md contains unfilled template placeholders. "
+                    "Run python intake.py to generate your research protocol, "
+                    "or fill in the placeholders manually."
+                )
+                break
 
         mode = sections.get("research_mode", "").strip().lower()
         if mode and mode not in self.ALLOWED_RESEARCH_MODES:

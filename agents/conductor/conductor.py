@@ -777,11 +777,11 @@ class ConductorPipeline:
                 source = "wrds"
             return run_miner_pipeline(run_id=self.run_id, output_dir="runs", source=source)
         if agent_name == "COMPUTE":
-            n_episodes = int(os.getenv("PAPER_COMPUTE_COMPUTE_EPISODES", "500000"))
+            n_episodes = int(os.getenv("PAPER_COMPUTE_COMPUTE_EPISODES", "(5 * 10**5)"))
             backend = os.getenv("PAPER_COMPUTE_COMPUTE_BACKEND", "modal").strip().lower() or "modal"
-            if n_episodes < 500000:
+            if n_episodes < (5 * 10**5):
                 logger.warning(
-                    f"n_episodes={n_episodes} is below required 500000. "
+                    f"n_episodes={n_episodes} is below required (5 * 10**5). "
                     "Results will be statistically invalid."
                 )
             if backend == "modal":

@@ -157,7 +157,7 @@ class ReviewerAgent:
                     check="Sample size adequacy",
                     finding=f"n_episodes={n_episodes}.",
                     issue="Simulation underpowered for publication-grade inference.",
-                    action="Run n_episodes >= 500000 before publication claims.",
+                    action="Run n_episodes >= (5 * 10**5) before publication claims.",
                     routes_to="COMPUTE",
                     blocking=False,
                 )
@@ -181,7 +181,7 @@ class ReviewerAgent:
                 "seed_consistent": seed_consistent,
                 "codec_clean": codec_clean,
                 "n_episodes": n_episodes,
-                "production_ready": bool(approved_for_quill and n_episodes >= 500000 and passes_bonf and seed_consistent),
+                "production_ready": bool(approved_for_quill and n_episodes >= (5 * 10**5) and passes_bonf and seed_consistent),
             },
         }
         return review

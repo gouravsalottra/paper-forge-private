@@ -40,7 +40,7 @@ def test_final_audit_checklist() -> None:
 def test_protocol_validator_accepts_protocol_md() -> None:
     from aria.validate_protocol import ProtocolValidator
 
-    errors = ProtocolValidator().validate(Path("PROTOCOL.md"))
+    errors = ProtocolValidator().validate(Path("examples/gsci_momentum/PROTOCOL.md"))
     assert errors == []
 
 

@@ -209,17 +209,16 @@ def write_data_passport(returns: pd.DataFrame) -> dict:
             "adjustments differently from ratio_backward for futures contracts."
         ),
         "data_source_note": (
-            "Dev run: yfinance proxy for WRDS Compustat Futures. "
-            "Tickers CL=F (WTI crude) and NG=F (natural gas) approximate "
-            "GSCI energy sector. Full run requires WRDS access."
+            "Development run uses public yfinance symbols as a generic proxy "
+            "for institutional futures datasets. Production runs can use WRDS."
         ),
         "acknowledged_deviations": {
             "data_source": {
-                "specified": "WRDS Compustat Futures — GSCI energy sector (crude oil, natural gas), 2000-2024",
-                "actual": "yfinance CL=F (WTI crude) and NG=F (natural gas), 2000-2024",
+                "specified": "Institutional futures dataset from WRDS",
+                "actual": "Public yfinance symbols CL=F and NG=F",
                 "reason": "WRDS access not available in dev environment",
-                "impact": "Minor: yfinance continuous futures differ from WRDS Compustat in roll construction",
-                "resolution": "Full run uses WRDS. See agents/forge/modal_run.py.",
+                "impact": "Public and institutional data may differ in roll construction",
+                "resolution": "Production runs should use the configured WRDS connector.",
             },
             "roll_convention": {
                 "specified": "ratio_backward",
@@ -641,7 +640,7 @@ if __name__ == "__main__":
     main()
 
 # CODEAUDIT traceability marker for PAPER.md alignment
-DATA_SOURCE_SPEC_MARKER: str = "WRDS Compustat Futures \u2014 GSCI energy sector (crude oil, natural gas), 2000\u20132024"
+DATA_SOURCE_SPEC_MARKER: str = "Institutional futures dataset from WRDS with explicit roll and adjustment settings."
 
 # CODEAUDIT traceability marker for PAPER.md alignment
 ROLL_CONVENTION_SPEC_MARKER: str = "ratio_backward"
