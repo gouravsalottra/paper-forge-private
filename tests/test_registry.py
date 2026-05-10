@@ -94,7 +94,7 @@ def test_miner_legacy_mode_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 
 def test_sigma_legacy_mode_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from agents.statsrun_job import SigmaJob2
+    from agents.statsrun.statsrun_job import SigmaJob2
 
     monkeypatch.chdir(tmp_path)
     out_dir = tmp_path / "outputs"

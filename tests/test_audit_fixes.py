@@ -8,7 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.statsrun_job import SigmaJob2
+from agents.statsrun.statsrun_job import SigmaJob2
 
 
 def test_top_level_agent_stubs_reexport_classes() -> None:

@@ -587,3 +587,7 @@ class CodeAuditAgent:
                 (self.run_id, self.run_id, self.run_id, clean, now),
             )
             conn.commit()
+
+
+# Backward-compat alias
+CodecAgent = CodeAuditAgent

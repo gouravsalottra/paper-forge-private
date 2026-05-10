@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agents.aria.exceptions import StructuredOutputError
-from agents.codec.codec import CodeAuditResult, CodecAgent
+from agents.codeaudit.codeaudit import CodeAuditResult, CodecAgent
 from agents.hawk.hawk import ReviewerAgent, HawkReview
 
 

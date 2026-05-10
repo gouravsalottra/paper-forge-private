@@ -763,7 +763,7 @@ class ConductorPipeline:
                 result = agent.run()
                 return {"result_flag": "DONE", "details": result}
 
-            from agents.statsrun_job import SigmaJob2
+            from agents.statsrun.statsrun_job import SigmaJob2
 
             agent = SigmaJob2(run_id=self.run_id, db_path=self.db_path, output_dir="runs")
             return agent.run()
@@ -822,7 +822,7 @@ class ConductorPipeline:
                 "error": f"Unsupported PAPER_COMPUTE_COMPUTE_BACKEND={backend!r}; use 'modal' or 'local'.",
             }
         if agent_name == "CODEAUDIT":
-            from agents.codec.codec import CodecAgent
+            from agents.codeaudit.codeaudit import CodecAgent
 
             agent = CodecAgent(run_id=self.run_id, db_path=self.db_path, output_dir="runs", llm_client=None)
             return agent.run()

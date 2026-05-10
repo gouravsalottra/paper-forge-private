@@ -353,7 +353,7 @@ class FixerAgent:
             candidates = [
                 Path("agents/forge/env.py"),
                 Path("agents/forge/runner.py"),
-                Path("agents/statsrun_job.py"),
+                Path("agents/statsrun/statsrun_job.py"),
             ]
             target = next((c for c in candidates if c.exists()), None)
 
@@ -415,7 +415,7 @@ class FixerAgent:
             target = Path("agents/miner/miner.py")
             affects_miner, affects_sigma = True, True
         elif "primary metric" in param_l or "seed consistency" in param_l or "seed policy" in param_l:
-            target = Path("agents/statsrun_job.py")
+            target = Path("agents/statsrun/statsrun_job.py")
             affects_miner, affects_sigma = False, True
         elif "fitness function" in param_l or "simulation agent" in param_l:
             target = Path("agents/forge/runner.py")
@@ -487,7 +487,7 @@ class FixerAgent:
     def _rerun_statsrun_job(self) -> None:
         """Re-run SIGMA JOB 2 after data changes."""
         print("  [AUTOREPAIR] Re-running SIGMA JOB 2 on updated data...")
-        from agents.statsrun_job import SigmaJob2
+        from agents.statsrun.statsrun_job import SigmaJob2
 
         agent = SigmaJob2(
             run_id=self.run_id,

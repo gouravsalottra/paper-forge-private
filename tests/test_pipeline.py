@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agents.aria.aria import ConductorPipeline
 from agents.aria.exceptions import ComputeGateError, IntegrityViolationError, PipelineHaltError
-from agents.codec.codec import CodecAgent
+from agents.codeaudit.codeaudit import CodecAgent
 from agents.hawk.hawk import ReviewerAgent
 from agents.quill.quill import WriterAgent
 from agents.sigma.sigma import StatsrunAgent

@@ -10,7 +10,7 @@ from agents.aria.aria import ConductorPipeline
 from agents.hawk.hawk import ReviewerAgent
 from agents.quill.quill import WriterAgent
 from agents.scout.scout import LiteratureAgent
-from agents.statsrun_job import SigmaJob2
+from agents.statsrun.statsrun_job import SigmaJob2
 
 
 def _make_pipeline(tmp_path: Path, run_id: str = "r-hardening") -> ConductorPipeline:
