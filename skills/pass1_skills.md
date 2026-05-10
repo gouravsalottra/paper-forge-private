@@ -1,4 +1,4 @@
-# CODEC Pass 1 Skills
+# CODEAUDIT Pass 1 Skills
 
 ## Role
 Read the codebase. Extract what it actually implements. Write codec_spec.md. Nothing else.

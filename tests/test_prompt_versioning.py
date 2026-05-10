@@ -5,7 +5,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from agents.hawk.hawk import HawkAgent
+from agents.hawk.hawk import ReviewerAgent
 from init_db import init_db
 
 
@@ -34,7 +34,7 @@ def test_prompt_loader_returns_text_and_sha256() -> None:
 
 
 def test_agent_results_schema_has_prompt_sha256(tmp_path: Path) -> None:
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
     with sqlite3.connect(db) as conn:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(agent_results)")]
@@ -43,10 +43,10 @@ def test_agent_results_schema_has_prompt_sha256(tmp_path: Path) -> None:
 
 def test_prompt_hash_recorded_in_agent_results(tmp_path: Path) -> None:
     run_id = "r-prompt-hash"
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
 
-    out = tmp_path / "paper_memory" / run_id
+    out = tmp_path / "runs" / run_id
     out.mkdir(parents=True, exist_ok=True)
     (out / "pap.md").write_text('{"claim_text":"test hypothesis"}', encoding="utf-8")
     (out / "codec_mismatch.md").write_text("verdict: PASS\n", encoding="utf-8")
@@ -64,19 +64,19 @@ def test_prompt_hash_recorded_in_agent_results(tmp_path: Path) -> None:
         json.dumps([{"n_episodes": 500000}]), encoding="utf-8"
     )
 
-    agent = HawkAgent(run_id=run_id, db_path=str(db), output_dir=str(tmp_path / "paper_memory"))
+    agent = ReviewerAgent(run_id=run_id, db_path=str(db), output_dir=str(tmp_path / "runs"))
     agent.run(revision_number=1)
 
     with sqlite3.connect(db) as conn:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(agent_results)")]
         if "agent" in cols:
             row = conn.execute(
-                "SELECT prompt_sha256 FROM agent_results WHERE run_id=? AND agent='HAWK' ORDER BY id DESC LIMIT 1",
+                "SELECT prompt_sha256 FROM agent_results WHERE run_id=? AND agent='REVIEWER' ORDER BY id DESC LIMIT 1",
                 (run_id,),
             ).fetchone()
         else:
             row = conn.execute(
-                "SELECT prompt_sha256 FROM agent_results WHERE run_id=? AND agent_name='HAWK' ORDER BY created_at DESC LIMIT 1",
+                "SELECT prompt_sha256 FROM agent_results WHERE run_id=? AND agent_name='REVIEWER' ORDER BY created_at DESC LIMIT 1",
                 (run_id,),
             ).fetchone()
     assert row is not None

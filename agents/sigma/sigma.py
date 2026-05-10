@@ -1,5 +1,5 @@
-# DEPRECATED: SigmaAgent is not dispatched by ARIA.
-# ARIA dispatches agents/sigma_job1.py (SigmaJob1) and agents/sigma_job2.py (SigmaJob2).
+# DEPRECATED: StatsrunAgent is not dispatched by ARIA.
+# ARIA dispatches agents/preregister.py (SigmaJob1) and agents/statsrun_job.py (SigmaJob2).
 # This file is retained for reference only and will be removed in a future release.
 
 """SIGMA agent: PAP pre-registration and econometric evaluation."""
@@ -19,7 +19,7 @@ from scipy import stats
 from agents.aria.exceptions import IntegrityViolationError
 
 
-class SigmaAgent:
+class StatsrunAgent:
     def __init__(self, run_id: str, job: Literal["JOB1", "JOB2"], db_path: str, output_dir: str) -> None:
         self.run_id = run_id
         self.job = job
@@ -45,7 +45,7 @@ class SigmaAgent:
         blocked = {"sim_results", "paper_draft", "codec_spec"}
         for item in blocked:
             if self.context.get(item):
-                raise IntegrityViolationError(item, "SIGMA_JOB1")
+                raise IntegrityViolationError(item, "PREREGISTER")
 
         base = self.output_dir / self.run_id
         lit = base / "literature_map.md"
@@ -74,8 +74,8 @@ class SigmaAgent:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO pap_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
-                VALUES (?, ?, 'SIGMA_JOB1', 'pap-locked', NULL)
+                INSERT INTO hypothesis_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
+                VALUES (?, ?, 'PREREGISTER', 'pap-locked', NULL)
                 ON CONFLICT(run_id) DO UPDATE SET locked_at=excluded.locked_at, locked_by=excluded.locked_by
                 """,
                 (self.run_id, now),

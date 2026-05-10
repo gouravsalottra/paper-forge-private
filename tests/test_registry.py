@@ -88,13 +88,13 @@ def test_miner_legacy_mode_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyP
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(miner_mod, "build_returns_frame", lambda: pd.DataFrame({"x": [0.1, 0.2]}), raising=True)
     monkeypatch.setattr(miner_mod, "write_data_passport", lambda _df: {"ok": True}, raising=True)
-    out = miner_mod.run_miner_pipeline(run_id="r-miner", output_dir=str(tmp_path / "paper_memory"), source="yfinance")
+    out = miner_mod.run_miner_pipeline(run_id="r-miner", output_dir=str(tmp_path / "runs"), source="yfinance")
     assert out["result_flag"] == "DONE"
     assert (tmp_path / "outputs" / "commodity_returns.csv").exists()
 
 
 def test_sigma_legacy_mode_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from agents.sigma_job2 import SigmaJob2
+    from agents.statsrun_job import SigmaJob2
 
     monkeypatch.chdir(tmp_path)
     out_dir = tmp_path / "outputs"
@@ -112,7 +112,7 @@ def test_sigma_legacy_mode_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyP
                 }
             )
     (out_dir / "sim_results.json").write_text(json.dumps(sim), encoding="utf-8")
-    out = SigmaJob2(run_id="r-sigma", output_dir=str(tmp_path / "paper_memory"), db_path=str(tmp_path / "state.db")).run()
+    out = SigmaJob2(run_id="r-sigma", output_dir=str(tmp_path / "runs"), db_path=str(tmp_path / "pipeline.db")).run()
     assert out["result_flag"] == "DONE"
-    stats_dir = tmp_path / "paper_memory" / "r-sigma" / "stats_tables"
+    stats_dir = tmp_path / "runs" / "r-sigma" / "stats_tables"
     assert stats_dir.exists()

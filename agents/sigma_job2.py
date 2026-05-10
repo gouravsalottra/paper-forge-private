@@ -1,4 +1,4 @@
-"""SIGMA Job 2: econometric battery over FORGE simulation outputs."""
+"""SIGMA Job 2: econometric battery over COMPUTE simulation outputs."""
 
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ MIN_EFFECT_SIZE: float = -0.15
 @dataclass
 class SigmaJob2:
     run_id: str
-    db_path: str = "state.db"
-    output_dir: str = "paper_memory"
+    db_path: str = "pipeline.db"
+    output_dir: str = "runs"
 
     def run(self) -> dict:
         sim_df = self._load_sim_results()
@@ -181,11 +181,11 @@ class SigmaJob2:
             raise ValueError(f"sim_results missing required columns: {missing}")
         return df
 
-    def _seed_from_pap_lock(self) -> int:
-        # pap_lock does not carry seed directly in current schema; derive deterministic seed.
+    def _seed_from_hypothesis_lock(self) -> int:
+        # hypothesis_lock does not carry seed directly in current schema; derive deterministic seed.
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT pap_sha256 FROM pap_lock WHERE run_id = ? ORDER BY locked_at DESC LIMIT 1",
+                "SELECT pap_sha256 FROM hypothesis_lock WHERE run_id = ? ORDER BY locked_at DESC LIMIT 1",
                 (self.run_id,),
             ).fetchone()
         if row and row[0]:
@@ -350,7 +350,7 @@ class SigmaJob2:
                                         - mean(Sharpe|low_conc)
         High concentration = passive_concentration >= 0.30
         Low concentration  = passive_concentration < 0.30
-        Window: per-scenario Sharpe already annualized in FORGE output.
+        Window: per-scenario Sharpe already annualized in COMPUTE output.
         """
         high = sim_df[sim_df["concentration"] >= 0.30]["sharpe"]
         low = sim_df[sim_df["concentration"] < 0.30]["sharpe"]
@@ -685,7 +685,7 @@ class SigmaJob2:
                     INSERT INTO agent_results (result_id, run_id, phase_name, agent_name, status, created_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (uuid.uuid4().hex, self.run_id, "SIGMA_JOB2", "SIGMA_JOB2", status, created_at),
+                    (uuid.uuid4().hex, self.run_id, "STATSRUN", "STATSRUN", status, created_at),
                 )
             conn.commit()
 
@@ -704,18 +704,18 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run SIGMA Job 2 econometric battery.")
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--db-path", default="state.db")
-    parser.add_argument("--output-dir", default="paper_memory")
+    parser.add_argument("--db-path", default="pipeline.db")
+    parser.add_argument("--output-dir", default="runs")
     args = parser.parse_args()
 
     result = SigmaJob2(run_id=args.run_id, db_path=args.db_path, output_dir=args.output_dir).run()
     print(json.dumps(result, indent=2))
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 PRIMARY_METRIC_SPEC_MARKER: str = "Sharpe ratio differential: high-concentration periods minus low-concentration periods, annualized over rolling 252-day windows."
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 SEED_CONSISTENCY_REQUIREMENT_SPEC_MARKER: str = "All three seeds must produce qualitatively consistent results. A finding is only valid if it holds across all three seeds."
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 SEED_POLICY_SPEC_MARKER: str = "seeds = [1337, 42, 9999]"

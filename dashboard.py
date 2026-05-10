@@ -44,6 +44,8 @@ def _all_runs(db: str) -> str:
     }
     with sqlite3.connect(db) as conn:
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "pipeline_runs" not in tables:
+            return "\n".join(lines + ["(no pipeline data yet)"])
         runs = conn.execute("SELECT run_id, status, started_at FROM pipeline_runs ORDER BY started_at DESC").fetchall()
         for run_id, status, started_at in runs:
             done = conn.execute(
@@ -96,7 +98,7 @@ def _tail(run_id: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Paper-Forge run dashboard")
-    parser.add_argument("--db", default="state.db")
+    parser.add_argument("--db", default="pipeline.db")
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--tail", default=None)
     parser.add_argument("--cleanup-stale", action="store_true")

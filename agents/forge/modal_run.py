@@ -1,4 +1,4 @@
-"""Modal entrypoint for running the full FORGE simulation sweep."""
+"""Modal entrypoint for running the full COMPUTE simulation sweep."""
 # Run using detached mode:
 # modal run --detach agents/forge/modal_run.py
 
@@ -11,7 +11,7 @@ import modal
 app = modal.App("paper-forge-full-run")
 runtime_secret = modal.Secret.from_name("paper-forge-runtime")
 # SECURITY: Never use add_local_dir(".") — it uploads .env and secrets.
-# Only add specific directories and files required for the FORGE run.
+# Only add specific directories and files required for the COMPUTE run.
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(

@@ -1,1 +1,1 @@
-from .hawk import HawkAgent  # noqa: F401
+from .hawk import ReviewerAgent  # noqa: F401

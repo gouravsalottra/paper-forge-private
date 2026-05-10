@@ -95,10 +95,10 @@ def build_returns_frame() -> pd.DataFrame:
     df_after_macro = returns.copy()
     returns, spread_note = apply_bid_ask_spread_filter(returns, spread_proxy_df.rename(columns=selected_tickers))
     df_final = returns.copy()
-    print(f"[MINER] Rows before filters: {len(df_raw)}")
-    print(f"[MINER] Rows after min-days filter: {len(df_after_days)}")
-    print(f"[MINER] Rows after macro filter: {len(df_after_macro)}")
-    print(f"[MINER] Rows after spread filter: {len(df_final)}")
+    print(f"[DATAPULL] Rows before filters: {len(df_raw)}")
+    print(f"[DATAPULL] Rows after min-days filter: {len(df_after_days)}")
+    print(f"[DATAPULL] Rows after macro filter: {len(df_after_macro)}")
+    print(f"[DATAPULL] Rows after spread filter: {len(df_final)}")
     assert len(df_final) > 100, "Too few rows after filtering"
     returns.attrs["macro_exclusion_note"] = exclusion_note
     returns.attrs["spread_filter_note"] = spread_note
@@ -264,7 +264,7 @@ def select_data_source(require_wrds: bool = True, wrds_available: bool = False) 
     return "wrds" if wrds_available else "yfinance"
 
 
-def run_miner_pipeline(run_id: str, output_dir: str = "paper_memory", source: str = "wrds") -> dict:
+def run_miner_pipeline(run_id: str, output_dir: str = "runs", source: str = "wrds") -> dict:
     """Run miner stage with explicit source contract."""
     if source not in {"wrds", "yfinance"}:
         raise ValueError("source must be 'wrds' or 'yfinance'")
@@ -306,13 +306,13 @@ def _run_wrds_pipeline(run_id: str, out_dir: Path, run_data_dir: Path) -> dict:
     if not wrds_username:
         raise RuntimeError("WRDS_USERNAME is missing.")
 
-    print(f"[MINER] Connecting to WRDS as user '{wrds_username}'")
+    print(f"[DATAPULL] Connecting to WRDS as user '{wrds_username}'")
     try:
         conn = wrds.Connection(wrds_username=wrds_username, wrds_password=wrds_password)
     except Exception as exc:
         raise RuntimeError(f"WRDS connection failed: {exc}") from exc
 
-    print("[MINER] WRDS connection successful")
+    print("[DATAPULL] WRDS connection successful")
     try:
         futures_df = _fetch_wrds_futures(conn)
         concentration_df = _fetch_wrds_concentration(conn)
@@ -350,10 +350,10 @@ def _run_wrds_pipeline(run_id: str, out_dir: Path, run_data_dir: Path) -> dict:
     spread_df = ((high - low).abs() / settle.replace(0.0, np.nan)).reindex(df_after_macro.index)
     spread_df = spread_df.ffill().fillna(0.0)
     df_final, _ = apply_bid_ask_spread_filter(df_after_macro, spread_df, threshold=0.02)
-    print(f"[MINER] Rows before filters: {len(df_raw)}")
-    print(f"[MINER] Rows after min-days filter: {len(df_after_days)}")
-    print(f"[MINER] Rows after macro filter: {len(df_after_macro)}")
-    print(f"[MINER] Rows after spread filter: {len(df_final)}")
+    print(f"[DATAPULL] Rows before filters: {len(df_raw)}")
+    print(f"[DATAPULL] Rows after min-days filter: {len(df_after_days)}")
+    print(f"[DATAPULL] Rows after macro filter: {len(df_after_macro)}")
+    print(f"[DATAPULL] Rows after spread filter: {len(df_final)}")
     assert len(df_final) > 100, "Too few rows after filtering"
 
     returns = df_final.reset_index()
@@ -393,14 +393,14 @@ def _run_wrds_pipeline(run_id: str, out_dir: Path, run_data_dir: Path) -> dict:
         },
     }
     (out_dir / "data_passport.json").write_text(json.dumps(passport, indent=2), encoding="utf-8")
-    print(f"[MINER] Wrote {commodity_returns_path}")
-    print(f"[MINER] Wrote {concentration_path}")
-    print(f"[MINER] Wrote {out_dir / 'data_passport.json'}")
+    print(f"[DATAPULL] Wrote {commodity_returns_path}")
+    print(f"[DATAPULL] Wrote {concentration_path}")
+    print(f"[DATAPULL] Wrote {out_dir / 'data_passport.json'}")
     return {"result_flag": "DONE", "source": "wrds", "path": str(commodity_returns_path)}
 
 
 def _execute_with_logging(conn, label: str, sql: str, params: dict) -> pd.DataFrame:
-    print(f"[MINER][SQL:{label}]")
+    print(f"[DATAPULL][SQL:{label}]")
     print(sql.strip())
     return conn.raw_sql(sql, params=params, date_cols=["date"])
 
@@ -493,7 +493,7 @@ def _fetch_wrds_futures(conn) -> pd.DataFrame:
                     df["low"] = np.nan
                 df = df.dropna(subset=["date", "series_name", "settle"])
                 df.attrs["table_used"] = table_name
-                print(f"[MINER] Futures rows downloaded from {table_name}: {len(df)}")
+                print(f"[DATAPULL] Futures rows downloaded from {table_name}: {len(df)}")
                 return df
             errors.append(f"{table_name}: query returned 0 rows")
         except Exception as exc:
@@ -566,7 +566,7 @@ def _fetch_wrds_concentration(conn) -> pd.DataFrame:
                 df["passive_concentration"] = pd.to_numeric(df["passive_concentration"], errors="coerce")
                 df = df.dropna(subset=["date", "passive_concentration"]).drop_duplicates(subset=["date"]).sort_values("date")
                 df.attrs["table_used"] = table_name
-                print(f"[MINER] Concentration rows downloaded from {table_name}: {len(df)}")
+                print(f"[DATAPULL] Concentration rows downloaded from {table_name}: {len(df)}")
                 return df
             errors.append(f"{table_name}: query returned 0 rows")
         except Exception as exc:
@@ -606,7 +606,7 @@ def _fetch_wrds_concentration(conn) -> pd.DataFrame:
                 }
             ).dropna()
             concentration.attrs["table_used"] = "trsamp_dsfut.wrds_fut_contract (open_interest_proxy)"
-            print(f"[MINER] Concentration rows derived from WRDS open-interest proxy: {len(concentration)}")
+            print(f"[DATAPULL] Concentration rows derived from WRDS open-interest proxy: {len(concentration)}")
             return concentration
     except Exception as exc:
         errors.append(f"trsamp_dsfut.open_interest_proxy: {exc}")
@@ -640,26 +640,26 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 DATA_SOURCE_SPEC_MARKER: str = "WRDS Compustat Futures \u2014 GSCI energy sector (crude oil, natural gas), 2000\u20132024"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 ROLL_CONVENTION_SPEC_MARKER: str = "ratio_backward"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 ADJUSTMENT_METHOD_SPEC_MARKER: str = "ratio_backward"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_DATAPASSPORT_SHA_256_SIGNATURE_SPEC_MARKER: str = "DataPassport SHA-256 signature required on all MINER outputs"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_DATAPASSPORT_SHA_256_SIGNATURE_SPEC_MARKER: str = "DataPassport SHA-256 signature required on all DATAPULL outputs"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_DATAPASSPORT_SHA_256_SIGNATURE_REQUIRED_ON_ALL_MINER_OUTPUTS_SPEC_MARKER: str = "DataPassport SHA-256 signature required on all MINER outputs"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_DATAPASSPORT_SHA_256_SIGNATURE_REQUIRED_ON_ALL_DATAPULL_OUTPUTS_SPEC_MARKER: str = "DataPassport SHA-256 signature required on all DATAPULL outputs"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 WRDS_VS_YFINANCE_DATA_SOURCE_SPEC_MARKER: str = "Not specified"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 RATIO_BACKWARD_VS_AUTO_ADJUST_ROLL_CONVENTION_SPEC_MARKER: str = "Not specified"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 ADJUSTMENT_METHOD_DEVIATION_SPEC_MARKER: str = "Not specified"

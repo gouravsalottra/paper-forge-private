@@ -1,4 +1,4 @@
-"""HAWK agent: programmatic research-quality reviewer (pre-QUILL gate)."""
+"""REVIEWER agent: programmatic research-quality reviewer (pre-WRITER gate)."""
 
 from __future__ import annotations
 
@@ -25,12 +25,12 @@ class HawkReview(BaseModel):
     reasoning: str
 
 
-class HawkAgent:
+class ReviewerAgent:
     def __init__(
         self,
         run_id: str,
-        db_path: str = "state.db",
-        output_dir: str = "paper_memory",
+        db_path: str = "pipeline.db",
+        output_dir: str = "runs",
         llm_client=None,
     ) -> None:
         self.run_id = run_id
@@ -82,8 +82,8 @@ class HawkAgent:
                     check="Hypothesis fidelity",
                     finding=f"Hypothesis implies negative differential, observed differential={sharpe_diff:.6f} (positive).",
                     issue="Observed direction contradicts pre-registered hypothesis direction.",
-                    action="Re-run FORGE or revise model specification to test directional mechanism; do not claim confirmatory support.",
-                    routes_to="FORGE",
+                    action="Re-run COMPUTE or revise model specification to test directional mechanism; do not claim confirmatory support.",
+                    routes_to="COMPUTE",
                     blocking=True,
                 )
             )
@@ -115,23 +115,23 @@ class HawkAgent:
                     finding=f"consistent={seed.get('consistent')}.",
                     issue="Mixed directional evidence across seeds.",
                     action="Increase seed count and/or report findings as exploratory only.",
-                    routes_to="FORGE",
+                    routes_to="COMPUTE",
                     blocking=False,
                 )
             )
 
-        # CHECK 4 — CODEC mismatch
+        # CHECK 4 — CODEAUDIT mismatch
         codec_text = context.get("codec_mismatch_text", "")
         codec_fail_items = self._extract_codec_fail_items(codec_text)
         codec_clean = len(codec_fail_items) == 0
         if not codec_clean:
             mandatory_items.append(
                 self._item(
-                    check="CODEC mismatch",
-                    finding="; ".join(codec_fail_items[:5]) or "CODEC report contains FAIL items.",
-                    issue="CODEC audit contains FAIL conditions.",
-                    action="Run FIXER and resolve all CODEC FAIL mismatches before manuscript generation.",
-                    routes_to="FIXER",
+                    check="CODEAUDIT mismatch",
+                    finding="; ".join(codec_fail_items[:5]) or "CODEAUDIT report contains FAIL items.",
+                    issue="CODEAUDIT audit contains FAIL conditions.",
+                    action="Run AUTOREPAIR and resolve all CODEAUDIT FAIL mismatches before manuscript generation.",
+                    routes_to="AUTOREPAIR",
                     blocking=True,
                 )
             )
@@ -143,8 +143,8 @@ class HawkAgent:
                     check="Minimum effect size",
                     finding=f"meets_minimum_effect={primary.get('meets_minimum_effect')} with sharpe_differential={self._fmt(sharpe_diff)}.",
                     issue="Finding does not meet pre-registered minimum effect threshold.",
-                    action="Route to FORGE for stronger simulation evidence or report null economic significance.",
-                    routes_to="FORGE",
+                    action="Route to COMPUTE for stronger simulation evidence or report null economic significance.",
+                    routes_to="COMPUTE",
                     blocking=True,
                 )
             )
@@ -158,7 +158,7 @@ class HawkAgent:
                     finding=f"n_episodes={n_episodes}.",
                     issue="Simulation underpowered for publication-grade inference.",
                     action="Run n_episodes >= 500000 before publication claims.",
-                    routes_to="FORGE",
+                    routes_to="COMPUTE",
                     blocking=False,
                 )
             )
@@ -343,7 +343,7 @@ class HawkAgent:
     def _render_markdown(review: dict[str, Any]) -> str:
         rs = review.get("research_summary", {})
         lines = [
-            "# HAWK Research Review",
+            "# REVIEWER Research Review",
             "",
             f"result_flag: {review.get('result_flag')}",
             f"approved_for_quill: {review.get('approved_for_quill')}",
@@ -386,14 +386,14 @@ class HawkAgent:
                         "INSERT INTO agent_results "
                         "(run_id, agent, job, prompt_sha256, result_flag, created_at) "
                         "VALUES (?, ?, ?, ?, ?, ?)",
-                        (self.run_id, "HAWK", None, prompt_sha, flag, now),
+                        (self.run_id, "REVIEWER", None, prompt_sha, flag, now),
                     )
                 else:
                     conn.execute(
                         "INSERT INTO agent_results "
                         "(run_id, agent, job, result_flag, created_at) "
                         "VALUES (?, ?, ?, ?, ?)",
-                        (self.run_id, "HAWK", None, flag, now),
+                        (self.run_id, "REVIEWER", None, flag, now),
                     )
             elif {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
                 if "prompt_sha256" in cols:
@@ -401,14 +401,14 @@ class HawkAgent:
                         "INSERT INTO agent_results "
                         "(result_id, run_id, phase_name, agent_name, prompt_sha256, status, created_at) "
                         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (uuid.uuid4().hex, self.run_id, "HAWK", "HAWK", prompt_sha, flag, now),
+                        (uuid.uuid4().hex, self.run_id, "REVIEWER", "REVIEWER", prompt_sha, flag, now),
                     )
                 else:
                     conn.execute(
                         "INSERT INTO agent_results "
                         "(result_id, run_id, phase_name, agent_name, status, created_at) "
                         "VALUES (?, ?, ?, ?, ?, ?)",
-                        (uuid.uuid4().hex, self.run_id, "HAWK", "HAWK", flag, now),
+                        (uuid.uuid4().hex, self.run_id, "REVIEWER", "REVIEWER", flag, now),
                     )
             conn.commit()
 
@@ -425,4 +425,4 @@ class HawkAgent:
             data = json.loads(raw_response or "{}")
             return HawkReview.model_validate(data)
         except Exception as exc:
-            raise StructuredOutputError("HAWK", raw_response) from exc
+            raise StructuredOutputError("REVIEWER", raw_response) from exc

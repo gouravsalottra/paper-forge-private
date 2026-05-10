@@ -17,23 +17,23 @@ from pathlib import Path
 from typing import Any
 import uuid
 
-from agents.aria.exceptions import ForgeGateError, IntegrityViolationError, PipelineHaltError, ServerUnavailableError
+from agents.aria.exceptions import ComputeGateError, IntegrityViolationError, PipelineHaltError, ServerUnavailableError
 from agents.aria.routing_config import AGENT_SERVER_MAP, AGENT_TIMEOUTS_SECONDS
 
 logger = logging.getLogger(__name__)
 
 
-class ARIAPipeline:
-    PHASE_ORDER = ["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "HAWK", "QUILL"]
+class ConductorPipeline:
+    PHASE_ORDER = ["LITERATURE", "DATAPULL", "PREREGISTER", "COMPUTE", "STATSRUN", "CODEAUDIT", "REVIEWER", "WRITER"]
     GOAL = "produce publishable paper"
     MAX_MAIN_LOOPS = 120
 
     ROUTING_RULES: dict[str, dict[str, set[str]]] = {
-        "SIGMA_JOB1": {"BLOCK": {"sim_results", "paper_draft", "codec_spec"}},
-        "FORGE": {"BLOCK": set()},
-        "CODEC_PASS2": {"BLOCK": {"codebase", "codec_pass1_output"}},
-        "QUILL": {"ALLOW": {"literature_map", "codec_spec", "stats_tables"}},
-        "HAWK": {"ALLOW": {"paper_draft", "codec_spec", "stats_tables"}},
+        "PREREGISTER": {"BLOCK": {"sim_results", "paper_draft", "codec_spec"}},
+        "COMPUTE": {"BLOCK": set()},
+        "CODEAUDIT_PASS2": {"BLOCK": {"codebase", "codec_pass1_output"}},
+        "WRITER": {"ALLOW": {"literature_map", "codec_spec", "stats_tables"}},
+        "REVIEWER": {"ALLOW": {"paper_draft", "codec_spec", "stats_tables"}},
     }
 
     def __init__(self, db_path: str, run_id: str, paper_md_path: str) -> None:
@@ -60,15 +60,15 @@ class ARIAPipeline:
 
         retries: dict[str, int] = {}
         max_retries = {
-            "SCOUT": 3,
-            "MINER": 3,
-            "SIGMA_JOB1": 3,
-            "FORGE": 3,
-            "SIGMA_JOB2": 3,
-            "CODEC": 5,
-            "FIXER": 3,
-            "QUILL": 8,
-            "HAWK": 8,
+            "LITERATURE": 3,
+            "DATAPULL": 3,
+            "PREREGISTER": 3,
+            "COMPUTE": 3,
+            "STATSRUN": 3,
+            "CODEAUDIT": 5,
+            "AUTOREPAIR": 3,
+            "WRITER": 8,
+            "REVIEWER": 8,
         }
 
         loop_count = 0
@@ -86,27 +86,27 @@ class ARIAPipeline:
                 self._log_audit("ARIA", "INFO", f"Goal achieved after {loop_count} loop(s).")
                 return
 
-            if self._phase_status("SCOUT") != "done" and self._phase_status("MINER") != "done":
-                self._run_phase_parallel(["SCOUT", "MINER"])
+            if self._phase_status("LITERATURE") != "done" and self._phase_status("DATAPULL") != "done":
+                self._run_phase_parallel(["LITERATURE", "DATAPULL"])
                 continue
 
             next_step = self._next_tool_call()
             if next_step is None:
                 # No deterministic upstream gap left.
-                self._run_step("HAWK", retries, max_retries)
+                self._run_step("REVIEWER", retries, max_retries)
                 if self._hawk_is_approved_for_quill():
-                    self._run_step("QUILL", retries, max_retries)
+                    self._run_step("WRITER", retries, max_retries)
                 else:
-                    self._run_step("FIXER", retries, max_retries)
+                    self._run_step("AUTOREPAIR", retries, max_retries)
                 self._promote_latest_draft_to_v1_if_publishable()
                 continue
 
-            if next_step == "HAWK":
-                self._run_step("HAWK", retries, max_retries)
+            if next_step == "REVIEWER":
+                self._run_step("REVIEWER", retries, max_retries)
                 if self._hawk_is_approved_for_quill():
-                    self._run_step("QUILL", retries, max_retries)
+                    self._run_step("WRITER", retries, max_retries)
                 else:
-                    self._run_step("FIXER", retries, max_retries)
+                    self._run_step("AUTOREPAIR", retries, max_retries)
             else:
                 self._run_step(next_step, retries, max_retries)
             self._promote_latest_draft_to_v1_if_publishable()
@@ -153,24 +153,24 @@ class ARIAPipeline:
         return results
 
     def _run_step(self, phase: str, retries: dict[str, int], max_retries: dict[str, int]) -> None:
-        if phase == "FIXER" and self._last_failure_phase == "QUILL":
+        if phase == "AUTOREPAIR" and self._last_failure_phase == "WRITER":
             msg = self._last_failure_message.lower()
             if any(k in msg for k in ("word", "dedup", "quality gate")):
                 self._log_audit(
-                    "FIXER",
+                    "AUTOREPAIR",
                     "WARN",
-                    "Skipping FIXER for QUILL content/quality failure (non-fixable by code patcher).",
+                    "Skipping AUTOREPAIR for WRITER content/quality failure (non-fixable by code patcher).",
                 )
-                self._advance_phase("FIXER", "done")
-                self._write_result_flag(agent="FIXER", job="auto_skip_non_fixable", flag="DONE")
-                retries["FIXER"] = 0
+                self._advance_phase("AUTOREPAIR", "done")
+                self._write_result_flag(agent="AUTOREPAIR", job="auto_skip_non_fixable", flag="DONE")
+                retries["AUTOREPAIR"] = 0
                 return
 
         retries[phase] = retries.get(phase, 0) + 1
         attempt = retries[phase]
         if attempt > max_retries.get(phase, 3):
-            if phase in {"QUILL", "HAWK"}:
-                # Contract: QUILL/HAWK are never skipped; keep retrying.
+            if phase in {"WRITER", "REVIEWER"}:
+                # Contract: WRITER/REVIEWER are never skipped; keep retrying.
                 self._log_audit(
                     phase,
                     "WARN",
@@ -189,13 +189,13 @@ class ARIAPipeline:
 
         self._advance_phase(phase, "running")
         try:
-            if phase == "FORGE":
+            if phase == "COMPUTE":
                 self._check_forge_gate()
 
             context = dict(self._context_config_for_phase(phase))
-            if phase in {"QUILL", "HAWK"}:
+            if phase in {"WRITER", "REVIEWER"}:
                 existing = sorted(
-                    (Path("paper_memory") / self.run_id).glob("paper_draft_v*.tex")
+                    (Path("runs") / self.run_id).glob("paper_draft_v*.tex")
                 )
                 context["revision_number"] = len(existing) + 1
 
@@ -203,25 +203,25 @@ class ARIAPipeline:
             flag = str(result.get("result_flag", "DONE"))
             self._write_result_flag(agent=phase, job=f"attempt_{attempt}", flag=flag)
 
-            if phase == "CODEC" and flag == "FAIL":
-                self._log_audit("CODEC", "WARN", "CODEC returned FAIL; invoking FIXER and continuing.")
-                self._run_step("FIXER", retries, max_retries)
-                self._advance_phase("CODEC", "done")
+            if phase == "CODEAUDIT" and flag == "FAIL":
+                self._log_audit("CODEAUDIT", "WARN", "CODEAUDIT returned FAIL; invoking AUTOREPAIR and continuing.")
+                self._run_step("AUTOREPAIR", retries, max_retries)
+                self._advance_phase("CODEAUDIT", "done")
                 retries[phase] = 0
                 return
 
-            if phase == "HAWK":
-                self._advance_phase("HAWK", "done")
+            if phase == "REVIEWER":
+                self._advance_phase("REVIEWER", "done")
                 approved = bool(result.get("approved_for_quill"))
-                self._log_audit("HAWK", "INFO", f"HAWK result_flag={flag}; approved_for_quill={approved}.")
+                self._log_audit("REVIEWER", "INFO", f"REVIEWER result_flag={flag}; approved_for_quill={approved}.")
                 if not approved:
                     self._route_hawk_mandatory_items(result.get("mandatory_items", []) or [])
                 retries[phase] = 0
                 return
 
-            if phase == "FIXER" and flag in {"FAILED", "FAIL", "ESCALATE"}:
-                self._log_audit("FIXER", "WARN", f"FIXER returned {flag}; continuing without blocking pipeline.")
-                self._advance_phase("FIXER", "done")
+            if phase == "AUTOREPAIR" and flag in {"FAILED", "FAIL", "ESCALATE"}:
+                self._log_audit("AUTOREPAIR", "WARN", f"AUTOREPAIR returned {flag}; continuing without blocking pipeline.")
+                self._advance_phase("AUTOREPAIR", "done")
                 retries[phase] = 0
                 return
 
@@ -238,12 +238,12 @@ class ARIAPipeline:
             self._log_audit(phase, "ERROR", f"Attempt {attempt} failed: {type(exc).__name__}: {exc}")
             self._last_failure_phase = phase
             self._last_failure_message = str(exc)
-            if phase == "FIXER":
-                self._log_audit("FIXER", "WARN", "FIXER exception treated as non-blocking; continuing main loop.")
-                self._advance_phase("FIXER", "done")
+            if phase == "AUTOREPAIR":
+                self._log_audit("AUTOREPAIR", "WARN", "AUTOREPAIR exception treated as non-blocking; continuing main loop.")
+                self._advance_phase("AUTOREPAIR", "done")
                 retries[phase] = 0
                 return
-            if phase not in {"QUILL", "HAWK"} and attempt >= max_retries.get(phase, 3):
+            if phase not in {"WRITER", "REVIEWER"} and attempt >= max_retries.get(phase, 3):
                 self._log_audit(
                     phase,
                     "ERROR",
@@ -252,7 +252,7 @@ class ARIAPipeline:
                 self._set_run_status("failed")
                 self._terminal_failure = True
                 return
-            if phase == "QUILL" and isinstance(exc, ValueError) and "quality gate failed" in str(exc).lower():
+            if phase == "WRITER" and isinstance(exc, ValueError) and "quality gate failed" in str(exc).lower():
                 raise
             time.sleep(min(5, 1 + attempt))
 
@@ -261,38 +261,38 @@ class ARIAPipeline:
         Decide the next best tool call based on artifact/state gaps.
         This is goal-driven planning, not a fixed phase-for-loop.
         """
-        base = Path("paper_memory") / self.run_id
+        base = Path("runs") / self.run_id
         stats_dir = base / "stats_tables"
         v1 = base / "paper_draft_v1.tex"
 
-        if not (base / "literature_map.md").exists() and self._phase_status("SCOUT") != "done":
-            return "SCOUT"
-        if not (Path("outputs") / "commodity_returns.csv").exists() and self._phase_status("MINER") != "done":
-            return "MINER"
-        if not (base / "pap.md").exists() and self._phase_status("SIGMA_JOB1") != "done":
-            return "SIGMA_JOB1"
-        if self._phase_status("FORGE") != "done":
-            return "FORGE"
-        if (not stats_dir.exists() or not any(stats_dir.glob("*.csv"))) and self._phase_status("SIGMA_JOB2") != "done":
-            return "SIGMA_JOB2"
-        if not (base / "codec_spec.md").exists() and self._phase_status("CODEC") != "done":
-            return "CODEC"
-        # HAWK gates QUILL and runs before manuscript rendering.
+        if not (base / "literature_map.md").exists() and self._phase_status("LITERATURE") != "done":
+            return "LITERATURE"
+        if not (Path("outputs") / "commodity_returns.csv").exists() and self._phase_status("DATAPULL") != "done":
+            return "DATAPULL"
+        if not (base / "pap.md").exists() and self._phase_status("PREREGISTER") != "done":
+            return "PREREGISTER"
+        if self._phase_status("COMPUTE") != "done":
+            return "COMPUTE"
+        if (not stats_dir.exists() or not any(stats_dir.glob("*.csv"))) and self._phase_status("STATSRUN") != "done":
+            return "STATSRUN"
+        if not (base / "codec_spec.md").exists() and self._phase_status("CODEAUDIT") != "done":
+            return "CODEAUDIT"
+        # REVIEWER gates WRITER and runs before manuscript rendering.
         if not self._hawk_is_approved_for_quill():
-            return "HAWK"
+            return "REVIEWER"
         if not v1.exists():
-            return "QUILL"
+            return "WRITER"
         return None
 
     def _latest_paper_draft_path(self) -> Path | None:
-        base = Path("paper_memory") / self.run_id
+        base = Path("runs") / self.run_id
         drafts = sorted(base.glob("paper_draft_v*.tex"))
         if not drafts:
             return None
         return drafts[-1]
 
     def _latest_hawk_routing(self) -> dict[str, Any]:
-        run_dir = Path("paper_memory") / self.run_id
+        run_dir = Path("runs") / self.run_id
         routings = sorted(run_dir.glob("hawk_routing_v*.json"), key=lambda p: p.name)
         if not routings:
             return {}
@@ -309,12 +309,12 @@ class ARIAPipeline:
 
     def _route_hawk_mandatory_items(self, items: list[dict[str, Any]]) -> None:
         route_map = {
-            "FORGE": "FORGE",
-            "SIGMA": "SIGMA_JOB2",
-            "SIGMA_JOB2": "SIGMA_JOB2",
-            "FIXER": "FIXER",
-            "MINER": "MINER",
-            "CODEC": "CODEC",
+            "COMPUTE": "COMPUTE",
+            "SIGMA": "STATSRUN",
+            "STATSRUN": "STATSRUN",
+            "AUTOREPAIR": "AUTOREPAIR",
+            "DATAPULL": "DATAPULL",
+            "CODEAUDIT": "CODEAUDIT",
         }
         for item in items:
             if not item.get("blocking", False):
@@ -323,24 +323,24 @@ class ARIAPipeline:
             if not target:
                 continue
             try:
-                if target == "FORGE":
+                if target == "COMPUTE":
                     self._check_forge_gate_for_revision()
                 result = self._dispatch(target, self._server_for_phase(target), self._context_config_for_phase(target))
                 self._write_result_flag(agent=target, job="hawk_route", flag=str(result.get("result_flag", "DONE")))
                 self._log_audit(
-                    "HAWK",
+                    "REVIEWER",
                     "INFO",
                     f"Routed blocking item to {target}: {item.get('check', 'unknown')} -> {result.get('result_flag', 'DONE')}",
                 )
             except Exception as exc:
                 self._log_audit(
-                    "HAWK",
+                    "REVIEWER",
                     "WARN",
                     f"Routing to {target} failed for item {item.get('check', 'unknown')}: {type(exc).__name__}: {exc}",
                 )
 
     def _promote_latest_draft_to_v1_if_publishable(self) -> None:
-        base = Path("paper_memory") / self.run_id
+        base = Path("runs") / self.run_id
         v1 = base / "paper_draft_v1.tex"
         if self._paper_is_publishable(v1):
             return
@@ -356,7 +356,7 @@ class ARIAPipeline:
             self._log_audit("ARIA", "WARN", f"Failed promoting latest draft to v1: {exc}")
 
     def _paper_is_publishable(self, path: Path | None = None) -> bool:
-        run_dir = Path("paper_memory") / self.run_id
+        run_dir = Path("runs") / self.run_id
         v1 = run_dir / "paper_draft_v1.tex"
         if not v1.exists():
             return False
@@ -373,7 +373,7 @@ class ARIAPipeline:
             return False
 
         unique_words = {w.lower() for w in re.findall(r"\b[\w'-]+\b", text)}
-        min_unique_words = int(os.getenv("PAPER_FORGE_PUBLISHABLE_UNIQUE_WORDS", "1500"))
+        min_unique_words = int(os.getenv("PAPER_COMPUTE_PUBLISHABLE_UNIQUE_WORDS", "1500"))
         if len(unique_words) < min_unique_words:
             return False
 
@@ -388,7 +388,7 @@ class ARIAPipeline:
 
         if self._find_exact_duplicate_paragraphs(text):
             return False
-        sim_threshold = float(os.getenv("PAPER_FORGE_PARAGRAPH_SIMILARITY_MAX", "0.95"))
+        sim_threshold = float(os.getenv("PAPER_COMPUTE_PARAGRAPH_SIMILARITY_MAX", "0.95"))
         if self._has_high_similarity_paragraphs(text, threshold=sim_threshold):
             return False
 
@@ -402,13 +402,13 @@ class ARIAPipeline:
             if re.search(pattern, lower):
                 return False
 
-        reviews = sorted((Path("paper_memory") / self.run_id).glob("hawk_review_v*.md"))
+        reviews = sorted((Path("runs") / self.run_id).glob("hawk_review_v*.md"))
         if not reviews:
             return False
         if all(r.stat().st_size <= 500 for r in reviews):
             return False
 
-        min_cycles = int(os.getenv("PAPER_FORGE_MIN_REVIEW_CYCLES", "1"))
+        min_cycles = int(os.getenv("PAPER_COMPUTE_MIN_REVIEW_CYCLES", "1"))
         if self._completed_quill_hawk_cycles() < min_cycles:
             return False
         return True
@@ -449,7 +449,7 @@ class ARIAPipeline:
 
     def _completed_quill_hawk_fixer_cycles(self) -> int:
         """
-        Count completed QUILL -> HAWK -> FIXER chains in agent_results for this run.
+        Count completed WRITER -> REVIEWER -> AUTOREPAIR chains in agent_results for this run.
         Requires schema-aware reads.
         """
         with sqlite3.connect(self.db_path) as conn:
@@ -486,11 +486,11 @@ class ARIAPipeline:
             phase = str(r[phase_idx] or "").upper()
             status = str(r[status_idx] or "").upper()
             ts = str(r[time_idx] or "")
-            if phase == "QUILL" and status not in {"FAIL", "FAILED", "ESCALATE"}:
+            if phase == "WRITER" and status not in {"FAIL", "FAILED", "ESCALATE"}:
                 quill_times.append(ts)
-            if phase == "HAWK" and status not in {"FAIL", "FAILED", "ESCALATE"}:
+            if phase == "REVIEWER" and status not in {"FAIL", "FAILED", "ESCALATE"}:
                 hawk_times.append(ts)
-            if phase == "FIXER" and status not in {"FAIL", "FAILED", "ESCALATE"}:
+            if phase == "AUTOREPAIR" and status not in {"FAIL", "FAILED", "ESCALATE"}:
                 fixer_times.append(ts)
 
         cycles = 0
@@ -512,7 +512,7 @@ class ARIAPipeline:
         return cycles
 
     def _completed_quill_hawk_cycles(self) -> int:
-        """Count completed QUILL -> HAWK chains; FIXER is diagnostic and optional."""
+        """Count completed WRITER -> REVIEWER chains; AUTOREPAIR is diagnostic and optional."""
         with sqlite3.connect(self.db_path) as conn:
             cols = set(self._table_columns(conn, "agent_results"))
             if {"phase_name", "created_at"}.issubset(cols):
@@ -546,9 +546,9 @@ class ARIAPipeline:
             phase = str(r[phase_idx] or "").upper()
             status = str(r[status_idx] or "").upper()
             ts = str(r[time_idx] or "")
-            if phase == "QUILL" and status not in {"FAIL", "FAILED", "ESCALATE"}:
+            if phase == "WRITER" and status not in {"FAIL", "FAILED", "ESCALATE"}:
                 quill_times.append(ts)
-            if phase == "HAWK" and status not in {"FAIL", "FAILED", "ESCALATE"}:
+            if phase == "REVIEWER" and status not in {"FAIL", "FAILED", "ESCALATE"}:
                 hawk_times.append(ts)
 
         cycles = 0
@@ -584,106 +584,106 @@ class ARIAPipeline:
                 self._advance_phase(str(phase_name), "done")
 
     def _run_hawk_loop(self, max_cycles: int = 3) -> None:
-        """HAWK review loop with persisted cycle cap."""
-        prior_cycles = self._get_checkpoint_count("HAWK", "hawk_fixer_cycles")
+        """REVIEWER review loop with persisted cycle cap."""
+        prior_cycles = self._get_checkpoint_count("REVIEWER", "hawk_fixer_cycles")
         for cycle in range(prior_cycles + 1, max_cycles + 1):
             print(f"\n{'=' * 50}")
-            print(f"HAWK review cycle {cycle}/{max_cycles}")
+            print(f"REVIEWER review cycle {cycle}/{max_cycles}")
             print(f"{'=' * 50}")
 
-            self._advance_phase("HAWK", "running")
+            self._advance_phase("REVIEWER", "running")
             hawk_result = self._dispatch(
-                "HAWK",
-                self._server_for_phase("HAWK"),
-                {"revision_number": cycle, **self._context_config_for_phase("HAWK")},
+                "REVIEWER",
+                self._server_for_phase("REVIEWER"),
+                {"revision_number": cycle, **self._context_config_for_phase("REVIEWER")},
             )
             hawk_flag = str(hawk_result.get("result_flag", "REVISION_REQUESTED"))
             routing = hawk_result.get("routing", {}) or {}
             recommendation = hawk_result.get("recommendation", "MAJOR_REVISION")
             mandatory_items = routing.get("mandatory_items", []) or []
-            self._write_result_flag("HAWK", f"CYCLE{cycle}", hawk_flag)
+            self._write_result_flag("REVIEWER", f"CYCLE{cycle}", hawk_flag)
 
-            print(f"HAWK recommendation: {recommendation}")
+            print(f"REVIEWER recommendation: {recommendation}")
             print(f"Mandatory items: {len(mandatory_items)}")
 
             if hawk_flag == "APPROVED":
-                self._advance_phase("HAWK", "done")
-                print(f"\nHAWK ACCEPTED the paper on cycle {cycle}.")
-                print(f"Read: paper_memory/{self.run_id}/hawk_review_v{cycle}.md")
+                self._advance_phase("REVIEWER", "done")
+                print(f"\nREVIEWER ACCEPTED the paper on cycle {cycle}.")
+                print(f"Read: runs/{self.run_id}/hawk_review_v{cycle}.md")
                 return
 
-            self._set_checkpoint_count("HAWK", "hawk_fixer_cycles", cycle)
+            self._set_checkpoint_count("REVIEWER", "hawk_fixer_cycles", cycle)
 
             if cycle == max_cycles:
-                self._write_result_flag("HAWK", f"CYCLE{cycle}", "ESCALATE")
-                self._advance_phase("HAWK", "failed")
+                self._write_result_flag("REVIEWER", f"CYCLE{cycle}", "ESCALATE")
+                self._advance_phase("REVIEWER", "failed")
                 raise PipelineHaltError(
-                    "HAWK/FIXER cycle limit reached (3 cycles). "
+                    "REVIEWER/AUTOREPAIR cycle limit reached (3 cycles). "
                     "Pipeline halted. Review hawk_review_v3.md and fixer_report.md for diagnosis."
                 )
 
-            # Run FIXER between HAWK cycles. FIXER outcomes never reset HAWK cycle counting.
+            # Run AUTOREPAIR between REVIEWER cycles. AUTOREPAIR outcomes never reset REVIEWER cycle counting.
             try:
                 fixer_result = self._dispatch(
-                    "FIXER",
-                    self._server_for_phase("FIXER"),
-                    self._context_config_for_phase("FIXER"),
+                    "AUTOREPAIR",
+                    self._server_for_phase("AUTOREPAIR"),
+                    self._context_config_for_phase("AUTOREPAIR"),
                 )
                 fixer_flag = str(fixer_result.get("result_flag", "DONE"))
-                self._write_result_flag("FIXER", f"HAWK_CYCLE{cycle}", fixer_flag)
+                self._write_result_flag("AUTOREPAIR", f"REVIEWER_CYCLE{cycle}", fixer_flag)
                 if fixer_flag in {"FAIL", "FAILED", "ESCALATE"}:
                     self._log_audit(
-                        "FIXER",
+                        "AUTOREPAIR",
                         "WARN",
-                        f"FIXER returned {fixer_flag} on HAWK cycle {cycle}; continuing without resetting cycle counter.",
+                        f"AUTOREPAIR returned {fixer_flag} on REVIEWER cycle {cycle}; continuing without resetting cycle counter.",
                     )
             except Exception as exc:
                 self._log_audit(
-                    "FIXER",
+                    "AUTOREPAIR",
                     "ERROR",
-                    f"FIXER failed on HAWK cycle {cycle}: {type(exc).__name__}: {exc}. Continuing HAWK loop.",
+                    f"AUTOREPAIR failed on REVIEWER cycle {cycle}: {type(exc).__name__}: {exc}. Continuing REVIEWER loop.",
                 )
 
             # Route non-blocking follow-up tasks and continue to next review cycle.
             if routing.get("routes_to_forge"):
                 self._check_forge_gate_for_revision()
                 forge_result = self._dispatch(
-                    "FORGE",
-                    self._server_for_phase("FORGE"),
-                    self._context_config_for_phase("FORGE"),
+                    "COMPUTE",
+                    self._server_for_phase("COMPUTE"),
+                    self._context_config_for_phase("COMPUTE"),
                 )
-                self._write_result_flag("FORGE", f"HAWK_CYCLE{cycle}", forge_result.get("result_flag", "DONE"))
+                self._write_result_flag("COMPUTE", f"REVIEWER_CYCLE{cycle}", forge_result.get("result_flag", "DONE"))
 
             if routing.get("routes_to_sigma"):
                 sigma_result = self._dispatch(
-                    "SIGMA_JOB2",
-                    self._server_for_phase("SIGMA_JOB2"),
-                    self._context_config_for_phase("SIGMA_JOB2"),
+                    "STATSRUN",
+                    self._server_for_phase("STATSRUN"),
+                    self._context_config_for_phase("STATSRUN"),
                 )
-                self._write_result_flag("SIGMA_JOB2", f"HAWK_CYCLE{cycle}", sigma_result.get("result_flag", "DONE"))
+                self._write_result_flag("STATSRUN", f"REVIEWER_CYCLE{cycle}", sigma_result.get("result_flag", "DONE"))
 
             if routing.get("routes_to_miner"):
                 miner_result = self._dispatch(
-                    "MINER",
-                    self._server_for_phase("MINER"),
-                    self._context_config_for_phase("MINER"),
+                    "DATAPULL",
+                    self._server_for_phase("DATAPULL"),
+                    self._context_config_for_phase("DATAPULL"),
                 )
-                self._write_result_flag("MINER", f"HAWK_CYCLE{cycle}", miner_result.get("result_flag", "DONE"))
+                self._write_result_flag("DATAPULL", f"REVIEWER_CYCLE{cycle}", miner_result.get("result_flag", "DONE"))
 
             if routing.get("routes_to_codec"):
                 codec_result = self._dispatch(
-                    "CODEC",
-                    self._server_for_phase("CODEC"),
-                    self._context_config_for_phase("CODEC"),
+                    "CODEAUDIT",
+                    self._server_for_phase("CODEAUDIT"),
+                    self._context_config_for_phase("CODEAUDIT"),
                 )
-                self._write_result_flag("CODEC", f"HAWK_CYCLE{cycle}", codec_result.get("result_flag", "WARN"))
+                self._write_result_flag("CODEAUDIT", f"REVIEWER_CYCLE{cycle}", codec_result.get("result_flag", "WARN"))
 
         if prior_cycles >= max_cycles:
             raise PipelineHaltError(
-                "HAWK/FIXER cycle limit reached (3 cycles). "
+                "REVIEWER/AUTOREPAIR cycle limit reached (3 cycles). "
                 "Pipeline halted. Review hawk_review_v3.md and fixer_report.md for diagnosis."
             )
-        self._advance_phase("HAWK", "done")
+        self._advance_phase("REVIEWER", "done")
         return
 
     def _get_checkpoint_count(self, phase_name: str, key: str) -> int:
@@ -736,47 +736,47 @@ class ARIAPipeline:
         # Enforce routing integrity constraints up front.
         blocked = set(context_config.get("BLOCK", set()))
         forbidden = {
-            "SIGMA_JOB1": {"sim_results", "paper_draft", "codec_spec"},
-            "CODEC_PASS2": {"codebase", "codec_pass1_output"},
+            "PREREGISTER": {"sim_results", "paper_draft", "codec_spec"},
+            "CODEAUDIT_PASS2": {"codebase", "codec_pass1_output"},
         }
         for key, blocked_set in forbidden.items():
-            if agent_name == key or (agent_name == "CODEC" and key == "CODEC_PASS2"):
+            if agent_name == key or (agent_name == "CODEAUDIT" and key == "CODEAUDIT_PASS2"):
                 for artifact in blocked_set:
                     if artifact not in blocked:
                         raise IntegrityViolationError(artifact, agent_name)
 
-        if agent_name == "SCOUT":
-            from agents.scout.scout import ScoutAgent
+        if agent_name == "LITERATURE":
+            from agents.scout.scout import LiteratureAgent
 
-            agent = ScoutAgent(
+            agent = LiteratureAgent(
                 run_id=self.run_id,
                 paper_md_path=self.paper_md_path,
-                output_dir="paper_memory",
+                output_dir="runs",
                 db_path=self.db_path,
             )
             return agent.run()
         if agent_name.startswith("SIGMA"):
-            if agent_name == "SIGMA_JOB1":
-                from agents.sigma_job1 import SigmaJob1
+            if agent_name == "PREREGISTER":
+                from agents.preregister import SigmaJob1
 
                 agent = SigmaJob1(run_id=self.run_id, db_path=self.db_path)
                 result = agent.run()
                 return {"result_flag": "DONE", "details": result}
 
-            from agents.sigma_job2 import SigmaJob2
+            from agents.statsrun_job import SigmaJob2
 
-            agent = SigmaJob2(run_id=self.run_id, db_path=self.db_path, output_dir="paper_memory")
+            agent = SigmaJob2(run_id=self.run_id, db_path=self.db_path, output_dir="runs")
             return agent.run()
-        if agent_name == "MINER":
+        if agent_name == "DATAPULL":
             from agents.miner.miner import run_miner_pipeline
 
-            source = os.getenv("PAPER_FORGE_MINER_SOURCE", "wrds").strip().lower() or "wrds"
+            source = os.getenv("PAPER_COMPUTE_DATAPULL_SOURCE", "wrds").strip().lower() or "wrds"
             if source not in {"wrds", "yfinance"}:
                 source = "wrds"
-            return run_miner_pipeline(run_id=self.run_id, output_dir="paper_memory", source=source)
-        if agent_name == "FORGE":
-            n_episodes = int(os.getenv("PAPER_FORGE_FORGE_EPISODES", "500000"))
-            backend = os.getenv("PAPER_FORGE_FORGE_BACKEND", "modal").strip().lower() or "modal"
+            return run_miner_pipeline(run_id=self.run_id, output_dir="runs", source=source)
+        if agent_name == "COMPUTE":
+            n_episodes = int(os.getenv("PAPER_COMPUTE_COMPUTE_EPISODES", "500000"))
+            backend = os.getenv("PAPER_COMPUTE_COMPUTE_BACKEND", "modal").strip().lower() or "modal"
             if n_episodes < 500000:
                 logger.warning(
                     f"n_episodes={n_episodes} is below required 500000. "
@@ -805,7 +805,7 @@ class ARIAPipeline:
                         "error": "modal run succeeded but outputs/sim_results.json missing",
                         "stdout": completed.stdout[-2000:],
                     }
-                logger.error("Modal failed. Set PAPER_FORGE_FORGE_BACKEND=local to use CPU runner.")
+                logger.error("Modal failed. Set PAPER_COMPUTE_COMPUTE_BACKEND=local to use CPU runner.")
                 return {
                     "result_flag": "FAIL",
                     "backend": "modal",
@@ -819,33 +819,33 @@ class ARIAPipeline:
             return {
                 "result_flag": "FAIL",
                 "backend": backend,
-                "error": f"Unsupported PAPER_FORGE_FORGE_BACKEND={backend!r}; use 'modal' or 'local'.",
+                "error": f"Unsupported PAPER_COMPUTE_COMPUTE_BACKEND={backend!r}; use 'modal' or 'local'.",
             }
-        if agent_name == "CODEC":
+        if agent_name == "CODEAUDIT":
             from agents.codec.codec import CodecAgent
 
-            agent = CodecAgent(run_id=self.run_id, db_path=self.db_path, output_dir="paper_memory", llm_client=None)
+            agent = CodecAgent(run_id=self.run_id, db_path=self.db_path, output_dir="runs", llm_client=None)
             return agent.run()
-        if agent_name == "FIXER":
+        if agent_name == "AUTOREPAIR":
             from agents.fixer.fixer import FixerAgent
 
             agent = FixerAgent(
                 run_id=self.run_id,
                 db_path=self.db_path,
-                output_dir="paper_memory",
+                output_dir="runs",
             )
             return agent.run()
-        if agent_name == "QUILL":
-            from agents.quill.quill import QuillAgent
+        if agent_name == "WRITER":
+            from agents.quill.quill import WriterAgent
 
             revision_number = int(context_config.get("revision_number", 1))
-            agent = QuillAgent(run_id=self.run_id, db_path=self.db_path, output_dir="paper_memory", llm_client=None)
+            agent = WriterAgent(run_id=self.run_id, db_path=self.db_path, output_dir="runs", llm_client=None)
             return agent.run(revision_number=revision_number)
-        if agent_name == "HAWK":
-            from agents.hawk.hawk import HawkAgent
+        if agent_name == "REVIEWER":
+            from agents.hawk.hawk import ReviewerAgent
 
             revision_number = int(context_config.get("revision_number", 1))
-            agent = HawkAgent(run_id=self.run_id, db_path=self.db_path, output_dir="paper_memory", llm_client=None)
+            agent = ReviewerAgent(run_id=self.run_id, db_path=self.db_path, output_dir="runs", llm_client=None)
             return agent.run(revision_number=revision_number)
 
         return {"result_flag": "DONE"}
@@ -894,7 +894,7 @@ class ARIAPipeline:
             row = conn.execute(
                 """
                 SELECT 1
-                FROM pap_lock
+                FROM hypothesis_lock
                 WHERE run_id = ?
                   AND locked_at IS NOT NULL
                   AND forge_started_at IS NULL
@@ -903,26 +903,26 @@ class ARIAPipeline:
                 (self.run_id,),
             ).fetchone()
             if row is None:
-                raise ForgeGateError("FORGE gate failed: pap_lock must exist with locked_at set and forge_started_at NULL")
+                raise ComputeGateError("COMPUTE gate failed: hypothesis_lock must exist with locked_at set and forge_started_at NULL")
             conn.execute(
-                "UPDATE pap_lock SET forge_started_at = ? WHERE run_id = ? AND forge_started_at IS NULL",
+                "UPDATE hypothesis_lock SET forge_started_at = ? WHERE run_id = ? AND forge_started_at IS NULL",
                 (self._now(), self.run_id),
             )
             conn.commit()
 
     def _check_forge_gate_for_revision(self) -> None:
-        """FORGE gate check for HAWK revision cycles."""
+        """COMPUTE gate check for REVIEWER revision cycles."""
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT 1 FROM pap_lock WHERE run_id=? AND locked_at IS NOT NULL",
+                "SELECT 1 FROM hypothesis_lock WHERE run_id=? AND locked_at IS NOT NULL",
                 (self.run_id,),
             ).fetchone()
             if row is None:
-                raise ForgeGateError(
-                    "FORGE revision gate failed: PAP not locked. "
-                    "Cannot re-run FORGE without a committed PAP."
+                raise ComputeGateError(
+                    "COMPUTE revision gate failed: PAP not locked. "
+                    "Cannot re-run COMPUTE without a committed PAP."
                 )
-            conn.execute("UPDATE pap_lock SET forge_started_at=NULL WHERE run_id=?", (self.run_id,))
+            conn.execute("UPDATE hypothesis_lock SET forge_started_at=NULL WHERE run_id=?", (self.run_id,))
             conn.commit()
         self._check_forge_gate()
 
@@ -961,7 +961,7 @@ class ARIAPipeline:
 
             elif server_name == "wrds":
                 if not os.environ.get("WRDS_USERNAME") and not os.environ.get("WRDS_CLOUD_USERNAME"):
-                    detail = "WRDS_USERNAME env var not set (connectivity deferred to MINER runtime)"
+                    detail = "WRDS_USERNAME env var not set (connectivity deferred to DATAPULL runtime)"
 
             elif server_name == "forge_cluster":
                 try:
@@ -1030,20 +1030,20 @@ class ARIAPipeline:
             raise ServerUnavailableError(server_name=server_name, detail=detail, latency_ms=latency_ms)
 
     def _context_config_for_phase(self, phase: str) -> dict[str, Any]:
-        if phase == "SIGMA_JOB1":
-            return {"BLOCK": set(self.ROUTING_RULES["SIGMA_JOB1"]["BLOCK"])}
-        if phase == "FORGE":
-            return {"BLOCK": set(self.ROUTING_RULES["FORGE"]["BLOCK"])}
-        if phase == "CODEC":
+        if phase == "PREREGISTER":
+            return {"BLOCK": set(self.ROUTING_RULES["PREREGISTER"]["BLOCK"])}
+        if phase == "COMPUTE":
+            return {"BLOCK": set(self.ROUTING_RULES["COMPUTE"]["BLOCK"])}
+        if phase == "CODEAUDIT":
             return {
                 "PASS1": {"BLOCK": set()},
-                "PASS2": {"BLOCK": set(self.ROUTING_RULES["CODEC_PASS2"]["BLOCK"])},
-                "BLOCK": set(self.ROUTING_RULES["CODEC_PASS2"]["BLOCK"]),
+                "PASS2": {"BLOCK": set(self.ROUTING_RULES["CODEAUDIT_PASS2"]["BLOCK"])},
+                "BLOCK": set(self.ROUTING_RULES["CODEAUDIT_PASS2"]["BLOCK"]),
             }
-        if phase == "QUILL":
-            return {"ALLOW": set(self.ROUTING_RULES["QUILL"]["ALLOW"])}
-        if phase == "HAWK":
-            return {"ALLOW": set(self.ROUTING_RULES["HAWK"]["ALLOW"])}
+        if phase == "WRITER":
+            return {"ALLOW": set(self.ROUTING_RULES["WRITER"]["ALLOW"])}
+        if phase == "REVIEWER":
+            return {"ALLOW": set(self.ROUTING_RULES["REVIEWER"]["ALLOW"])}
         return {"BLOCK": set()}
 
     @staticmethod
@@ -1103,8 +1103,8 @@ class ARIAPipeline:
                         (self.run_id, phase),
                     )
             if "token_limits" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}:
-                soft_limit = float(os.getenv("PAPERFORGE_SOFT_LIMIT_USD", "10.0"))
-                hard_limit = float(os.getenv("PAPERFORGE_HARD_LIMIT_USD", "25.0"))
+                soft_limit = float(os.getenv("PAPERCOMPUTE_SOFT_LIMIT_USD", "10.0"))
+                hard_limit = float(os.getenv("PAPERCOMPUTE_HARD_LIMIT_USD", "25.0"))
                 conn.execute(
                     """
                     INSERT INTO token_limits (run_id, soft_limit_usd, hard_limit_usd, total_spent_usd, last_updated)
@@ -1137,21 +1137,21 @@ class ARIAPipeline:
         return [row[1] for row in conn.execute(f"PRAGMA table_info({table_name})")]
 
     def _log_audit(self, phase: str, level: str, detail: str) -> None:
-        out = Path("paper_memory") / self.run_id
+        out = Path("runs") / self.run_id
         out.mkdir(parents=True, exist_ok=True)
         p = out / "audit_log.txt"
         ts = self._now()
         with p.open("a", encoding="utf-8") as f:
             f.write(f"[{ts}] {phase} {level}: {detail}\n")
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_CODEAUDIT_BIDIRECTIONAL_AUDIT_SPEC_MARKER: str = "CODEAUDIT bidirectional audit required before WRITER writes paper"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_BEFORE_QUILL_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_CODEAUDIT_BIDIRECTIONAL_AUDIT_BEFORE_WRITER_SPEC_MARKER: str = "CODEAUDIT bidirectional audit required before WRITER writes paper"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_CODEC_BIDIRECTIONAL_AUDIT_REQUIRED_BEFORE_QUILL_WRITES_PAPER_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_CODEAUDIT_BIDIRECTIONAL_AUDIT_REQUIRED_BEFORE_WRITER_WRITES_PAPER_SPEC_MARKER: str = "CODEAUDIT bidirectional audit required before WRITER writes paper"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 PAP_GATE_PAP_LOCK_GATE_PRE_ANALYSIS_PLAN_STATUS_CHECK_SPEC_MARKER: str = "Implemented in agents/aria/aria.py _check_forge_gate()"

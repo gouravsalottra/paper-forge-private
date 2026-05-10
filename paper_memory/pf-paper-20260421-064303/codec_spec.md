@@ -1,4 +1,4 @@
-# CODEC Pass 1 Specification Extraction
+# CODEAUDIT Pass 1 Specification Extraction
 
 ## 1. Statistical tests
 
@@ -11,7 +11,7 @@
      - Primary significance threshold: **p < 0.05**
      - Two-tailed
    - **Library:**
-     - `statsmodels.api as sm` imported in `agents/sigma_job2.py`
+     - `statsmodels.api as sm` imported in `agents/statsrun_job.py`
    - **Evidence:**
      - `ttest_result = self._newey_west_ttest(returns)`
      - `NEWEY_WEST_HAC_LAGS: "4 lags"`

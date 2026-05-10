@@ -6,15 +6,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from agents.aria.aria import ARIAPipeline
-from agents.hawk.hawk import HawkAgent
-from agents.quill.quill import QuillAgent
-from agents.scout.scout import ScoutAgent
-from agents.sigma_job2 import SigmaJob2
+from agents.aria.aria import ConductorPipeline
+from agents.hawk.hawk import ReviewerAgent
+from agents.quill.quill import WriterAgent
+from agents.scout.scout import LiteratureAgent
+from agents.statsrun_job import SigmaJob2
 
 
-def _make_pipeline(tmp_path: Path, run_id: str = "r-hardening") -> ARIAPipeline:
-    return ARIAPipeline(db_path=str(tmp_path / "state.db"), run_id=run_id, paper_md_path=str(tmp_path / "PAPER.md"))
+def _make_pipeline(tmp_path: Path, run_id: str = "r-hardening") -> ConductorPipeline:
+    return ConductorPipeline(db_path=str(tmp_path / "pipeline.db"), run_id=run_id, paper_md_path=str(tmp_path / "PAPER.md"))
 
 
 def test_aria_dispatches_real_miner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -33,7 +33,7 @@ def test_aria_dispatches_real_miner(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     import agents.miner.miner as miner_mod
 
     monkeypatch.setattr(miner_mod, "run_miner_pipeline", fake_run_miner, raising=True)
-    out = pipeline._dispatch("MINER", "wrds", {})
+    out = pipeline._dispatch("DATAPULL", "wrds", {})
     assert called["miner"] is True
     assert out["result_flag"] == "DONE"
 
@@ -43,9 +43,9 @@ def test_aria_dispatches_real_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     Path("PAPER.md").write_text("## Topic\nx\n## Hypothesis\ny\n", encoding="utf-8")
     pipeline = _make_pipeline(tmp_path)
 
-    # In production profile, FORGE defaults to modal backend.
+    # In production profile, COMPUTE defaults to modal backend.
     called = {"modal": False}
-    monkeypatch.delenv("PAPER_FORGE_FORGE_BACKEND", raising=False)
+    monkeypatch.delenv("PAPER_COMPUTE_COMPUTE_BACKEND", raising=False)
 
     def fake_subprocess_run(cmd, cwd, check, capture_output, text):
         called["modal"] = True
@@ -61,7 +61,7 @@ def test_aria_dispatches_real_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     import agents.aria.aria as aria_mod
     monkeypatch.setattr(aria_mod.subprocess, "run", fake_subprocess_run, raising=True)
-    out = pipeline._dispatch("FORGE", "forge_cluster", {})
+    out = pipeline._dispatch("COMPUTE", "forge_cluster", {})
     assert called["modal"] is True
     assert out["result_flag"] == "DONE"
 
@@ -76,7 +76,7 @@ def test_miner_requires_wrds_by_default() -> None:
 def test_scout_filters_non_finance_citations(tmp_path: Path) -> None:
     paper = tmp_path / "PAPER.md"
     paper.write_text("## Topic\nCommodity futures\n## Hypothesis\nMomentum and concentration\n", encoding="utf-8")
-    scout = ScoutAgent(run_id="r", paper_md_path=str(paper), output_dir=str(tmp_path))
+    scout = LiteratureAgent(run_id="r", paper_md_path=str(paper), output_dir=str(tmp_path))
     papers = [
         {
             "title": "Non-relativistic Conformal Field Theory in Momentum Space",
@@ -100,11 +100,11 @@ def test_scout_filters_non_finance_citations(tmp_path: Path) -> None:
 
 def test_canonical_artifact_precedence_for_readers(tmp_path: Path) -> None:
     run_id = "r-canonical"
-    base = tmp_path / "paper_memory" / run_id
+    base = tmp_path / "runs" / run_id
     base.mkdir(parents=True)
     # conflicting artifacts
-    (base / "codec_spec.md").write_text("CANONICAL_CODEC_SPEC", encoding="utf-8")
-    (base / "codecspec.md").write_text("LEGACY_CODEC_SPEC", encoding="utf-8")
+    (base / "codec_spec.md").write_text("CANONICAL_CODEAUDIT_SPEC", encoding="utf-8")
+    (base / "codecspec.md").write_text("LEGACY_CODEAUDIT_SPEC", encoding="utf-8")
     (base / "literature_map.md").write_text("CANONICAL_LIT_MAP", encoding="utf-8")
     (base / "literaturemap.md").write_text("LEGACY_LIT_MAP", encoding="utf-8")
     (base / "stats_tables").mkdir()
@@ -112,11 +112,11 @@ def test_canonical_artifact_precedence_for_readers(tmp_path: Path) -> None:
     (base / "paper_draft_v1.tex").write_text("\\section{Methods}", encoding="utf-8")
     Path(tmp_path / "PAPER.md").write_text("## Topic\nx\n## Hypothesis\ny\n", encoding="utf-8")
 
-    q = QuillAgent(run_id=run_id, output_dir=str(tmp_path / "paper_memory"), db_path=str(tmp_path / "state.db"), llm_client=lambda _p: "ok")
-    h = HawkAgent(run_id=run_id, output_dir=str(tmp_path / "paper_memory"), db_path=str(tmp_path / "state.db"), llm_client=lambda _p: "{}")
+    q = WriterAgent(run_id=run_id, output_dir=str(tmp_path / "runs"), db_path=str(tmp_path / "pipeline.db"), llm_client=lambda _p: "ok")
+    h = ReviewerAgent(run_id=run_id, output_dir=str(tmp_path / "runs"), db_path=str(tmp_path / "pipeline.db"), llm_client=lambda _p: "{}")
 
     # run small in-memory DB for agents writing result flags
-    with sqlite3.connect(tmp_path / "state.db") as conn:
+    with sqlite3.connect(tmp_path / "pipeline.db") as conn:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS agent_results (run_id TEXT, agent TEXT, job TEXT, result_flag TEXT, created_at TEXT)"
         )
@@ -137,34 +137,34 @@ def test_pipeline_dry_through_blocks_quill_until_hawk_approval(tmp_path: Path, m
     with sqlite3.connect(pipeline.db_path) as conn:
         conn.execute(
             """
-            INSERT INTO pap_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
-            VALUES (?, datetime('now'), 'SIGMA_JOB1', 'abc', NULL)
+            INSERT INTO hypothesis_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
+            VALUES (?, datetime('now'), 'PREREGISTER', 'abc', NULL)
             """,
             (pipeline.run_id,),
         )
         conn.commit()
 
-    # No HAWK approval artifact exists; QUILL must request revision.
-    monkeypatch.setattr(QuillAgent, "_load_sources", lambda self: {"pap": "", "stats_tables": {}, "references_text": "", "references_exists": False})
+    # No REVIEWER approval artifact exists; WRITER must request revision.
+    monkeypatch.setattr(WriterAgent, "_load_sources", lambda self: {"pap": "", "stats_tables": {}, "references_text": "", "references_exists": False})
 
     original_dispatch = pipeline._dispatch
 
     def selective_dispatch(agent_name: str, server_name: str, context_config: dict) -> dict:
-        if agent_name in {"SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2"}:
+        if agent_name in {"LITERATURE", "DATAPULL", "PREREGISTER", "COMPUTE", "STATSRUN"}:
             return {"result_flag": "DONE"}
-        if agent_name == "CODEC":
+        if agent_name == "CODEAUDIT":
             return {"result_flag": "PASS"}
-        if agent_name == "HAWK":
+        if agent_name == "REVIEWER":
             return {"result_flag": "REVISION_REQUESTED", "approved_for_quill": False, "mandatory_items": []}
         return original_dispatch(agent_name, server_name, context_config)
 
     monkeypatch.setattr(pipeline, "_dispatch", selective_dispatch)
 
     pipeline.run()
-    assert not (Path("paper_memory") / pipeline.run_id / "paper_draft_v1.tex").exists()
+    assert not (Path("runs") / pipeline.run_id / "paper_draft_v1.tex").exists()
 
 
-def test_sigma_job2_markov_regime_aligns_lengths() -> None:
+def test_statsrun_job_markov_regime_aligns_lengths() -> None:
     # 9 observations can produce 8 smoothed probabilities with AR order=1.
     returns = [0.01, -0.02, 0.03, 0.00, 0.01, -0.01, 0.02, -0.03, 0.01]
     out = SigmaJob2._markov_regime(np.asarray(returns, dtype=float))
@@ -264,7 +264,7 @@ def test_lockfile_exists_and_is_not_empty() -> None:
 
 def test_gitignore_excludes_sensitive_paths() -> None:
     content = Path(".gitignore").read_text(encoding="utf-8", errors="ignore")
-    assert "state.db" in content
+    assert "pipeline.db" in content
     assert "data/raw/" in content
     assert ".env" in content
 

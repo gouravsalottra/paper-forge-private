@@ -1,1 +1,1 @@
-"""Data source adapters for MINER."""
+"""Data source adapters for DATAPULL."""

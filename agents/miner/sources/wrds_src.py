@@ -188,7 +188,7 @@ def fetch(config: dict[str, Any]) -> pd.DataFrame:
 
 def fetch_ff_factors(start: str, end: str) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Fetch Fama-French daily factors from WRDS with Kenneth French fallback for dev mode."""
-    source_mode = (__import__("os").environ.get("PAPER_FORGE_MINER_SOURCE", "wrds") or "wrds").lower()
+    source_mode = (__import__("os").environ.get("PAPER_COMPUTE_DATAPULL_SOURCE", "wrds") or "wrds").lower()
     try:
         conn = wrds.Connection()
         try:

@@ -14,7 +14,7 @@ Lock the research design before any results are seen. The PAP is a legally-bindi
 - Separate confirmatory tests (specified here, reported regardless of outcome) from exploratory analysis (clearly labeled as exploratory in the paper).
 - Bonferroni or equivalent correction if multiple simultaneous tests are pre-specified.
 - Explicitly state what would constitute a null or negative result and how it would be reported.
-- Lock PAP to state.db with timestamp before FORGE starts. This is non-negotiable.
+- Lock PAP to pipeline.db with timestamp before COMPUTE starts. This is non-negotiable.
 
 ### Quality Bar
 Your PAP should look like a serious registered report pre-registration. If Harvey-Liu-Zhu reviewed it, they would not be able to find a specification-search vulnerability.

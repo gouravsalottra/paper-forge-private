@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from agents.quill.quill import QuillAgent
-from agents.scout.scout import ScoutAgent
+from agents.quill.quill import WriterAgent
+from agents.scout.scout import LiteratureAgent
 
 
 def _doc_with_counts(refs: int, visuals: int) -> str:
@@ -14,13 +14,13 @@ def _doc_with_counts(refs: int, visuals: int) -> str:
 
 def test_quill_quality_gate_passes() -> None:
     doc = _doc_with_counts(refs=25, visuals=8)
-    QuillAgent._quality_gate(doc)
+    WriterAgent._quality_gate(doc)
 
 
 def test_quill_quality_gate_fails_on_references() -> None:
     doc = _doc_with_counts(refs=4, visuals=8)
     try:
-        QuillAgent._quality_gate(doc)
+        WriterAgent._quality_gate(doc)
     except ValueError as exc:
         assert "references too low" in str(exc)
     else:
@@ -28,7 +28,7 @@ def test_quill_quality_gate_fails_on_references() -> None:
 
 
 def test_scout_rank_penalizes_irrelevant_domains(tmp_path) -> None:
-    agent = ScoutAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
+    agent = LiteratureAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
     papers = [
         {
             "title": "Dynamic commodity futures momentum and liquidity risk",

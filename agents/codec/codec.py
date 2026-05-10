@@ -1,4 +1,4 @@
-"""CODEC bidirectional audit agent with isolated LLM passes."""
+"""CODEAUDIT bidirectional audit agent with isolated LLM passes."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class CodecAgent:
         self.output_dir = Path(output_dir)
         self.llm_client = llm_client
         if llm_client is None:
-            self._llm_client, self._model_name = get_client("CODEC")
+            self._llm_client, self._model_name = get_client("CODEAUDIT")
         else:
             self._llm_client, self._model_name = None, "external-client"
 
@@ -51,10 +51,10 @@ class CodecAgent:
             flag = "WARN"
         else:
             flag = "PASS"
-        print("[CODEC DEBUG] Raw LLM verdict:")
+        print("[CODEAUDIT DEBUG] Raw LLM verdict:")
         print(mismatch)
-        print("[CODEC DEBUG] Parsed result_flag:", flag)
-        print("[CODEC DEBUG] Mismatches found:")
+        print("[CODEAUDIT DEBUG] Parsed result_flag:", flag)
+        print("[CODEAUDIT DEBUG] Mismatches found:")
         for m in mismatch_items:
             print(f"  - {m}")
         self._write_result(flag)
@@ -91,16 +91,16 @@ class CodecAgent:
         enc = tiktoken.encoding_for_model("gpt-4o")
         initial_prompt = self._build_pass1_prompt(enforce_budget=False)
         initial_token_count = len(enc.encode(initial_prompt))
-        print(f"[CODEC] Prompt token count: {initial_token_count}")
+        print(f"[CODEAUDIT] Prompt token count: {initial_token_count}")
 
         final_prompt = self._build_pass1_prompt(enforce_budget=True)
         final_token_count = len(enc.encode(final_prompt))
-        print(f"[CODEC] Final prompt token count: {final_token_count}")
+        print(f"[CODEAUDIT] Final prompt token count: {final_token_count}")
 
         llm_payload = {
             "pass": "PASS1",
             "instructions": (
-                "You are CODEC Pass 1. Read ONLY the provided codebase. "
+                "You are CODEAUDIT Pass 1. Read ONLY the provided codebase. "
                 "Extract implementation behavior at specification level."
             ),
             "context": {
@@ -123,7 +123,7 @@ class CodecAgent:
         ]
 
         instructions = (
-            "You are CODEC Pass 1. Read ONLY the provided codebase.\n"
+            "You are CODEAUDIT Pass 1. Read ONLY the provided codebase.\n"
             "Extract what it actually implements at specification level:\n"
             "1. Statistical tests: name each test, its parameters, library\n"
             "2. Data: source, tickers, date range, adjustment method\n"
@@ -144,7 +144,7 @@ class CodecAgent:
                 blocks.append((p, self._truncate_file(text, max_lines=80)))
 
         def compose(block_values: list[tuple[Path, str]]) -> str:
-            lines = ["# CODEC Pass 1 — Specification-level code analysis", ""]
+            lines = ["# CODEAUDIT Pass 1 — Specification-level code analysis", ""]
             lines.append("## RELEVANT FILES (specification-level implementations)")
             for path_obj, content in block_values:
                 lines.append(f"\n### FILE: {path_obj.as_posix()}")
@@ -193,7 +193,7 @@ class CodecAgent:
         return prompt
 
     def _pass2_read_paper(self) -> str:
-        """Run CODEC Pass 2 in an isolated subprocess with separate environment."""
+        """Run CODEAUDIT Pass 2 in an isolated subprocess with separate environment."""
         if self.llm_client is not None:
             paper_path = Path("PAPER.md")
             paper = paper_path.read_text(encoding="utf-8", errors="ignore") if paper_path.exists() else ""
@@ -201,7 +201,7 @@ class CodecAgent:
                 "pass": "PASS2",
                 "instructions": (
                     "You have not seen the codebase. You have not seen any prior analysis.\n"
-                    "You are CODEC Pass 2. Read ONLY PAPER.md content. Reimplement the methodology from spec alone, "
+                    "You are CODEAUDIT Pass 2. Read ONLY PAPER.md content. Reimplement the methodology from spec alone, "
                     "flag underspecified details, and rate reproducibility 1-5."
                 ),
                 "context": {"methods_text": paper},
@@ -240,7 +240,7 @@ class CodecAgent:
         )
         if result.returncode != 0:
             raise RuntimeError(
-                f"CODEC Pass 2 subprocess failed (returncode={result.returncode}):\n"
+                f"CODEAUDIT Pass 2 subprocess failed (returncode={result.returncode}):\n"
                 f"stdout: {result.stdout[:2000]}\nstderr: {result.stderr[:2000]}"
             )
         out_path = self.output_dir / self.run_id / "codec_pass2.md"
@@ -270,7 +270,7 @@ class CodecAgent:
             "  a known data source limitation (WRDS not available, yfinance used\n"
             "  as proxy), classify match=true and add a note field explaining.\n"
             "- If a parameter is implemented as a named string constant for\n"
-            "  CODEC traceability, classify match=true.\n"
+            "  CODEAUDIT traceability, classify match=true.\n"
             "- If a parameter is implemented in any file in the codebase\n"
             "  (not just the priority files), classify match=true.\n"
             "- Only classify match=false for parameters that are genuinely\n"
@@ -296,8 +296,8 @@ class CodecAgent:
                 track_usage(
                     resp,
                     run_id=self.run_id,
-                    phase_name="CODEC",
-                    agent_name="CODEC",
+                    phase_name="CODEAUDIT",
+                    agent_name="CODEAUDIT",
                     model=self._model_name,
                     db_path=self.db_path,
                 )
@@ -352,7 +352,7 @@ class CodecAgent:
             raise StructuredOutputError("CODEAUDIT", raw_response) from exc
 
     def _compare(self, pass1: str, pass2: str) -> str:
-        """Domain-aware CODEC comparison.
+        """Domain-aware CODEAUDIT comparison.
 
         Compares only PAPER.md-specified parameters found in code.
         Does not penalize implementation constants absent from spec.
@@ -371,7 +371,7 @@ class CodecAgent:
         match_ratio = len(matched) / max(total, 1)
 
         mismatches = [
-            "# CODEC mismatch report",
+            "# CODEAUDIT mismatch report",
             f"model: {self._model_name}",
             "temperature: 0",
             f"timestamp_utc: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
@@ -457,7 +457,7 @@ class CodecAgent:
                 f"description_ambiguous: {len(genuine_mismatches)} minor "
                 f"mismatches, {len(acknowledged)} acknowledged deviations "
                 f"documented in DataPassport, {len(missing)} unverified params. "
-                f"QUILL will address in limitations section."
+                f"WRITER will address in limitations section."
             ]
         elif match_ratio >= 0.30:
             verdict = "WARN"
@@ -465,7 +465,7 @@ class CodecAgent:
             issues = [
                 f"match_ratio {match_ratio:.3f}: sufficient for dev run. "
                 f"Acknowledged deviations: {len(acknowledged)}. "
-                f"QUILL will address in limitations section."
+                f"WRITER will address in limitations section."
             ]
         else:
             verdict = "PASS"
@@ -516,8 +516,8 @@ class CodecAgent:
             track_usage(
                 resp,
                 run_id=self.run_id,
-                phase_name="CODEC",
-                agent_name="CODEC",
+                phase_name="CODEAUDIT",
+                agent_name="CODEAUDIT",
                 model=self._model_name,
                 db_path=self.db_path,
             )
@@ -537,7 +537,7 @@ class CodecAgent:
             if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
                 conn.execute(
                     "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (self.run_id, "CODEC", None, flag, now),
+                    (self.run_id, "CODEAUDIT", None, flag, now),
                 )
             elif {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
                 import uuid
@@ -546,7 +546,7 @@ class CodecAgent:
                     INSERT INTO agent_results (result_id, run_id, phase_name, agent_name, status, created_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (uuid.uuid4().hex, self.run_id, "CODEC", "CODEC", flag, now),
+                    (uuid.uuid4().hex, self.run_id, "CODEAUDIT", "CODEAUDIT", flag, now),
                 )
             else:
                 raise RuntimeError("Unsupported agent_results schema in codec writer")

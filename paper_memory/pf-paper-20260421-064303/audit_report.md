@@ -9,22 +9,22 @@
 
 | Phase | Status | Started | Completed |
 |---|---|---|---|
-| SCOUT | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
-| MINER | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
-| SIGMA_JOB1 | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
-| FORGE | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
-| SIGMA_JOB2 | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
-| CODEC | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
-| QUILL | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
-| HAWK | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| LITERATURE | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| DATAPULL | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| PREREGISTER | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| COMPUTE | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| STATSRUN | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| CODEAUDIT | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| WRITER | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
+| REVIEWER | PASS | 2026-04-21T06:58:15+00:00 | 2026-04-21T06:58:15+00:00 |
 
 ## 2. Pre-Analysis Plan commitment
 
 - **Locked at:** 2026-04-21T06:44:59+00:00
-- **Locked by:** SIGMA_JOB1
+- **Locked by:** PREREGISTER
 - **PAP SHA-256:** `90db17e691d0cee623276edcf754c8be...`
-- **FORGE start:** 2026-04-21T06:46:08+00:00
-- **Temporal ordering verified:** YES — PAP locked before FORGE started
+- **COMPUTE start:** 2026-04-21T06:46:08+00:00
+- **Temporal ordering verified:** YES — PAP locked before COMPUTE started
 
 ## 3. Data provenance
 
@@ -38,7 +38,7 @@
   - numpy: 2.1.3
   - yfinance: 0.2.66
 
-## 4. FORGE simulation results
+## 4. COMPUTE simulation results
 
 | Concentration | Seed | Sharpe | Mean reward | Episodes |
 |---|---|---|---|---|
@@ -59,13 +59,13 @@
 - **Bonferroni threshold:** 0.008333333333333333
 - **Bonferroni significant:** False
 
-## 6. CODEC audit
+## 6. CODEAUDIT audit
 
-- **CODEC verdict:** ## verdict: FAIL
+- **CODEAUDIT verdict:** ## verdict: FAIL
 - **KS statistic:** ks_statistic: insufficient_numeric_data
 - **Term overlap:** term_overlap_ratio: 0.538
 
-## 7. HAWK peer review scores
+## 7. REVIEWER peer review scores
 
 | Dimension | Score |
 |---|---|

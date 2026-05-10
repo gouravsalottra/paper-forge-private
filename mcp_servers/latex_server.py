@@ -1,6 +1,6 @@
 """LaTeX compilation MCP server stub.
 
-Compiles QUILL's .tex output to PDF and validates LaTeX syntax.
+Compiles WRITER's .tex output to PDF and validates LaTeX syntax.
 
 Status: PLANNED — not yet implemented.
 When implemented:

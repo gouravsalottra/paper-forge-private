@@ -1,4 +1,4 @@
-# PAPER-FORGE Research Specification
+# PAPER-COMPUTE Research Specification
 
 ## Topic
 Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets
@@ -66,16 +66,16 @@ with periodic evaluation during training.
 ## Training Episodes
 500 episodes (development run);
 500,000 episodes (production run).
-Set PAPER_FORGE_FORGE_EPISODES=500000 for production.
+Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production.
 
 ## Significance Threshold
 p < 0.05 two-tailed (primary)
 p < 0.0083 Bonferroni-adjusted (development simultaneous-test threshold)
 
 ## Pre-Analysis Plan Status
-COMMITTED — committed by SIGMA_JOB1 in pap_lock before FORGE dispatch.
+COMMITTED — committed by PREREGISTER in hypothesis_lock before COMPUTE dispatch.
 
 ## Audit Requirements
-- CODEC audit required before QUILL writes paper
-- HAWK review required before final acceptance
-- DataPassport SHA-256 signature required on MINER outputs
+- CODEAUDIT audit required before WRITER writes paper
+- REVIEWER review required before final acceptance
+- DataPassport SHA-256 signature required on DATAPULL outputs

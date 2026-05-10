@@ -10,7 +10,7 @@ from gymnasium.spaces import Box, Discrete
 from pettingzoo import AECEnv
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -34,7 +34,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -58,7 +58,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -82,7 +82,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -106,7 +106,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -130,7 +130,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -154,7 +154,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -178,7 +178,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -202,7 +202,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -226,7 +226,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -250,7 +250,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -274,7 +274,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -298,75 +298,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -410,7 +342,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -434,55 +366,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -526,7 +410,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -550,7 +434,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -574,7 +458,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -598,127 +482,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -762,7 +526,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -786,7 +550,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -810,7 +574,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -834,7 +598,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -858,7 +622,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -882,7 +646,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -906,7 +670,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -930,7 +694,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -954,31 +718,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1022,7 +762,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1046,7 +786,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1070,7 +810,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1094,7 +834,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1118,7 +858,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1142,7 +882,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1166,7 +906,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1190,7 +930,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1214,7 +954,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1238,7 +978,27 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1262,7 +1022,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1286,7 +1046,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1310,7 +1070,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1334,7 +1094,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1358,7 +1118,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1382,7 +1142,247 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "{'Low': '10% concentration', 'Medium': '30% concentration (hypothesis threshold)', 'High': '60% concentration'}"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1402,7 +1402,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1422,39 +1422,11 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Audit Requirements
-AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+AUDIT_REQUIREMENTS: str = "['CODEAUDIT audit required before WRITER writes paper', 'REVIEWER review required before final acceptance', 'DataPassport SHA-256 signature required on DATAPULL outputs']"
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})."
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Audit Requirements
-AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1478,11 +1450,11 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Audit Requirements
-AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+AUDIT_REQUIREMENTS: str = "['CODEAUDIT audit required before WRITER writes paper', 'REVIEWER review required before final acceptance', 'DataPassport SHA-256 signature required on DATAPULL outputs']"
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1506,11 +1478,39 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Audit Requirements
-AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+AUDIT_REQUIREMENTS: str = "['CODEAUDIT audit required before WRITER writes paper', 'REVIEWER review required before final acceptance', 'DataPassport SHA-256 signature required on DATAPULL outputs']"
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})."
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Audit Requirements
+AUDIT_REQUIREMENTS: str = "['CODEAUDIT audit required before WRITER writes paper', 'REVIEWER review required before final acceptance', 'DataPassport SHA-256 signature required on DATAPULL outputs']"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1534,7 +1534,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1554,7 +1554,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1574,7 +1574,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1594,7 +1594,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1614,7 +1614,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1638,103 +1638,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})."
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
-
-
-# PAPER.md specification: Statistical Tests
-STATISTICAL_TESTS: str = "['Two-tailed t-test, p < 0.05, Newey-West HAC correction (4 lags)', 'Bonferroni correction for simultaneous tests (development threshold p < 0.0083)', 'GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution)', 'Fama-MacBeth-style concentration regression (linearmodels where available)', 'Markov switching regime detection (statsmodels, k_regimes=2)', 'DCC-GARCH cross-asset correlation summary']"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
-
-
-# PAPER.md specification: Exclusion Rules
-EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1758,7 +1662,103 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Exclusion Rules
+EXCLUSION_RULES: str = "['Exclude series with fewer than 100 trading days of history', 'Apply macro exclusion window rule configuration at 5 days around major macro dates', 'Exclude rows where proxy bid-ask spread exceeds 2% of price']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})."
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units. Effects smaller in magnitude are economically insignificant."
+
+
+# PAPER.md specification: Statistical Tests
+STATISTICAL_TESTS: str = "['Two-tailed t-test, p < 0.05, Newey-West HAC correction (4 lags)', 'Bonferroni correction for simultaneous tests (development threshold p < 0.0083)', 'GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution)', 'Fama-MacBeth-style concentration regression (linearmodels where available)', 'Markov switching regime detection (statsmodels, k_regimes=2)', 'DCC-GARCH cross-asset correlation summary']"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1778,7 +1778,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1798,7 +1798,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1818,7 +1818,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1838,11 +1838,11 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Audit Requirements
-AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+AUDIT_REQUIREMENTS: str = "['CODEAUDIT audit required before WRITER writes paper', 'REVIEWER review required before final acceptance', 'DataPassport SHA-256 signature required on DATAPULL outputs']"
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1862,31 +1862,7 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
-
-
-# PAPER.md specification: Passive Capital Scenarios
-PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
-
-
-# PAPER.md specification: Return Construction
-RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
-
-
-# PAPER.md specification: Minimum Effect Size
-MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
-
-
-# PAPER.md specification: Topic
-TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
-
-
-# PAPER.md specification: Audit Requirements
-AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
-
-
-# PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -1906,11 +1882,35 @@ TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commo
 
 
 # PAPER.md specification: Audit Requirements
-AUDIT_REQUIREMENTS: str = "['CODEC audit required before QUILL writes paper', 'HAWK review required before final acceptance', 'DataPassport SHA-256 signature required on MINER outputs']"
+AUDIT_REQUIREMENTS: str = "['CODEAUDIT audit required before WRITER writes paper', 'REVIEWER review required before final acceptance', 'DataPassport SHA-256 signature required on DATAPULL outputs']"
 
 
 # PAPER.md specification: Training Episodes
-TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
+
+
+# PAPER.md specification: Passive Capital Scenarios
+PASSIVE_CAPITAL_SCENARIOS: str = "['Low: 10% concentration', 'Medium: 30% concentration (hypothesis threshold)', 'High: 60% concentration']"
+
+
+# PAPER.md specification: Return Construction
+RETURN_CONSTRUCTION: str = "Log returns: np.log(P_t / P_{t-1})"
+
+
+# PAPER.md specification: Minimum Effect Size
+MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
+
+
+# PAPER.md specification: Topic
+TOPIC: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
+
+
+# PAPER.md specification: Audit Requirements
+AUDIT_REQUIREMENTS: str = "['CODEAUDIT audit required before WRITER writes paper', 'REVIEWER review required before final acceptance', 'DataPassport SHA-256 signature required on DATAPULL outputs']"
+
+
+# PAPER.md specification: Training Episodes
+TRAINING_EPISODES: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."
 
 
 # PAPER.md specification: Passive Capital Scenarios
@@ -2033,12 +2033,12 @@ MINIMUM_EFFECT_SIZE: str = "-0.15 Sharpe units"
 HYPOTHESIZED_SHARPE_REDUCTION: str = "reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units"
 
 
-# PAPER.md specification: Audit Requirement: Maximum HAWK revision cycles
-AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES: str = "3"
+# PAPER.md specification: Audit Requirement: Maximum REVIEWER revision cycles
+AUDIT_REQUIREMENT_MAXIMUM_REVIEWER_REVISION_CYCLES: str = "3"
 
 
-# PAPER.md specification: Audit Requirement: HAWK minimum score to pass
-AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_TO_PASS: str = "7/10 on methodology rubric"
+# PAPER.md specification: Audit Requirement: REVIEWER minimum score to pass
+AUDIT_REQUIREMENT_REVIEWER_MINIMUM_SCORE_TO_PASS: str = "7/10 on methodology rubric"
 
 
 # PAPER.md specification: Seed Policy
@@ -2057,12 +2057,12 @@ EXCLUSION_RULE_MINIMUM_TRADING_HISTORY: str = "Exclude contracts with fewer than
 BONFERRONI_CORRECTION: str = "Bonferroni correction for 6 simultaneous tests \u2014 adjusted threshold p < 0.0083"
 
 
-# PAPER.md specification: Audit Requirement: Maximum HAWK revision cycles
-AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES: str = "3"
+# PAPER.md specification: Audit Requirement: Maximum REVIEWER revision cycles
+AUDIT_REQUIREMENT_MAXIMUM_REVIEWER_REVISION_CYCLES: str = "3"
 
 
-# PAPER.md specification: Audit Requirement: HAWK minimum score
-AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE: str = "7/10 on methodology rubric"
+# PAPER.md specification: Audit Requirement: REVIEWER minimum score
+AUDIT_REQUIREMENT_REVIEWER_MINIMUM_SCORE: str = "7/10 on methodology rubric"
 
 
 # PAPER.md specification: Exclusion Rule: bid-ask spread filter
@@ -2334,71 +2334,71 @@ class CommodityFuturesEnv(AECEnv):
 
         return reduce(reducer, enumerate(agents), {})
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 TOPIC_SPEC_MARKER: str = "Passive Investor Concentration and Momentum Profitability in Commodity Futures Markets"
 
-# CODEC traceability marker for PAPER.md alignment
-PRE_ANALYSIS_PLAN_STATUS_SPEC_MARKER: str = "UNCOMMITTED \u2014 must be committed by SIGMA_JOB1 before FORGE runs. FORGE gate will reject any run where this status is not COMMITTED in pap_lock."
+# CODEAUDIT traceability marker for PAPER.md alignment
+PRE_ANALYSIS_PLAN_STATUS_SPEC_MARKER: str = "UNCOMMITTED \u2014 must be committed by PREREGISTER before COMPUTE runs. COMPUTE gate will reject any run where this status is not COMMITTED in hypothesis_lock."
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 EXCLUSION_RULE_MACRO_ANNOUNCEMENT_WINDOW_SPEC_MARKER: str = "Exclude roll dates within 5 days of major macro announcements (FOMC, CPI)"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_TO_PASS_SPEC_MARKER: str = "7/10 on methodology rubric"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_REVIEWER_MINIMUM_SCORE_TO_PASS_SPEC_MARKER: str = "7/10 on methodology rubric"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_MAXIMUM_HAWK_REVISION_CYCLES_SPEC_MARKER: str = "3"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_MAXIMUM_REVIEWER_REVISION_CYCLES_SPEC_MARKER: str = "3"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 HYPOTHESIS_SHARPE_RATIO_REDUCTION_THRESHOLD_SPEC_MARKER: str = "reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 PASSIVE_CAPITAL_SCENARIO_SPEC_MARKER: str = "Medium: 30% of open interest"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_SPEC_MARKER: str = "CODEC bidirectional audit required before QUILL writes paper"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_SPEC_MARKER: str = "CODEAUDIT bidirectional audit required before WRITER writes paper"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 HYPOTHESIS_THRESHOLD_PASSIVE_GSCI_CONCENTRATION_SPEC_MARKER: str = "above 30% of open interest in GSCI energy futures"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 HYPOTHESIS_EFFECT_SIZE_SPEC_MARKER: str = "reduces 12-month momentum strategy Sharpe ratios by at least 0.15 units"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 EXCLUSION_RULE_BID_ASK_SPREAD_THRESHOLD_SPEC_MARKER: str = "Exclude contracts where bid-ask spread exceeds 2% of contract price"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 SIGNIFICANCE_THRESHOLD_SPEC_MARKER: str = "p < 0.0083 Bonferroni-corrected"
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENT_HAWK_MINIMUM_SCORE_SPEC_MARKER: str = "HAWK minimum score to pass: 7/10 on methodology rubric"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENT_REVIEWER_MINIMUM_SCORE_SPEC_MARKER: str = "REVIEWER minimum score to pass: 7/10 on methodology rubric"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 HYPOTHESIS_SPEC_MARKER: str = "We explore whether passive concentration is associated with momentum profitability changes, with no directional pre-commitment."
 
-# CODEC traceability marker for PAPER.md alignment
-AUDIT_REQUIREMENTS_SPEC_MARKER: str = "CODEC audit required before QUILL writes paper; HAWK review required before final acceptance; DataPassport SHA-256 signature required on MINER outputs"
+# CODEAUDIT traceability marker for PAPER.md alignment
+AUDIT_REQUIREMENTS_SPEC_MARKER: str = "CODEAUDIT audit required before WRITER writes paper; REVIEWER review required before final acceptance; DataPassport SHA-256 signature required on DATAPULL outputs"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 STATISTICAL_TESTS_SPEC_MARKER: str = "1. Two-tailed t-test, p < 0.05, Newey-West HAC correction (4 lags)\n2. Bonferroni correction for simultaneous tests (development threshold p < 0.0083)\n3. GARCH(1,1) volatility model (arch library, p=1, q=1, Normal distribution)\n4. Fama-MacBeth-style concentration regression (linearmodels where available)\n5. Markov switching regime detection (statsmodels, k_regimes=2)\n6. DCC-GARCH cross-asset correlation summary"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 PRE_ANALYSIS_PLAN_STATUS_CHECK_SPEC_MARKER: str = "Not specified"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 SAMPLE_PERIOD_SPEC_MARKER: str = "Acknowledged deviation documented in DataPassport."
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 EXCLUSION_RULES_SPEC_MARKER: str = "Acknowledged deviation documented in DataPassport."
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 PASSIVE_CAPITAL_SCENARIOS_SPEC_MARKER: str = "- Low:    10% concentration\n- Medium: 30% concentration (hypothesis threshold)\n- High:   60% concentration"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 MINIMUM_EFFECT_SIZE_SPEC_MARKER: str = "-0.15 Sharpe units"
 
-# CODEC traceability marker for PAPER.md alignment
+# CODEAUDIT traceability marker for PAPER.md alignment
 RETURN_CONSTRUCTION_SPEC_MARKER: str = "Log returns: np.log(P_t / P_{t-1})"
 
-# CODEC traceability marker for PAPER.md alignment
-TRAINING_EPISODES_SPEC_MARKER: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_FORGE_FORGE_EPISODES=500000 for production."
+# CODEAUDIT traceability marker for PAPER.md alignment
+TRAINING_EPISODES_SPEC_MARKER: str = "500 episodes (development run); 500,000 episodes (production run). Set PAPER_COMPUTE_COMPUTE_EPISODES=500000 for production."

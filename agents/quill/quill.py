@@ -1,4 +1,4 @@
-"""QUILL agent: deterministic verified-data LaTeX scaffold renderer."""
+"""WRITER agent: deterministic verified-data LaTeX scaffold renderer."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ class QuillDedupError(RuntimeError):
     """Compatibility exception retained for existing imports/tests."""
 
 
-class QuillAgent:
+class WriterAgent:
     def __init__(
         self,
         run_id: str,
-        db_path: str = "state.db",
-        output_dir: str = "paper_memory",
+        db_path: str = "pipeline.db",
+        output_dir: str = "runs",
         llm_client=None,
     ) -> None:
         self.run_id = run_id
@@ -37,7 +37,7 @@ class QuillAgent:
             self._write_result_flag("REVISION_REQUESTED")
             return {
                 "result_flag": "REVISION_REQUESTED",
-                "reason": "HAWK has not approved this run for QUILL rendering.",
+                "reason": "REVIEWER has not approved this run for WRITER rendering.",
                 "approved_for_quill": False,
             }
 
@@ -112,7 +112,7 @@ class QuillAgent:
                 limitation_parts.append("episode count is below the 500000 production target")
         except Exception:
             pass
-        limitation = "; ".join(limitation_parts) if limitation_parts else "no additional material limitations were flagged by HAWK"
+        limitation = "; ".join(limitation_parts) if limitation_parts else "no additional material limitations were flagged by REVIEWER"
 
         lines = [
             r"\documentclass[11pt]{article}",
@@ -265,14 +265,14 @@ class QuillAgent:
                     "INSERT INTO agent_results "
                     "(run_id, agent, job, result_flag, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (self.run_id, "QUILL", None, flag, now),
+                    (self.run_id, "WRITER", None, flag, now),
                 )
             elif {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
                 conn.execute(
                     "INSERT INTO agent_results "
                     "(result_id, run_id, phase_name, agent_name, status, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
-                    (uuid.uuid4().hex, self.run_id, "QUILL", "QUILL", flag, now),
+                    (uuid.uuid4().hex, self.run_id, "WRITER", "WRITER", flag, now),
                 )
             conn.commit()
 

@@ -6,14 +6,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from agents.aria.aria import ARIAPipeline
+from agents.aria.aria import ConductorPipeline
 from agents.aria.exceptions import PipelineHaltError, ServerUnavailableError
 from agents.miner.sources import wrds_src
-from agents.scout.scout import ScoutAgent
+from agents.scout.scout import LiteratureAgent
 
 
-def _make_pipeline(tmp_path: Path, run_id: str = "r-par") -> ARIAPipeline:
-    return ARIAPipeline(db_path=str(tmp_path / "state.db"), run_id=run_id, paper_md_path=str(tmp_path / "PAPER.md"))
+def _make_pipeline(tmp_path: Path, run_id: str = "r-par") -> ConductorPipeline:
+    return ConductorPipeline(db_path=str(tmp_path / "pipeline.db"), run_id=run_id, paper_md_path=str(tmp_path / "PAPER.md"))
 
 
 def test_parallel_scout_miner_both_complete(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -25,10 +25,10 @@ def test_parallel_scout_miner_both_complete(tmp_path: Path, monkeypatch: pytest.
 
     monkeypatch.setattr(p, "_dispatch", fake_dispatch)
     t0 = time.perf_counter()
-    out = p._run_phase_parallel(["SCOUT", "MINER"])
+    out = p._run_phase_parallel(["LITERATURE", "DATAPULL"])
     elapsed = time.perf_counter() - t0
-    assert out["SCOUT"]["result_flag"] == "DONE"
-    assert out["MINER"]["result_flag"] == "DONE"
+    assert out["LITERATURE"]["result_flag"] == "DONE"
+    assert out["DATAPULL"]["result_flag"] == "DONE"
     assert elapsed < 0.5
 
 
@@ -36,17 +36,17 @@ def test_parallel_failure_raises_pipeline_halt(tmp_path: Path, monkeypatch: pyte
     p = _make_pipeline(tmp_path)
 
     def fake_dispatch(agent, *_args, **_kwargs):
-        if agent == "SCOUT":
+        if agent == "LITERATURE":
             raise RuntimeError("boom")
         return {"result_flag": "DONE"}
 
     monkeypatch.setattr(p, "_dispatch", fake_dispatch)
     with pytest.raises(PipelineHaltError):
-        p._run_phase_parallel(["SCOUT", "MINER"])
+        p._run_phase_parallel(["LITERATURE", "DATAPULL"])
 
 
 def test_scout_deduplicates_same_doi(tmp_path: Path) -> None:
-    s = ScoutAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
+    s = LiteratureAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
     papers = [
         {"title": "A", "doi": "10.1/x", "source": "semscholar", "relevance_score": 1},
         {"title": "B", "doi": "10.1/x", "source": "arxiv", "relevance_score": 2},
@@ -57,7 +57,7 @@ def test_scout_deduplicates_same_doi(tmp_path: Path) -> None:
 
 
 def test_scout_deduplicates_same_title_different_source(tmp_path: Path) -> None:
-    s = ScoutAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
+    s = LiteratureAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
     papers = [
         {"title": "Time-Series Momentum!", "doi": "", "source": "arxiv", "relevance_score": 1},
         {"title": "time series momentum", "doi": "10.1/abc", "source": "semscholar", "relevance_score": 2},
@@ -68,7 +68,7 @@ def test_scout_deduplicates_same_title_different_source(tmp_path: Path) -> None:
 
 
 def test_scout_flags_preprints_as_non_peer_reviewed(tmp_path: Path) -> None:
-    s = ScoutAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
+    s = LiteratureAgent(run_id="r", paper_md_path=str(tmp_path / "PAPER.md"), output_dir=str(tmp_path))
     papers = [{"title": "x", "source": "arxiv", "doi": "", "citation_count": 1}]
     out = s.filter_by_citation_quality(papers, min_citations=0)
     assert out[0]["peer_reviewed"] is False
@@ -76,7 +76,7 @@ def test_scout_flags_preprints_as_non_peer_reviewed(tmp_path: Path) -> None:
 
 
 def test_ff_factors_fall_back_to_kenneth_french(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PAPER_FORGE_MINER_SOURCE", "yfinance")
+    monkeypatch.setenv("PAPER_COMPUTE_DATAPULL_SOURCE", "yfinance")
 
     class DummyConn:
         def __init__(self, *args, **kwargs):
@@ -94,7 +94,7 @@ def test_ff_factors_fall_back_to_kenneth_french(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_ff_factors_wrds_unavailable_no_fallback_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PAPER_FORGE_MINER_SOURCE", "wrds")
+    monkeypatch.setenv("PAPER_COMPUTE_DATAPULL_SOURCE", "wrds")
 
     class DummyConn:
         def __init__(self, *args, **kwargs):

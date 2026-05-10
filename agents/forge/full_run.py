@@ -1,4 +1,4 @@
-"""Run FORGE simulations across all concentration/seed combinations."""
+"""Run COMPUTE simulations across all concentration/seed combinations."""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def _run_scenario_worker(concentration: float, seed: int, n_episodes: int) -> di
 
 
 def run_full_sweep(n_episodes: int = 500_000) -> dict[str, Any]:
-    n_episodes = int(n_episodes if n_episodes is not None else os.getenv("PAPER_FORGE_FORGE_EPISODES", "500000"))
+    n_episodes = int(n_episodes if n_episodes is not None else os.getenv("PAPER_COMPUTE_COMPUTE_EPISODES", "500000"))
 
     concentrations = [0.10, 0.30, 0.60]
     seeds = [
@@ -144,7 +144,7 @@ def run_full_sweep(n_episodes: int = 500_000) -> dict[str, Any]:
 
 
 def main() -> None:
-    run_full_sweep(n_episodes=int(os.getenv("PAPER_FORGE_FORGE_EPISODES", "500000")))
+    run_full_sweep(n_episodes=int(os.getenv("PAPER_COMPUTE_COMPUTE_EPISODES", "500000")))
 
 
 if __name__ == "__main__":

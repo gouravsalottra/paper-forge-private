@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS phases (
     UNIQUE(run_id, phase_name)
 );
 
-CREATE TABLE IF NOT EXISTS pap_lock (
+CREATE TABLE IF NOT EXISTS hypothesis_lock (
     run_id TEXT PRIMARY KEY,
     locked_at TEXT,
     locked_by TEXT,

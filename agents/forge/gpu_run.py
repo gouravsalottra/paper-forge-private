@@ -1,7 +1,7 @@
 """
 agents/forge/gpu_run.py
 =======================
-GPU-vectorized FORGE runner.
+GPU-vectorized COMPUTE runner.
 
 Runs all 36 scenarios simultaneously as batched tensor operations.
 Exact match to runner.py: same CEM (population=50, n_elite=10, noise=0.1),
@@ -603,7 +603,7 @@ def benchmark(device: torch.device) -> float:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="GPU-vectorized FORGE runner")
+    parser = argparse.ArgumentParser(description="GPU-vectorized COMPUTE runner")
     parser.add_argument("--n-episodes", type=int, default=500_000)
     parser.add_argument("--output", type=str, default="outputs/sim_results.json")
     parser.add_argument("--checkpoint-every", type=int, default=50_000)
@@ -612,7 +612,7 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("=" * 55)
-    print("PAPER-FORGE GPU RUNNER")
+    print("PAPER-COMPUTE GPU RUNNER")
     print("=" * 55)
     import os
     print(f"CPU cores: {os.cpu_count()}")

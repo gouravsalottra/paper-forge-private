@@ -5,23 +5,24 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("state.db")
+DB_PATH = Path("pipeline.db")
 TABLE_NAMES = [
     "pipeline_runs",
     "phases",
     "pap",
-    "pap_lock",
+    "hypothesis_lock",
     "artifacts",
     "agent_results",
     "server_health_log",
     "checkpoints",
     "token_budget",
     "token_limits",
+    "results_gate",
 ]
 
 
 def init_db(db_path: Path = DB_PATH) -> None:
-    """Create state.db, enable WAL mode, and ensure all core tables exist."""
+    """Create pipeline.db, enable WAL mode, and ensure all core tables exist."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     with sqlite3.connect(db_path) as conn:
@@ -63,7 +64,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
             );
 
-            CREATE TABLE IF NOT EXISTS pap_lock (
+            CREATE TABLE IF NOT EXISTS hypothesis_lock (
                 run_id           TEXT PRIMARY KEY,
                 locked_at        TIMESTAMP,
                 locked_by        TEXT,
@@ -139,6 +140,17 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 soft_limit_usd REAL NOT NULL DEFAULT 10.0,
                 hard_limit_usd REAL NOT NULL DEFAULT 25.0,
                 total_spent_usd REAL NOT NULL DEFAULT 0.0,
+                last_updated TEXT,
+                FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS results_gate (
+                run_id TEXT PRIMARY KEY,
+                p_value_passes BOOLEAN DEFAULT FALSE,
+                seed_consistent BOOLEAN DEFAULT FALSE,
+                codeaudit_clean BOOLEAN DEFAULT FALSE,
+                results_valid BOOLEAN GENERATED ALWAYS AS
+                    (p_value_passes AND seed_consistent AND codeaudit_clean) VIRTUAL,
                 last_updated TEXT,
                 FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
             );

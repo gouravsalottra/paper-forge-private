@@ -559,19 +559,19 @@ python intake.py
 # INTAKE guides you through research design in plain English
 # Handles data source authentication automatically
 # Generates and validates PROTOCOL.md
-# Then: python run_aria_pipeline.py
+# Then: python run_pipeline.py
 ```
 
 **For dev/smoke test (no WRDS, fast):**
 ```bash
-export PAPER_FORGE_MINER_SOURCE=yfinance
-export PAPER_FORGE_FORGE_EPISODES=500
-python run_aria_pipeline.py
+export PAPER_COMPUTE_DATAPULL_SOURCE=yfinance
+export PAPER_COMPUTE_COMPUTE_EPISODES=500
+python run_pipeline.py
 ```
 
 **Resume a halted run from any phase:**
 ```bash
-python run_aria_pipeline.py --resume pf-live-20260422 --from CODEAUDIT
+python run_pipeline.py --resume pf-live-20260422 --from CODEAUDIT
 # Hypothesis lock is preserved and re-verified — cannot be tampered between runs
 ```
 
@@ -694,8 +694,8 @@ Every agent's system prompt lives in `prompts/<agent>.md`. SHA-256 of each promp
 ```
 $ pytest -v
 
-tests/test_pipeline.py::test_forge_gate_blocks_without_pap_lock          PASSED
-tests/test_pipeline.py::test_forge_gate_passes_with_pap_lock             PASSED
+tests/test_pipeline.py::test_forge_gate_blocks_without_hypothesis_lock          PASSED
+tests/test_pipeline.py::test_forge_gate_passes_with_hypothesis_lock             PASSED
 tests/test_pipeline.py::test_conductor_never_reads_artifact_content       PASSED
 tests/test_pipeline.py::test_preregister_blocks_sim_results              PASSED
 tests/test_pipeline.py::test_codeaudit_passes_are_isolated               PASSED
@@ -798,20 +798,20 @@ OPENAI_API_KEY=sk-...
 OPENAI_API_KEY_PASS2=sk-...
 
 # Data source: 'wrds' (production) or 'yfinance' (dev, default)
-PAPER_FORGE_MINER_SOURCE=yfinance
+PAPER_COMPUTE_DATAPULL_SOURCE=yfinance
 
-# WRDS credentials (required if MINER_SOURCE=wrds)
+# WRDS credentials (required if DATAPULL_SOURCE=wrds)
 WRDS_USERNAME=your_wrds_username
 
 # Episode count override (default: 500000)
-PAPER_FORGE_FORGE_EPISODES=500
+PAPER_COMPUTE_COMPUTE_EPISODES=500
 
 # Token budget (defaults: soft=$10, hard=$25 per run)
-PAPERFORGE_SOFT_LIMIT_USD=10.0
-PAPERFORGE_HARD_LIMIT_USD=25.0
+PAPERCOMPUTE_SOFT_LIMIT_USD=10.0
+PAPERCOMPUTE_HARD_LIMIT_USD=25.0
 
 # Override PAP tamper detection on resume (expert use only — logged as CRITICAL)
-PAPERFORGE_OVERRIDE_PAP_TAMPER=1
+PAPERCOMPUTE_OVERRIDE_PAP_TAMPER=1
 ```
 
 ---
@@ -824,7 +824,7 @@ PAPERFORGE_OVERRIDE_PAP_TAMPER=1
 
 **COMPUTE adapters for backtest and event_study are scaffolded.** The RL adapter is fully implemented. Backtest and event study adapters are ready for implementation — the interface is defined and tested, the logic needs to be built.
 
-**GPU required for full RL runs.** 500k-episode runs take ~15 minutes on a CUDA GPU. Use `PAPER_FORGE_FORGE_EPISODES=500` for development and smoke testing.
+**GPU required for full RL runs.** 500k-episode runs take ~15 minutes on a CUDA GPU. Use `PAPER_COMPUTE_COMPUTE_EPISODES=500` for development and smoke testing.
 
 ---
 
@@ -834,7 +834,7 @@ PAPERFORGE_OVERRIDE_PAP_TAMPER=1
 paper-forge/
 │
 ├── intake.py                          ← Start here for new research
-├── run_aria_pipeline.py               ← Run existing PROTOCOL.md
+├── run_pipeline.py               ← Run existing PROTOCOL.md
 ├── dashboard.py                       ← View run history and costs
 │
 ├── PROTOCOL.md                        ← Current research specification
@@ -923,7 +923,7 @@ Paper-Forge is research infrastructure. Contributions that extend its reach to m
 | PPO for RL | `agents/forge/adapters/rl_adapter.py` | Replace CEM with Stable Baselines 3 PPO |
 | New research domain | Fork `PROTOCOL.md`, update DATAPULL | All integrity infrastructure carries over |
 
-Before any PR: `pytest -q` must show 0 failures. The gate test `test_forge_gate_blocks_without_pap_lock` is the canary for integrity regressions.
+Before any PR: `pytest -q` must show 0 failures. The gate test `test_forge_gate_blocks_without_hypothesis_lock` is the canary for integrity regressions.
 
 ---
 

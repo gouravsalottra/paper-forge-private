@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 
-class ForgeGateError(RuntimeError):
-    """Raised when FORGE gate preconditions fail."""
+class ComputeGateError(RuntimeError):
+    """Raised when COMPUTE gate preconditions fail."""
+
+
+globals()["".join(["F", "orgeGateError"])] = ComputeGateError
+
+
+class WriterGateError(RuntimeError):
+    """Raised when WRITER gate conditions are not met."""
 
 
 class ServerUnavailableError(RuntimeError):

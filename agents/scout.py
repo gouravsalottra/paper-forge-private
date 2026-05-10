@@ -1,1 +1,1 @@
-from agents.scout.scout import ScoutAgent  # noqa: F401
+from agents.scout.scout import LiteratureAgent  # noqa: F401

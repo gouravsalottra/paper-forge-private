@@ -30,7 +30,7 @@ def test_final_audit_checklist() -> None:
         "agents/miner/connectors/ exists": Path("agents/miner/connectors").is_dir(),
         "agents/sigma/tests/ exists": Path("agents/sigma/tests").is_dir(),
         "agents/forge/adapters/ exists": Path("agents/forge/adapters").is_dir(),
-        "state.db in .gitignore": "state.db" in Path(".gitignore").read_text(encoding="utf-8"),
+        "pipeline.db in .gitignore": "pipeline.db" in Path(".gitignore").read_text(encoding="utf-8"),
         "MASTER_CONTEXT.md not empty if referenced": _check_master_context(),
     }
     failures = [k for k, v in checks.items() if not v]
@@ -83,7 +83,7 @@ def test_intake_and_dashboard_entrypoints_exist() -> None:
 
 def test_gitignore_contains_state_db() -> None:
     text = Path(".gitignore").read_text(encoding="utf-8")
-    assert "state.db" in text
+    assert "pipeline.db" in text
 
 
 def test_master_context_present() -> None:

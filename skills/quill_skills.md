@@ -1,4 +1,4 @@
-# QUILL Skills
+# WRITER Skills
 
 ## Role
 Write the research paper. Ground every claim in a verified artifact. Nothing else.
@@ -10,4 +10,4 @@ Write the research paper. Ground every claim in a verified artifact. Nothing els
 4. Never claim significance for a result that stats_results.json marks as inconclusive
 5. Output: paper_draft_v1.tex — complete LaTeX document
 6. Every table must have exact p-values and effect sizes from stats_results.json
-7. If HAWK requests revision, produce paper_draft_v2.tex — never overwrite v1
+7. If REVIEWER requests revision, produce paper_draft_v2.tex — never overwrite v1

@@ -1,11 +1,11 @@
 # Paper-Forge Current State
 
 ## What works
-- Full pipeline runs 8/8 phases and marks done in state.db
-- HAWK reviews research quality only (CSV/JSON) — never sees LaTeX
-- HAWK gates QUILL behind approved_for_quill=true
-- QUILL renders deterministic LaTeX scaffold from verified data only
-- CODEC audit runs bidirectionally
+- Full pipeline runs 8/8 phases and marks done in pipeline.db
+- REVIEWER reviews research quality only (CSV/JSON) — never sees LaTeX
+- REVIEWER gates WRITER behind approved_for_quill=true
+- WRITER renders deterministic LaTeX scaffold from verified data only
+- CODEAUDIT audit runs bidirectionally
 - Statistical battery runs (HAC, GARCH, Bonferroni, Fama-MacBeth, Markov, DCC-GARCH)
 - Modal authenticated (gouravsalottra workspace)
 - Azure OpenAI connected (gpt-4o, gpt-4o-mini)
@@ -20,10 +20,10 @@
 - Why blocked: p=0.250517, Bonferroni threshold=0.008333. Finding is not significant.
   This is a data problem not a code problem.
 
-### BLOCKER 2 — CODEC mismatch (HARD BLOCK)
+### BLOCKER 2 — CODEAUDIT mismatch (HARD BLOCK)
 - 3 minor mismatches, 9 unverified params
-- HAWK correctly blocks QUILL until CODEC is clean
-- Fix: resolve mismatches in FIXER, then re-run CODEC
+- REVIEWER correctly blocks WRITER until CODEAUDIT is clean
+- Fix: resolve mismatches in AUTOREPAIR, then re-run CODEAUDIT
 
 ### BLOCKER 3 — Seed consistency failed
 - consistent=False across 3 seeds
@@ -32,17 +32,17 @@
 
 ### BLOCKER 4 — Fama-MacBeth uses proxy factors
 - mkt_rf_proxy instead of real Fama-French factors
-- Fix: MINER must pull real FF factors from WRDS
+- Fix: DATAPULL must pull real FF factors from WRDS
 
 ## Architecture decisions made (do not revert)
-- HAWK never reads LaTeX or PDF — reviews CSV/JSON only
-- QUILL generates no LLM prose — deterministic scaffold only
-- Human writes paper prose on top of QUILL scaffold
-- FIXER is diagnostic only, never blocks pipeline completion
-- _paper_is_publishable gate: 1500 unique words, 1 QUILL+HAWK cycle
+- REVIEWER never reads LaTeX or PDF — reviews CSV/JSON only
+- WRITER generates no LLM prose — deterministic scaffold only
+- Human writes paper prose on top of WRITER scaffold
+- AUTOREPAIR is diagnostic only, never blocks pipeline completion
+- _paper_is_publishable gate: 1500 unique words, 1 WRITER+REVIEWER cycle
 
 ## Pipeline order
-SCOUT → MINER → SIGMA_JOB1 → FORGE → SIGMA_JOB2 → CODEC → HAWK → QUILL
+LITERATURE → DATAPULL → PREREGISTER → COMPUTE → STATSRUN → CODEAUDIT → REVIEWER → WRITER
 
 ## Key files
 - agents/hawk/hawk.py — research quality reviewer
@@ -50,7 +50,7 @@ SCOUT → MINER → SIGMA_JOB1 → FORGE → SIGMA_JOB2 → CODEC → HAWK → Q
 - agents/aria/aria.py — pipeline conductor
 - agents/forge/modal_run.py — Modal GPU simulation
 - PAPER.md — research specification
-- state.db — pipeline state
+- pipeline.db — pipeline state
 
 ## Next action
 Run Modal simulation at 500k episodes with real data.

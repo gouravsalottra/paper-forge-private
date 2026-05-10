@@ -21,6 +21,6 @@ jobs:
       - name: Verify PAP gate integrity
         run: >
           python -m pytest
-          tests/test_pipeline.py::test_forge_gate_blocks_without_pap_lock
-          tests/test_pipeline.py::test_forge_gate_passes_with_pap_lock
+          tests/test_pipeline.py::test_forge_gate_blocks_without_hypothesis_lock
+          tests/test_pipeline.py::test_forge_gate_passes_with_hypothesis_lock
           -v

@@ -1,4 +1,4 @@
-# SCOUT Skills
+# LITERATURE Skills
 
 ## Role
 Read academic literature. Produce a structured literature map. Nothing else.

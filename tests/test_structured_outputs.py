@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agents.aria.exceptions import StructuredOutputError
 from agents.codec.codec import CodeAuditResult, CodecAgent
-from agents.hawk.hawk import HawkAgent, HawkReview
+from agents.hawk.hawk import ReviewerAgent, HawkReview
 
 
 def test_hawk_review_parses_valid_response() -> None:
@@ -23,14 +23,14 @@ def test_hawk_review_parses_valid_response() -> None:
             "reasoning": "Methods are plausible but currently under-justified.",
         }
     )
-    parsed = HawkAgent._parse_hawk_review_response(raw)
+    parsed = ReviewerAgent._parse_hawk_review_response(raw)
     assert isinstance(parsed, HawkReview)
     assert parsed.result_flag == "REVISION_REQUESTED"
 
 
 def test_hawk_review_raises_on_malformed_response() -> None:
     with pytest.raises(StructuredOutputError):
-        HawkAgent._parse_hawk_review_response("not-json")
+        ReviewerAgent._parse_hawk_review_response("not-json")
 
 
 def test_codeaudit_result_parses_valid_response() -> None:

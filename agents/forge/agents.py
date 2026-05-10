@@ -1,4 +1,4 @@
-"""Rule-based and placeholder agent policies for the FORGE environment."""
+"""Rule-based and placeholder agent policies for the COMPUTE environment."""
 
 from __future__ import annotations
 

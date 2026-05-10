@@ -15,5 +15,5 @@ class RLAdapter:
             "episodes_run": int(params.get("n_episodes", 0)),
             "seeds": seeds,
             "output_files": [],
-            "summary": "RL adapter delegates to existing FORGE runner in legacy mode",
+            "summary": "RL adapter delegates to existing COMPUTE runner in legacy mode",
         }

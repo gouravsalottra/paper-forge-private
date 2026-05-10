@@ -12,7 +12,7 @@ from init_db import init_db
 
 
 def test_cleanup_stale_marks_old_running_runs(tmp_path: Path) -> None:
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
     now = datetime.now(timezone.utc)
     old = (now - timedelta(hours=72)).isoformat(timespec="seconds")

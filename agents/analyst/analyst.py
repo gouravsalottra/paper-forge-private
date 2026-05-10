@@ -1,4 +1,4 @@
-"""FORGE analyst pipeline: correlation regimes and DCC diagnostics."""
+"""COMPUTE analyst pipeline: correlation regimes and DCC diagnostics."""
 
 from __future__ import annotations
 

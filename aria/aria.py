@@ -1,4 +1,4 @@
-# DEPRECATED: Use agents.aria.aria.ARIAPipeline instead.
+# DEPRECATED: Use agents.aria.aria.ConductorPipeline instead.
 # This file will be removed in the next release.
 # See mock_pipeline.py for the migration pattern.
 
@@ -18,28 +18,28 @@ from pathlib import Path
 from typing import Iterable
 
 
-class ForgeGateError(RuntimeError):
-    """Raised when FORGE cannot start because the gate condition is not met."""
+class ComputeGateError(RuntimeError):
+    """Raised when COMPUTE cannot start because the gate condition is not met."""
 
 
 class ARIA:
     """Database-backed run orchestration.
 
-    ARIA reads orchestration state from ``state.db`` and does not read artifact files.
+    ARIA reads orchestration state from ``pipeline.db`` and does not read artifact files.
     """
 
     PHASE_ORDER = [
-        "SCOUT",
-        "MINER",
-        "SIGMA_JOB1",
-        "FORGE",
-        "SIGMA_JOB2",
-        "CODEC",
-        "QUILL",
-        "HAWK",
+        "LITERATURE",
+        "DATAPULL",
+        "PREREGISTER",
+        "COMPUTE",
+        "STATSRUN",
+        "CODEAUDIT",
+        "WRITER",
+        "REVIEWER",
     ]
 
-    def __init__(self, db_path: str | Path = "state.db") -> None:
+    def __init__(self, db_path: str | Path = "pipeline.db") -> None:
         self.db_path = Path(db_path)
 
     def start_run(self, paper_md_path: str | Path) -> str:
@@ -116,17 +116,17 @@ class ARIA:
         raise RuntimeError(f"No pending phase found for run_id={run_id}.")
 
     def dispatch_forge(self, run_id: str) -> None:
-        """Run FORGE gate SQL, then mark FORGE as started if gate passes."""
+        """Run COMPUTE gate SQL, then mark COMPUTE as started if gate passes."""
         now = self._now_iso()
 
         with self._connect() as conn:
-            pap_lock_cols = self._table_columns(conn, "pap_lock")
-            has_run_id = "run_id" in pap_lock_cols
+            hypothesis_lock_cols = self._table_columns(conn, "hypothesis_lock")
+            has_run_id = "run_id" in hypothesis_lock_cols
 
             # Required gate SQL:
-            # SELECT 1 FROM pap_lock WHERE locked_at IS NOT NULL AND forge_started_at IS NULL
+            # SELECT 1 FROM hypothesis_lock WHERE locked_at IS NOT NULL AND forge_started_at IS NULL
             gate_sql = (
-                "SELECT 1 FROM pap_lock "
+                "SELECT 1 FROM hypothesis_lock "
                 "WHERE locked_at IS NOT NULL AND forge_started_at IS NULL"
             )
             gate_params: tuple[object, ...] = ()
@@ -136,10 +136,10 @@ class ARIA:
 
             rows = conn.execute(gate_sql, gate_params).fetchall()
             if not rows:
-                raise ForgeGateError("FORGE gate failed: no eligible pap_lock row found.")
+                raise ComputeGateError("COMPUTE gate failed: no eligible hypothesis_lock row found.")
 
             update_sql = (
-                "UPDATE pap_lock "
+                "UPDATE hypothesis_lock "
                 "SET forge_started_at = ? "
                 "WHERE locked_at IS NOT NULL AND forge_started_at IS NULL"
             )

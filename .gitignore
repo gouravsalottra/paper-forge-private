@@ -1,4 +1,5 @@
 .env
+pipeline.db
 state.db
 state.db-wal
 state.db-shm

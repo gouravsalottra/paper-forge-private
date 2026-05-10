@@ -8,7 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.sigma_job2 import SigmaJob2
+from agents.statsrun_job import SigmaJob2
 
 
 def test_top_level_agent_stubs_reexport_classes() -> None:
@@ -17,10 +17,10 @@ def test_top_level_agent_stubs_reexport_classes() -> None:
     quill_mod = importlib.import_module("agents.quill")
     scout_mod = importlib.import_module("agents.scout")
 
-    assert hasattr(hawk_mod, "HawkAgent")
+    assert hasattr(hawk_mod, "ReviewerAgent")
     assert hasattr(miner_mod, "build_returns_frame")
-    assert hasattr(quill_mod, "QuillAgent")
-    assert hasattr(scout_mod, "ScoutAgent")
+    assert hasattr(quill_mod, "WriterAgent")
+    assert hasattr(scout_mod, "LiteratureAgent")
 
 
 def test_seed_consistency_missing_seeds_is_invalid() -> None:

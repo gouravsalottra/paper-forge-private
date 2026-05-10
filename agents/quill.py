@@ -1,1 +1,1 @@
-from agents.quill.quill import QuillAgent  # noqa: F401
+from agents.quill.quill import WriterAgent  # noqa: F401

@@ -6,18 +6,18 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 
-from agents.aria.aria import ARIAPipeline
-from agents.aria.exceptions import ForgeGateError
+from agents.aria.aria import ConductorPipeline
+from agents.aria.exceptions import ComputeGateError
 
 PHASE_ORDER = [
-    "SCOUT",
-    "MINER",
-    "SIGMA_JOB1",
-    "FORGE",
-    "SIGMA_JOB2",
-    "CODEC",
-    "QUILL",
-    "HAWK",
+    "LITERATURE",
+    "DATAPULL",
+    "PREREGISTER",
+    "COMPUTE",
+    "STATSRUN",
+    "CODEAUDIT",
+    "WRITER",
+    "REVIEWER",
 ]
 
 
@@ -45,29 +45,29 @@ def complete_phase(db_path: str, run_id: str, phase_name: str) -> None:
 def main() -> None:
     start = time.perf_counter()
     run_id = "pf-mock-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    aria = ARIAPipeline(db_path="state.db", run_id=run_id, paper_md_path="PAPER.md")
+    aria = ConductorPipeline(db_path="pipeline.db", run_id=run_id, paper_md_path="PAPER.md")
 
     for phase_name in PHASE_ORDER:
         print(f"▶ Running [{phase_name}]...")
         time.sleep(0.3)
 
-        if phase_name == "FORGE":
+        if phase_name == "COMPUTE":
             try:
                 aria._check_forge_gate()
-                print("🚀 FORGE gate opened.")
-            except ForgeGateError as exc:
-                print(f"FORGE gate error: {exc}")
+                print("🚀 COMPUTE gate opened.")
+            except ComputeGateError as exc:
+                print(f"COMPUTE gate error: {exc}")
                 elapsed = time.perf_counter() - start
                 print(f"Total elapsed time: {elapsed:.2f} seconds")
                 return
 
-        complete_phase("state.db", run_id, phase_name)
+        complete_phase("pipeline.db", run_id, phase_name)
 
-        if phase_name == "SIGMA_JOB1":
-            with sqlite3.connect("state.db") as conn:
+        if phase_name == "PREREGISTER":
+            with sqlite3.connect("pipeline.db") as conn:
                 conn.execute(
                     """
-                    INSERT INTO pap_lock (
+                    INSERT INTO hypothesis_lock (
                         run_id,
                         locked_at,
                         locked_by,
@@ -75,12 +75,12 @@ def main() -> None:
                         forge_started_at
                     ) VALUES (?, ?, ?, ?, ?)
                     """,
-                    (run_id, now_iso(), "SIGMA_JOB1", "mock-hash-001", None),
+                    (run_id, now_iso(), "PREREGISTER", "mock-hash-001", None),
                 )
                 conn.commit()
             print("🔒 PAP locked.")
 
-    with sqlite3.connect("state.db") as conn:
+    with sqlite3.connect("pipeline.db") as conn:
         rows = conn.execute(
             """
             SELECT phase_name, status

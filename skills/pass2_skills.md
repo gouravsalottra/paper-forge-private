@@ -1,5 +1,5 @@
 
-# CODEC Pass 2 Skills
+# CODEAUDIT Pass 2 Skills
 
 ## Role
 Read the paper methodology section only. Independently reimplement it. Compare against codec_spec.md.

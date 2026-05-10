@@ -1,4 +1,4 @@
-# MINER Skills
+# DATAPULL Skills
 
 ## Role
 Download and document data from WRDS. Produce a signed DataPassport. Nothing else.

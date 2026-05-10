@@ -1,6 +1,6 @@
 """Data MCP server stub.
 
-Provides MINER agent with WRDS and alternative data source access.
+Provides DATAPULL agent with WRDS and alternative data source access.
 
 Status: PLANNED — not yet implemented.
 When implemented, this server will expose:

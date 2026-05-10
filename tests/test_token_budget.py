@@ -28,7 +28,7 @@ class _MockResponse:
 
 
 def test_token_budget_table_exists_after_init_db(tmp_path: Path) -> None:
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
     with sqlite3.connect(db) as conn:
         token_budget_cols = [r[1] for r in conn.execute("PRAGMA table_info(token_budget)")]
@@ -53,7 +53,7 @@ def test_token_budget_table_exists_after_init_db(tmp_path: Path) -> None:
 
 
 def test_track_usage_records_to_db(tmp_path: Path) -> None:
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
     usage = _MockUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150)
     response = _MockResponse(usage=usage)
@@ -61,8 +61,8 @@ def test_track_usage_records_to_db(tmp_path: Path) -> None:
     out = track_usage(
         response,
         run_id="test-001",
-        phase_name="HAWK",
-        agent_name="HAWK",
+        phase_name="REVIEWER",
+        agent_name="REVIEWER",
         model="gpt-4o",
         db_path=str(db),
     )
@@ -80,7 +80,7 @@ def test_track_usage_records_to_db(tmp_path: Path) -> None:
 
 
 def test_hard_limit_raises_token_budget_exceeded(tmp_path: Path) -> None:
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
     with sqlite3.connect(db) as conn:
         conn.execute(
@@ -97,15 +97,15 @@ def test_hard_limit_raises_token_budget_exceeded(tmp_path: Path) -> None:
         track_usage(
             response,
             run_id="tiny-limit",
-            phase_name="CODEC",
-            agent_name="CODEC",
+            phase_name="CODEAUDIT",
+            agent_name="CODEAUDIT",
             model="gpt-4o",
             db_path=str(db),
         )
 
 
 def test_soft_limit_logs_warning_not_raises(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
     with sqlite3.connect(db) as conn:
         conn.execute(
@@ -121,8 +121,8 @@ def test_soft_limit_logs_warning_not_raises(tmp_path: Path, caplog: pytest.LogCa
     out = track_usage(
         response,
         run_id="soft-limit",
-        phase_name="QUILL",
-        agent_name="QUILL",
+        phase_name="WRITER",
+        agent_name="WRITER",
         model="gpt-4o",
         db_path=str(db),
     )
@@ -131,7 +131,7 @@ def test_soft_limit_logs_warning_not_raises(tmp_path: Path, caplog: pytest.LogCa
 
 
 def test_real_agent_result_has_prompt_hash_and_usage_row(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    db = tmp_path / "state.db"
+    db = tmp_path / "pipeline.db"
     init_db(db)
     monkeypatch.chdir(tmp_path)
     (tmp_path / "agents").mkdir(exist_ok=True)
@@ -152,7 +152,7 @@ def test_real_agent_result_has_prompt_hash_and_usage_row(tmp_path: Path, monkeyp
         chat = _Chat()
 
     monkeypatch.setattr("agents.codec_pass1.get_client", lambda _agent: (_FakeClient(), "gpt-4o-mini"))
-    agent = CodecPass1(run_id="r-usage", db_path=str(db), output_dir=str(tmp_path / "paper_memory"))
+    agent = CodecPass1(run_id="r-usage", db_path=str(db), output_dir=str(tmp_path / "runs"))
     result = agent.run()
     assert result["result_flag"] == "DONE"
 
@@ -166,7 +166,7 @@ def test_real_agent_result_has_prompt_hash_and_usage_row(tmp_path: Path, monkeyp
                 WHERE run_id=? AND agent=? AND job=?
                 ORDER BY id DESC LIMIT 1
                 """,
-                ("r-usage", "CODEC", "PASS1"),
+                ("r-usage", "CODEAUDIT", "PASS1"),
             ).fetchone()
         else:
             prompt_sha_row = conn.execute(
@@ -176,7 +176,7 @@ def test_real_agent_result_has_prompt_hash_and_usage_row(tmp_path: Path, monkeyp
                 WHERE run_id=? AND phase_name=? AND agent_name=?
                 ORDER BY created_at DESC LIMIT 1
                 """,
-                ("r-usage", "CODEC", "CODEC_PASS1"),
+                ("r-usage", "CODEAUDIT", "CODEAUDIT_PASS1"),
             ).fetchone()
         usage_row = conn.execute(
             """
@@ -185,7 +185,7 @@ def test_real_agent_result_has_prompt_hash_and_usage_row(tmp_path: Path, monkeyp
             WHERE run_id=? AND phase_name=?
             ORDER BY rowid DESC LIMIT 1
             """,
-            ("r-usage", "CODEC"),
+            ("r-usage", "CODEAUDIT"),
         ).fetchone()
 
     assert prompt_sha_row is not None

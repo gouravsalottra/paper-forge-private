@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agents.hawk.hawk import HawkAgent
+from agents.hawk.hawk import ReviewerAgent
 
 
 def test_programmatic_review_flags_codec_and_min_effect(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     run_id = "r"
-    run_dir = tmp_path / "paper_memory" / run_id
+    run_dir = tmp_path / "runs" / run_id
     stats_dir = run_dir / "stats_tables"
     stats_dir.mkdir(parents=True)
 
@@ -31,11 +31,11 @@ def test_programmatic_review_flags_codec_and_min_effect(tmp_path: Path, monkeypa
         encoding="utf-8",
     )
 
-    agent = HawkAgent(run_id=run_id, output_dir=str(tmp_path / "paper_memory"), db_path=str(tmp_path / "state.db"))
-    with (tmp_path / "state.db").open("w", encoding="utf-8"):
+    agent = ReviewerAgent(run_id=run_id, output_dir=str(tmp_path / "runs"), db_path=str(tmp_path / "pipeline.db"))
+    with (tmp_path / "pipeline.db").open("w", encoding="utf-8"):
         pass
     import sqlite3
-    with sqlite3.connect(tmp_path / "state.db") as conn:
+    with sqlite3.connect(tmp_path / "pipeline.db") as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS agent_results (run_id TEXT, agent TEXT, job TEXT, result_flag TEXT, created_at TEXT)")
         conn.commit()
 
@@ -43,13 +43,13 @@ def test_programmatic_review_flags_codec_and_min_effect(tmp_path: Path, monkeypa
     assert out["result_flag"] == "REVISION_REQUESTED"
     assert out["approved_for_quill"] is False
     checks = {i["check"] for i in out["mandatory_items"]}
-    assert "CODEC mismatch" in checks
+    assert "CODEAUDIT mismatch" in checks
     assert "Minimum effect size" in checks
     assert "Sample size adequacy" in checks
 
 
 def test_extract_codec_fail_items() -> None:
-    agent = HawkAgent(run_id="r")
+    agent = ReviewerAgent(run_id="r")
     context = {
         "codec_mismatch_text": "## verdict: FAIL\nissue: alpha mismatch\n- minimum_effect mismatch",
     }

@@ -98,7 +98,7 @@ def main() -> None:
         ) as pool:
             iterator = pool.imap_unordered(_run_tuple, pending)
             if use_tqdm:
-                iterator = tqdm(iterator, total=len(pending), desc="FORGE scenarios")
+                iterator = tqdm(iterator, total=len(pending), desc="COMPUTE scenarios")
 
             processed = 0
             for _ in iterator:
