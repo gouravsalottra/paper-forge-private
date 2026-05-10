@@ -116,3 +116,129 @@ def test_flat_shim_files_are_pure_reexports() -> None:
             "Shim files must contain only re-export imports.\n"
             "Move any logic into the package directory."
         )
+
+
+def test_agents_fixer_directory_does_not_exist() -> None:
+    assert not Path("agents/fixer").exists(), (
+        "agents/fixer/ is a duplicate of agents/autorepair/. "
+        "Delete agents/fixer/ entirely."
+    )
+
+
+def test_autorepair_importable() -> None:
+    from agents.autorepair.autorepair import AutoRepairAgent
+
+    assert AutoRepairAgent is not None
+
+
+def test_no_imports_from_agents_fixer() -> None:
+    token = "agents." + "fixer"
+    result = subprocess.run(
+        ["grep", "-r", token, "--include=*.py", "--exclude=test_structural_cleanup.py", "."],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    hits = [l for l in result.stdout.splitlines() if "__pycache__" not in l and "test_agents_fixer" not in l]
+    assert len(hits) == 0, "Found imports from agents.fixer:\n" + "\n".join(hits)
+
+
+def test_agents_scout_directory_does_not_exist() -> None:
+    assert not Path("agents/scout").is_dir(), (
+        "agents/scout/ is a duplicate of agents/literature/. "
+        "Delete the directory — keep agents/scout.py shim only if needed."
+    )
+
+
+def test_literature_importable() -> None:
+    from agents.literature.literature import LiteratureAgent
+
+    assert LiteratureAgent is not None
+
+
+def test_no_imports_from_agents_scout_dir() -> None:
+    token = "agents.scout" + ".scout"
+    result = subprocess.run(
+        ["grep", "-r", token, "--include=*.py", "--exclude=test_structural_cleanup.py", "."],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    hits = [l for l in result.stdout.splitlines() if "__pycache__" not in l and "test_agents_scout" not in l]
+    assert len(hits) == 0, (
+        "Found imports from agents.scout.scout (old path):\n" + "\n".join(hits)
+    )
+
+
+def test_writer_has_no_sha_duplicate() -> None:
+    import hashlib
+
+    result = subprocess.run(
+        [
+            "find",
+            ".",
+            "-not",
+            "-path",
+            "./.git/*",
+            "-not",
+            "-path",
+            "./.venv/*",
+            "-not",
+            "-path",
+            "*/__pycache__/*",
+            "-name",
+            "*.py",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    files = result.stdout.strip().splitlines()
+    shas: dict[str, str] = {}
+    for f in files:
+        try:
+            h = hashlib.sha256(Path(f).read_bytes()).hexdigest()[:16]
+            if h in shas and Path(f).stat().st_size > 100:
+                assert False, f"Duplicate file content:\n  {shas[h]}\n  {f}\nOne of these must be deleted."
+            shas[h] = f
+        except Exception:
+            pass
+
+
+def test_aria_dispatch_py_does_not_exist() -> None:
+    assert not Path("aria/dispatch.py").exists(), (
+        "aria/dispatch.py is an empty ghost file. Delete it."
+    )
+
+
+def test_aria_routing_config_does_not_exist() -> None:
+    assert not Path("aria/routing_config.py").exists(), (
+        "aria/routing_config.py is an empty ghost file. Delete it."
+    )
+
+
+def test_codeaudit_pass1_in_package() -> None:
+    mod = importlib.import_module("agents.codeaudit.codeaudit_pass1")
+    assert mod is not None
+
+
+def test_specaudit_pass2_in_package() -> None:
+    mod = importlib.import_module("agents.codeaudit.specaudit_pass2")
+    assert mod is not None
+
+
+def test_preregister_in_package() -> None:
+    mod = importlib.import_module("agents.preregister.preregister")
+    assert mod is not None
+
+
+def test_flat_shims_are_one_line() -> None:
+    for f in ["agents/codeaudit_pass1.py", "agents/specaudit_pass2.py", "agents/preregister.py"]:
+        p = Path(f)
+        if not p.exists():
+            continue
+        real_lines = [l for l in p.read_text(encoding="utf-8").splitlines() if l.strip() and not l.strip().startswith("#")]
+        assert len(real_lines) <= 2, (
+            f"{f} has {len(real_lines)} non-comment lines. "
+            "It should be a 1-2 line shim only."
+        )

@@ -20,19 +20,19 @@ def test_codeaudit_and_specaudit_files_have_different_sha() -> None:
 
 
 def test_codeaudit_loads_codeaudit_prompt() -> None:
-    content = Path("agents/codeaudit_pass1.py").read_text(encoding="utf-8")
+    content = Path("agents/codeaudit/codeaudit_pass1.py").read_text(encoding="utf-8")
     assert "codeaudit" in content.lower()
     assert "specaudit" not in content.lower()
 
 
 def test_specaudit_loads_specaudit_prompt() -> None:
-    content = Path("agents/specaudit_pass2.py").read_text(encoding="utf-8")
+    content = Path("agents/codeaudit/specaudit_pass2.py").read_text(encoding="utf-8")
     assert "specaudit" in content.lower()
     assert "codeaudit" not in content.lower()
 
 
 def test_specaudit_uses_different_api_key() -> None:
-    content = Path("agents/specaudit_pass2.py").read_text(encoding="utf-8")
+    content = Path("agents/codeaudit/specaudit_pass2.py").read_text(encoding="utf-8")
     assert "OPENAI_API_KEY_PASS2" in content
 
 

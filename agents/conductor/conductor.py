@@ -759,7 +759,7 @@ class ConductorPipeline:
             return agent.run()
         if agent_name.startswith("SIGMA"):
             if agent_name == "PREREGISTER":
-                from agents.preregister import SigmaJob1
+                from agents.preregister.preregister import SigmaJob1
 
                 agent = SigmaJob1(run_id=self.run_id, db_path=self.db_path)
                 result = agent.run()
@@ -829,7 +829,7 @@ class ConductorPipeline:
             agent = CodecAgent(run_id=self.run_id, db_path=self.db_path, output_dir="runs", llm_client=None)
             return agent.run()
         if agent_name == "AUTOREPAIR":
-            from agents.fixer.fixer import FixerAgent
+            from agents.autorepair.autorepair import FixerAgent
 
             agent = FixerAgent(
                 run_id=self.run_id,

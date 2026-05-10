@@ -525,6 +525,9 @@ class FixerAgent:
         return "\n".join(lines)
 
 
+AutoRepairAgent = FixerAgent
+
+
 if __name__ == "__main__":
     import argparse
 

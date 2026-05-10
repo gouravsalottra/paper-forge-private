@@ -9,7 +9,7 @@ import pytest
 from agents.aria.aria import ConductorPipeline
 from agents.aria.exceptions import PipelineHaltError, ServerUnavailableError
 from agents.miner.sources import wrds_src
-from agents.scout.scout import LiteratureAgent
+from agents.literature.literature import LiteratureAgent
 
 
 def _make_pipeline(tmp_path: Path, run_id: str = "r-par") -> ConductorPipeline:

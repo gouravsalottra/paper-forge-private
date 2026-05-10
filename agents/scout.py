@@ -1,5 +1,3 @@
-# Re-export shim — allows both import paths:
-# from agents.scout import LiteratureAgent
-# from agents.scout.scout import LiteratureAgent
-# Do not add logic here — all implementation is in agents/scout/
-from agents.scout.scout import LiteratureAgent  # noqa: F401
+# Re-export shim for backward compatibility.
+# Do not add logic here — all implementation is in agents/literature/
+from agents.literature.literature import LiteratureAgent  # noqa: F401

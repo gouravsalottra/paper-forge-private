@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agents.quill.quill import WriterAgent
-from agents.scout.scout import LiteratureAgent
+from agents.literature.literature import LiteratureAgent
 
 
 def _doc_with_counts(refs: int, visuals: int) -> str:
