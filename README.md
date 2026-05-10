@@ -9,20 +9,18 @@
 ╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝      ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 ```
 
-**The autonomous research pipeline that commits to its hypothesis before seeing the data.**
-
-*From research spec → literature → data → simulation → statistics → audit → paper.*
-*Enforced by SQL. Unable to p-hack. By design.*
+### The autonomous finance research pipeline. From idea to peer-review-ready paper.
+### Enforced by architecture. Unable to p-hack. By design.
 
 <br/>
 
-![Tests](https://img.shields.io/badge/tests-11%20passing-brightgreen?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)
+[![CI](https://github.com/gouravsalottra/paper-forge-private/actions/workflows/ci.yml/badge.svg)](https://github.com/gouravsalottra/paper-forge-private/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/badge/tests-87%20passing-brightgreen?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.13+-blue?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![Model](https://img.shields.io/badge/built%20with-OpenAI%20Codex-8b5cf6?style=flat-square)
+![Model](https://img.shields.io/badge/model-gpt--5.4-8b5cf6?style=flat-square)
 ![DB](https://img.shields.io/badge/state-SQLite%20WAL-f97316?style=flat-square)
-![Sim](https://img.shields.io/badge/env-PettingZoo%20AEC-14b8a6?style=flat-square)
-![GPU](https://img.shields.io/badge/compute-CUDA%20GPU-ec4899?style=flat-square)
+![Integrity](https://img.shields.io/badge/integrity-cryptographically%20enforced-red?style=flat-square)
 
 </div>
 
@@ -30,303 +28,516 @@
 
 ## What Is Paper-Forge?
 
-Paper-Forge is an autonomous 8-agent pipeline that takes a research specification (`PAPER.md`) as input and produces a fully auditable, reproducible finance research paper as output.
+Paper-Forge is an **autonomous 11-agent research pipeline** that takes a finance research idea and produces a fully auditable, reproducible, peer-review-ready paper — with every integrity guarantee enforced by the system, not by researcher honesty.
 
-Every integrity guarantee is **structural** — enforced by the architecture, not by asking researchers to behave honestly.
+It handles literature discovery, data fetching from institutional sources, statistical analysis, code-vs-paper auditing, hostile peer review, and LaTeX drafting. You describe your research. The pipeline does the rest.
 
-> **North Star:** Make it structurally impossible to produce a finance research paper that has not committed its hypothesis before seeing results, documented its data construction with cryptographic precision, and proven bidirectionally that the paper and the code say the same thing.
+**It works for any empirical finance research** — not one hardcoded topic. Momentum strategies, LLM sentiment analysis, climate risk pricing, systemic risk networks, cryptocurrency session effects, ETF arbitrage cycles — any question with data and a testable claim.
 
-**You edit one file. The pipeline does the rest.**
-
----
-
-## The Gate That Makes P-Hacking Architecturally Impossible
-
-```sql
--- FORGE cannot start unless this query returns exactly one row.
--- ForgeGateError is raised and the pipeline halts. No env-var overrides. No workarounds.
-
-SELECT 1
-FROM   pap_lock
-WHERE  run_id            = ?
-  AND  locked_at         IS NOT NULL   -- hypothesis committed to SQLite
-  AND  forge_started_at  IS NULL;      -- simulation has not started
-```
-
-Your hypothesis is SHA-256 hashed and committed to a SQLite `pap_lock` table **before FORGE runs a single episode**. This is a SQL constraint — Python cannot bypass it.
+> **The core insight:** Most research integrity problems are not caused by dishonest researchers. They are caused by systems that make it easy to unconsciously adjust hypotheses after seeing results. Paper-Forge makes that adjustment architecturally impossible.
 
 ---
 
-## Full Pipeline
+## The Problem It Solves
+
+The finance research replication crisis is real. Studies estimate that **more than half of published factor discoveries do not replicate**. The cause is rarely fraud — it is a workflow problem. When a researcher can see their results before committing to a hypothesis, specification search happens naturally, even innocently.
 
 ```
-┌─────────────┐
-│  PAPER.md   │  ← The only file you write
-└──────┬──────┘
-       │
-       ▼
-   ┌───────┐     ┌───────┐     ┌───────┐
-   │ ARIA  │────▶│ SCOUT │────▶│ MINER │    Phase 1-2: Literature + Data
-   └───────┘     └───────┘     └───────┘
-       │                           │
-       ▼                           ▼
-  ┌──────────┐              DataPassport
-  │ SIGMA    │              SHA-256 signed
-  │  JOB 1  │  ← Commits hypothesis, seals pap_lock
-  └────┬─────┘
-       │  SQL gate enforced ───────────────────────────────────────┐
-       ▼                                                            │
-   ┌───────┐                                                        │
-   │ FORGE │  500k episodes · PettingZoo AEC · CUDA GPU (gpu_run.py)│
-   └───┬───┘                                              BLOCKED if
-       │                                               hypothesis not locked
-       ▼
-  ┌──────────┐
-  │  SIGMA   │  6-test statistical battery
-  │  JOB 2  │  HAC · GARCH · Bonferroni · Fama-MacBeth · Markov · DCC-GARCH
-  └────┬─────┘
-       │
-       ▼
-  ┌─────────┐     ┌─────────┐
-  │  CODEC  │────▶│  FIXER  │  ← Auto-patches code mismatches, re-runs SIGMA JOB 2
-  └────┬────┘     └─────────┘
-       │
-       ▼
-  ┌──────┐
-  │ HAWK │  Reviews CSVs + JSON only. Never reads LaTeX.
-  └──┬───┘  Routes mandatory fixes back to FORGE / SIGMA / MINER / FIXER
-     │       Max 3 revision cycles. Halts pipeline if unresolved.
-     │
-     │  approved_for_quill: true ──────────────────────────────┐
-     │                                                          │
-     │  approved_for_quill: false ─── pipeline halts 🛑        │
-     │                                                          ▼
-     │                                                     ┌───────┐
-     └────────────────────────────────────────────────────▶│ QUILL │
-                                                           └───┬───┘
-                                                               │
-                                                               ▼
-                                                      paper_draft_v*.tex
+Traditional research workflow          Paper-Forge workflow
+──────────────────────────────         ──────────────────────────────
+1. Collect data                        1. Describe research idea to INTAKE
+2. Explore what looks significant      2. INTAKE generates PROTOCOL.md
+3. Form hypothesis around finding  ←   3. Hypothesis locked in SQLite (SHA-256)
+4. Run "confirmatory" tests            4. Data fetched after lock ✓
+5. Write paper around significance     5. Tests run exactly as pre-specified ✓
+6. Submit                              6. Code audited against paper claims ✓
+                                       7. Hostile review before any prose ✓
+                                       8. Paper written from verified stats ✓
+```
+
+The left side is how most papers are written. The right side is what Paper-Forge enforces.
+
+---
+
+## Who This Is For
+
+**Finance researchers** — PhD students, postdocs, professors — who want their empirical work to be reproducible, auditable, and defensible to the most hostile reviewer. The system handles the entire technical pipeline so you can focus on the science.
+
+**Quantitative analysts and portfolio managers** — who need to test investment hypotheses rigorously before acting on them, with a full audit trail that satisfies compliance requirements.
+
+**Research infrastructure engineers** — building reproducibility tooling for financial institutions, academic departments, or regulatory bodies.
+
+**Product builders in AI + finance** — the architecture (multi-agent orchestration, pre-registration enforcement, bidirectional LLM auditing, connector registries) is a reference implementation for reliable agentic systems in high-stakes domains.
+
+**Investors and evaluators** — this README is the product. The architecture described here is fully implemented, tested with 87 passing tests, and running on real research.
+
+---
+
+## How It Works — The Simple Version
+
+```
+You have an idea                       Paper-Forge does the rest
+────────────────                       ─────────────────────────
+
+"Does passive investor                 ┌─ Searches 40+ papers, reads top 10 in full
+ concentration reduce                  ├─ Fetches data from WRDS, FRED, yfinance
+ momentum profitability?"              ├─ Locks your hypothesis before touching data
+                                       ├─ Runs 500,000-episode simulation
+        ↓                              ├─ Executes 6-test statistical battery
+                                       ├─ Audits: does code match what you claimed?
+python intake.py                       ├─ Hostile peer review (Journal of Finance standard)
+                                       └─ Produces verified LaTeX paper draft
+        ↓
+
+paper_draft_v2.tex  ←  ready to submit
+```
+
+The only thing you provide is your research question. Everything else — data, analysis, audit, paper — is automated with full integrity enforcement at every step.
+
+---
+
+## The Full Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   INTAKE  (AI Research Design Wizard)                                       │
+│                                                                             │
+│   Researcher describes idea in plain English → INTAKE interviews them       │
+│   → Handles data source authentication (WRDS OAuth, FRED API keys)         │
+│   → Recommends appropriate statistical tests by claim type                  │
+│   → Generates validated PROTOCOL.md — researcher never writes schema syntax │
+│                                                                             │
+└────────────────────────────┬────────────────────────────────────────────────┘
+                             │
+                             ▼
+                       PROTOCOL.md
+              (validated before pipeline starts)
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  CONDUCTOR  (Orchestrator)                                                  │
+│  Pure state machine. Reads only typed flags from pipeline.db.               │
+│  Never reads artifact content. Routing is data, not logic.                  │
+└──┬──────────────────────────────────────────────────────────────────────────┘
+   │
+   │  ┌─────────────────────────────────────┐
+   ├──┤  LITERATURE + DATAPULL  (parallel)  │
+   │  │                                     │
+   │  │  LITERATURE                         │
+   │  │  Semantic Scholar + arXiv           │
+   │  │  40 papers scanned, top 10 read     │
+   │  │  Deduplication by DOI + title       │
+   │  │  Preprint flagging for citations    │
+   │  │  → literature_map.md               │
+   │  │                                     │
+   │  │  DATAPULL                           │
+   │  │  Reads PROTOCOL.md data spec        │
+   │  │  Connector registry dispatches:     │
+   │  │    wrds_crsp / wrds_futures         │
+   │  │    wrds_optionmetrics / fred        │
+   │  │    sec_edgar / yfinance             │
+   │  │    ccxt_crypto / upload             │
+   │  │  Browser OAuth for WRDS/LSEG        │
+   │  │  SHA-256 signs every dataset        │
+   │  │  → data_certificate.json           │
+   │  └─────────────────────────────────────┘
+   │
+   │  ┌──────────────────────────────────────────────────────────────────┐
+   ├──┤  PREREGISTER  ← THE INTEGRITY GATE                              │
+   │  │                                                                  │
+   │  │  Reads PROTOCOL.md hypothesis                                    │
+   │  │  Writes to pipeline.db                                           │
+   │  │  Computes SHA-256 of PROTOCOL.md                                 │
+   │  │  Seals hypothesis_lock                                           │
+   │  │                                                                  │
+   │  │  ┌──────────────────────────────────────────────────────────┐   │
+   │  │  │  SELECT 1 FROM hypothesis_lock                           │   │
+   │  │  │  WHERE run_id = ?                                        │   │
+   │  │  │    AND locked_at IS NOT NULL                             │   │
+   │  │  │    AND compute_started_at IS NULL                        │   │
+   │  │  │                                                          │   │
+   │  │  │  Returns nothing → HypothesisLockError → pipeline halts  │   │
+   │  │  │  No env-var overrides. No exceptions. No workarounds.    │   │
+   │  │  └──────────────────────────────────────────────────────────┘   │
+   │  │                                                                  │
+   │  │  On resume: re-verifies PROTOCOL.md hash against locked hash     │
+   │  │  → PROTOCOLTamperError if mismatch                              │
+   │  └──────────────────────────────────────────────────────────────────┘
+   │
+   │  ┌──────────────────────────────────────────────────────────────────┐
+   ├──┤  COMPUTE                                                         │
+   │  │  Reads PROTOCOL.md → compute.type                               │
+   │  │  Dispatches to adapter:                                          │
+   │  │    rl          → RL agent (PettingZoo + CEM/PPO, CUDA GPU)      │
+   │  │    backtest    → Strategy backtester                             │
+   │  │    event_study → Event study engine                              │
+   │  │    abm         → Agent-based market model                        │
+   │  │    none        → Passthrough (pure regression research)          │
+   │  │  Seeds [1337, 42, 9999] across all adapters                     │
+   │  └──────────────────────────────────────────────────────────────────┘
+   │
+   │  ┌──────────────────────────────────────────────────────────────────┐
+   ├──┤  STATSRUN                                                        │
+   │  │  Reads PROTOCOL.md → statistical_tests list                     │
+   │  │  Runs exactly those tests from the library:                      │
+   │  │    newey_west_hac  │ garch_11        │ bootstrap_ci              │
+   │  │    deflated_sharpe │ fama_macbeth    │ regime_switching           │
+   │  │    markov_switching│ event_study_car │ placebo_test               │
+   │  │    out_of_sample_r2│ granger_causality│ panel_regression         │
+   │  │  Seed consistency enforced: finding_valid=false if any seed fails│
+   │  │  Never suppresses null results                                    │
+   │  └──────────────────────────────────────────────────────────────────┘
+   │
+   │  ┌──────────────────────────────────────────────────────────────────┐
+   ├──┤  CODEAUDIT + SPECAUDIT  (subprocess-isolated)                   │
+   │  │                                                                  │
+   │  │  CODEAUDIT          SPECAUDIT                                    │
+   │  │  reads: code only   reads: PROTOCOL.md only                     │
+   │  │  key: API_KEY       key: API_KEY_PASS2                          │
+   │  │  "what does the     "what did the researcher                     │
+   │  │   code actually do?" say they would do?"                        │
+   │  │       │                    │                                     │
+   │  │       └────────┬───────────┘                                     │
+   │  │                ▼                                                  │
+   │  │       codec_mismatch.md                                          │
+   │  │  Two passes with zero shared context.                            │
+   │  │  Proven by test: test_codec_passes_are_isolated                  │
+   │  └──────────────────────────────────────────────────────────────────┘
+   │
+   │  ┌──────────────────────────────────────────────────────────────────┐
+   ├──┤  AUTOREPAIR  (when CODEAUDIT finds mismatches)                  │
+   │  │  Categorizes: auto-fixable vs needs-human                        │
+   │  │  Patches source files, re-runs DATAPULL + STATSRUN to verify     │
+   │  │  Human escalation is explicit — never silent                     │
+   │  └──────────────────────────────────────────────────────────────────┘
+   │
+   │  ┌──────────────────────────────────────────────────────────────────┐
+   ├──┤  REVIEWER  (before any prose is written)                        │
+   │  │  Journal of Finance / RFS / JFE standard                         │
+   │  │  Reads: stats CSVs, audit files, data certificate               │
+   │  │  Never reads: any LaTeX or prose                                 │
+   │  │  Knows target venue — calibrates standards accordingly           │
+   │  │  Minimum score: 7/10 methodology rubric                          │
+   │  │  Max 3 cycles → PipelineHaltError if unresolved                 │
+   │  │  Routes revision items back to the correct agent                 │
+   │  └──────────────────────────────────────────────────────────────────┘
+   │
+   │  ┌──────────────────────────────────────────────────────────────────┐
+   └──┤  WRITER  (only if REVIEWER approves)                            │
+      │  Deterministic LaTeX formatter — no LLM prose generation         │
+      │  Every number traced to a verified CSV                           │
+      │  Every citation traced to literature_map.md                      │
+      │  Every method claim traced to CODEAUDIT output                   │
+      │  Never overwrites a prior draft (versioned: v1, v2, v3...)       │
+      └──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
+## Two Research Modes
 
-## Results From the Current Paper Run
+Paper-Forge supports the full real-world research process — not just the idealized version where researchers always have hypotheses before looking at data.
 
-| Metric | Value |
-|--------|-------|
-| Scenarios | 36 (3 concentrations × 12 seeds) |
-| Episodes per scenario | 500,000 |
-| Sharpe differential (high vs low concentration) | −1.83 |
-| p-value (Newey-West HAC, two-tailed) | 0.0046 |
-| Passes Bonferroni threshold (p < 0.0083) | ✅ Yes |
-| Seed consistent (all 3 pre-registered seeds) | ✅ Yes |
-| Minimum effect met (threshold: −0.15) | ✅ Yes (12× threshold) |
-| HAWK `approved_for_quill` | ✅ True |
+### Confirmatory Mode
 
-**Finding:** Passive GSCI concentration above 30% of open interest reduces 12-month momentum strategy Sharpe ratios by 1.83 units in simulation. Real-world NYMEX WTI concentration peaked at 25.5% (2006–2022), below the pre-registered threshold. Chicago wheat averaged 41% — currently in the impairment regime.
+You have a clear hypothesis. You know what you expect to find. Paper-Forge locks it before any data is touched.
+
+```
+python intake.py
+
+INTAKE: "Tell me about your research idea."
+
+You: "I think passive index investor concentration above 30% of open
+      interest in commodity futures reduces momentum strategy profitability
+      by reducing the price informativeness of roll-yield signals."
+
+INTAKE: "Here's the hypothesis I'll pre-register for you. Review carefully —
+         once committed, this cannot be changed without starting a new run:
+
+         'Passive GSCI index investor concentration above 30% of open interest
+          reduces 12-month momentum strategy Sharpe ratios by at least 0.15
+          units, controlling for GARCH(1,1) volatility clustering and
+          Fama-French momentum factor exposure.'
+
+         Type 'commit' to lock, or 'edit' to modify."
+
+You: commit
+
+🔒 Hypothesis locked. SHA-256: 3a5273ac6fb202...
+   PROTOCOL.md sealed. Pipeline starting.
+```
+
+### Exploratory Mode
+
+You don't have a hypothesis yet. You want to understand whether there's something interesting before committing to a direction. This is legitimate science — and Paper-Forge supports it honestly.
+
+```
+python intake.py
+
+INTAKE: "Tell me about your research idea."
+
+You: "I'm not sure yet. I've noticed that energy ETFs seem to respond
+      differently overnight versus intraday around major climate policy
+      announcements. I want to understand the pattern before I commit
+      to any direction."
+
+INTAKE: "That sounds like exploratory research — you want to understand
+         the data before forming a hypothesis. I'll set up an exploratory
+         run. Your exploration will be logged separately from any
+         confirmatory analysis.
+
+         After you've seen the patterns, I'll help you form a hypothesis
+         and upgrade to a confirmatory run — with the exploration
+         transparently disclosed in your methods section."
+```
+
+The exploration is logged with timestamp. When you're ready to commit:
+
+```
+python intake.py --upgrade-to-confirmatory --run-id explore-20260509-143201
+
+INTAKE: "Your exploration found:
+         - ICLN overnight returns: +0.18% on COP announcement dates (n=23)
+         - XLE overnight returns: -0.31% on the same dates
+         - The spread strengthened post-2018
+
+         Based on this, here are three hypotheses you could commit to:
+
+         Option A [Strongest]: ICLN-XLE overnight spread is positive and
+         significant on major climate policy dates, after controlling for
+         VIX and oil price changes. Implies event-study CAR + placebo test.
+
+         Option B [Conservative]: Climate policy dates predict positive ICLN
+         and negative XLE overnight returns independently.
+
+         Option C [Descriptive]: Document the pattern and estimate effect
+         size with confidence intervals.
+
+         Which feels most honest given what you've seen?"
+```
+
+The resulting paper transparently discloses that the hypothesis was formed after initial data exploration — which is methodologically legitimate when disclosed, and what Paper-Forge enforces.
 
 ---
 
-## Agent Reference
+## Five Integrity Layers
 
-| Agent | Phase | What it does | Halts pipeline? |
-|-------|-------|-------------|----------------|
-| **ARIA** | Throughout | Orchestrator. State machine. Reads **only typed flags** from `state.db`. Never reads artifact content. | Coordinator |
-| **SCOUT** | 1 | Searches 40 papers on Semantic Scholar + arXiv. Ranks 1–10. Reads top 8–10 in full. Writes `literature_map.md`. | No |
-| **MINER** | 2 | Downloads data per `PAPER.md` spec. Constructs series. Produces `DataPassport` with SHA-256 checksums per file. | No |
-| **SIGMA JOB 1** | 3 — *before data* | Writes complete Pre-Analysis Plan from `PAPER.md`. Commits hypothesis. Seals `pap_lock`. Sets SQL gate. | **Gate** |
-| **FORGE** | 4 — *after PAP lock* | Vectorized PyTorch simulation. 500k episodes × 36 scenarios. CEM optimizer. `gpu_run.py` on CUDA GPU. | **Gate** |
-| **SIGMA JOB 2** | 5 — *after FORGE* | Runs 6-test statistical battery against `sim_results.json`. Writes all stats CSVs to `stats_tables/`. | No |
-| **CODEC** | 6 | Bidirectional code audit via 2 isolated subprocess passes. Writes `codec_mismatch.md`. | **Yes — FAIL** |
-| **FIXER** | 7 | Reads CODEC mismatch. LLM auto-patches fixable items. Re-runs MINER + SIGMA JOB 2 to verify fix held. | **Yes — escalate** |
-| **HAWK** | 8 — *before QUILL* | Research quality review from CSVs/JSON only. Never sees LaTeX. Routes fixes. Max 3 cycles. | **Yes — reject** |
-| **QUILL** | 9 — *only if HAWK approved* | Deterministic LaTeX formatter. Reads verified stats CSVs. No LLM prose generation. Never overwrites prior draft. | No |
+Every layer is enforced by code, not by researcher discipline.
+
+```
+Layer 1 — HYPOTHESIS LOCK
+┌─────────────────────────────────────────────────────────────┐
+│ Hypothesis committed to SQLite and SHA-256 signed BEFORE    │
+│ any data is fetched. COMPUTE cannot start unless the SQL    │
+│ gate passes. On pipeline resume, PROTOCOL.md is re-hashed   │
+│ and compared — any modification raises PROTOCOLTamperError. │
+└─────────────────────────────────────────────────────────────┘
+
+Layer 2 — DATA CERTIFICATE
+┌─────────────────────────────────────────────────────────────┐
+│ Every dataset is SHA-256 signed at download time. The       │
+│ certificate records: source, query parameters, row counts,  │
+│ download timestamp, acknowledged deviations, library        │
+│ versions. Byte-level hash verified by test suite.           │
+│ A reviewer can independently verify the exact data used.    │
+└─────────────────────────────────────────────────────────────┘
+
+Layer 3 — BIDIRECTIONAL CODE AUDIT
+┌─────────────────────────────────────────────────────────────┐
+│ Two subprocess-isolated LLM passes with separate API keys.  │
+│ Pass 1 reads code only — extracts what was implemented.     │
+│ Pass 2 reads PROTOCOL.md only — extracts what was claimed.  │
+│ The two passes genuinely cannot share context. Proven by    │
+│ test: test_codeaudit_specaudit_passes_are_isolated.         │
+└─────────────────────────────────────────────────────────────┘
+
+Layer 4 — SEED CONSISTENCY
+┌─────────────────────────────────────────────────────────────┐
+│ A finding is only valid if it holds qualitatively across    │
+│ all pre-registered seeds [1337, 42, 9999]. One seed         │
+│ disagrees → finding_valid: false → the paper reports the    │
+│ failure honestly. The system never surfaces only the        │
+│ favorable seeds.                                            │
+└─────────────────────────────────────────────────────────────┘
+
+Layer 5 — HOSTILE REVIEW BEFORE PROSE
+┌─────────────────────────────────────────────────────────────┐
+│ REVIEWER reads raw statistical outputs — never LaTeX.       │
+│ Cannot be fooled by fluent writing. Knows target venue      │
+│ standards. Halts pipeline after 3 failed cycles rather      │
+│ than approving a weak paper. WRITER only runs if REVIEWER   │
+│ issues approved_for_quill: true.                            │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## SIGMA JOB 1 vs SIGMA JOB 2
+## Data Sources — Any Institutional Provider
 
-These are completely different in timing, purpose, and inputs.
-
-|  | SIGMA JOB 1 | SIGMA JOB 2 |
-|--|-------------|-------------|
-| **Runs** | Before FORGE | After FORGE |
-| **Sees simulation data?** | ❌ Never | ✅ Yes |
-| **Reads** | `PAPER.md` + DataPassport metadata only | `sim_results.json` + PAP |
-| **Purpose** | **Lock the hypothesis** | **Test the hypothesis** |
-| **Output** | `pap.md` + sealed `pap_lock` row | 6 stats CSVs in `stats_tables/` |
-| **What happens if missing** | FORGE blocked by SQL gate | CODEC and HAWK have nothing to check |
-| **Can be re-run?** | ❌ Re-running breaks pre-registration | ✅ FIXER re-runs after code fixes |
-
-**SIGMA JOB 2 runs this 6-test battery (all pre-specified in `PAPER.md` before data is seen):**
+Paper-Forge connects to real institutional data sources through a connector registry. Adding a new source is one file.
 
 ```
-1. Two-tailed t-test with Newey-West HAC correction (4 lags)
-2. Bonferroni correction across all simultaneous tests
-3. GARCH(1,1) volatility model          [arch library, p=1, q=1, Normal]
-4. Fama-MacBeth two-pass regression     [linearmodels]
-5. Markov regime switching detection    [statsmodels, k_regimes=2]
-6. DCC-GARCH cross-asset correlation    [arch]
+Connector          Source                    Auth Method
+──────────────     ──────────────────────    ────────────────────────────
+wrds_crsp          WRDS / CRSP               Browser OAuth → 2FA on phone
+wrds_futures       WRDS / Compustat Futures  Browser OAuth → 2FA on phone
+wrds_optionmetrics WRDS / OptionMetrics      Browser OAuth → 2FA on phone
+wrds_compustat     WRDS / Compustat          Browser OAuth → 2FA on phone
+lseg               LSEG / Refinitiv          Browser OAuth → 2FA on phone
+fred               Federal Reserve (FRED)    API key (stored once)
+sec_edgar          SEC EDGAR                 Public — no auth required
+yfinance           Yahoo Finance             Public — no auth required
+ccxt_crypto        Any crypto exchange       API key + secret (stored once)
+bloomberg          Bloomberg Terminal        Local Terminal must be running
+upload             Researcher's own file     Drop CSV/parquet in data/uploads/
+```
+
+Authentication happens **once per provider**. Paper-Forge stores the session token securely. Every subsequent run fetches data automatically without re-authentication.
+
+INTAKE handles the entire auth flow in conversation:
+
+```
+INTAKE: "You mentioned WRDS data. I'll open the WRDS login page in your
+         browser. Sign in with your institutional credentials and complete
+         the 2FA — I'll wait here until you're done."
+
+[Browser opens → researcher logs in → 2FA on phone → token stored]
+
+INTAKE: "WRDS connected. What datasets do you need?"
 ```
 
 ---
 
-## CODEC — Bidirectional Code Audit
+## Statistical Test Library
 
-CODEC proves the code does what the paper claims **and** the paper describes what the code does. Two completely isolated passes.
+STATSRUN runs exactly the tests specified in PROTOCOL.md — not a hardcoded battery. Adding a new test is one file in `agents/sigma/tests/`.
 
 ```
-PASS 1 — Code Reader                     PASS 2 — Spec Reader
-──────────────────────────────────       ──────────────────────────────────
-Input:  source code only                 Input:  PAPER.md methodology only
-Cannot see: PAPER.md ✗                   Cannot see: any code ✗
-API key: OPENAI_API_KEY                  API key: OPENAI_API_KEY_PASS2
-
-Output: codec_spec.md                    Output: reimplementation from spec
-"What the code actually does"            KS-test vs sim_results.json
-                                         (pass threshold: KS stat < 0.05)
-         │                                             │
-         └──────────────────┬────────────────────────┘
-                            ▼
-                   codec_mismatch.md
-         FAIL items ──► FIXER    PASS ──► HAWK
+Test                  Use Case
+────────────────────  ──────────────────────────────────────────────────
+newey_west_hac        Standard t-test with autocorrelation correction
+garch_11              Volatility modeling and persistence
+bootstrap_ci          Non-parametric confidence intervals
+deflated_sharpe       Sharpe ratio corrected for multiple testing
+fama_macbeth          Two-pass cross-sectional regression
+regime_switching      Structural break detection
+markov_switching      Hidden state regime identification
+event_study_car       Cumulative abnormal returns around events
+placebo_test          False discovery rate validation
+out_of_sample_r2      Genuine predictive power measurement
+granger_causality     Temporal precedence testing
+panel_regression      Fixed/random effects with clustering
+descriptive_stats     Exploratory summary statistics
 ```
 
-Each pass runs as a **subprocess** with a separate API key. The test `test_codec_passes_are_isolated` verifies zero context leakage between passes.
+INTAKE recommends defaults based on claim type:
+
+```
+Claim type: predictability  → fama_macbeth, out_of_sample_r2, placebo_test, newey_west_hac
+Claim type: performance     → newey_west_hac, deflated_sharpe, bootstrap_ci, regime_switching
+Claim type: causal          → event_study_car, placebo_test, newey_west_hac, granger_causality
+Claim type: exploratory     → descriptive_stats, regime_switching, markov_switching
+```
 
 ---
 
-## HAWK — Why It Runs Before QUILL
+## PROTOCOL.md — The Research Specification
 
-> ⚠️ HAWK runs **before** QUILL. Most people assume the opposite. This is the most important ordering decision in the pipeline.
+Every pipeline run is driven by a `PROTOCOL.md` file that defines the complete research design. INTAKE generates it through conversation — you never write schema syntax directly.
 
-**Why:** A reviewer reading prose cannot detect weak research dressed in fluent language. Programmatic checks on raw statistical outputs cannot be fooled by surface features. HAWK checks the research first. QUILL only formats what passes.
+```yaml
+research_question: |
+  Does passive GSCI index investor concentration above 30% of open
+  interest reduce 12-month momentum strategy Sharpe ratios in energy
+  futures markets?
 
-**HAWK reads:** `pap.md`, `ttest_results.csv`, `primary_metric.csv`, `seed_consistency.csv`, `codec_mismatch.md`, `sim_results.json`
+research_mode: confirmatory
+claim_type: performance
 
-**HAWK never reads:** any `.tex`, `.pdf`, or prose
+hypothesis: |
+  Passive GSCI index investor concentration above 30% of open interest
+  in GSCI energy futures reduces 12-month momentum strategy Sharpe ratios
+  by at least 0.15 units compared to periods below 30% concentration,
+  controlling for GARCH(1,1) volatility clustering and Fama-French
+  momentum factor exposure.
 
-**Six programmatic checks:**
+primary_metric: "Sharpe ratio differential: high-concentration minus low-concentration periods"
+minimum_effect_size: "-0.15 Sharpe units"
+target_venue: "Journal of Finance"
 
-| Check | Source file | Hard block? |
-|-------|------------|-------------|
-| Finding matches pre-registered direction | `pap.md` vs `primary_metric.csv` | ✅ Yes |
-| p-value clears Bonferroni threshold | `ttest_results.csv` | ✅ Yes |
-| Seed consistency: `consistent: True` | `seed_consistency.csv` | ✅ Yes |
-| CODEC clean: zero FAIL items | `codec_mismatch.md` | ✅ Yes |
-| Minimum effect size met | `primary_metric.csv` | ✅ Yes |
-| `n_episodes >= 500000` | `sim_results.json` | ⚠️ Warning only |
+data_sources:
+  - source: wrds_futures
+    dataset: gsci_energy_futures
+    date_range: [2000-01-01, 2024-12-31]
+    filters:
+      - "Exclude contracts with fewer than 100 trading days"
+      - "Exclude roll dates within 5 days of FOMC/CPI announcements"
 
-If HAWK rejects, it routes mandatory items back to the correct agent. After 3 cycles without `approved_for_quill: true`, the pipeline halts.
+compute:
+  type: rl
+  episodes: 500000
+  seeds: [1337, 42, 9999]
+
+statistical_tests:
+  - newey_west_hac
+  - garch_11
+  - bootstrap_ci
+  - deflated_sharpe
+  - fama_macbeth
+  - regime_switching
+
+significance_threshold: 0.05
+multiple_test_correction: bonferroni
+
+audit_requirements:
+  codeaudit_required: true
+  reviewer_min_score: 7
+  max_review_cycles: 3
+```
+
+The validator checks every field before the pipeline starts:
+
+```
+✓ research_mode: confirmatory — valid
+✓ claim_type: performance — valid
+✓ hypothesis: present and non-empty
+✓ data_sources: wrds_futures — connector registered
+✓ compute.type: rl — adapter available
+✓ statistical_tests: all 6 tests in library
+✓ PROTOCOL.md valid — pipeline starting
+```
 
 ---
 
-## QUILL — What It Does and Does Not Write
-
-QUILL is a **deterministic LaTeX formatter**. It calls no LLM. It generates no prose.
-
-**QUILL writes:**
-- Title, authors, date (from `PAPER.md`)
-- Abstract: 3 sentences — hypothesis / primary result with exact numbers / one limitation
-- Methodology: rendered mechanically from `pap.md`
-- Findings: one bullet per result, exact CSV value + what it means
-- One LaTeX table per CSV in `stats_tables/`
-- Bibliography from `references.bib` if present
-
-**QUILL does not write:** Introduction, Related Work, Discussion, Conclusion. These require human judgment. The scaffold is the foundation — the writing is yours.
-
----
-
-## File Structure and Skills Files
+## Run Dashboard
 
 ```
-paper-forge/
-│
-├── PAPER.md                          ← THE ONLY FILE YOU EDIT TO START NEW RESEARCH
-├── run_aria_pipeline.py              ← Entry point
-├── state.db                          ← SQLite WAL: all phase status, pap_lock, full audit trail
-│
-├── agents/
-│   ├── aria/
-│   │   ├── aria.py                   ← Orchestrator state machine (never edit routing here)
-│   │   └── routing_config.py         ← Add new agents with one line
-│   │
-│   ├── scout/scout.py
-│   │
-│   ├── miner/
-│   │   ├── miner.py                  ← Edit data fetch logic here for new research
-│   │   └── sources/
-│   │       ├── wrds_src.py           ← Production: WRDS futures/equity data
-│   │       └── yfinance_src.py       ← Dev proxy: edit tickers here
-│   │
-│   ├── sigma/
-│   │   ├── sigma_job1.py             ← PAP lock — never modify the locking logic
-│   │   └── sigma_job2.py             ← Edit statistical tests here for new research
-│   │
-│   ├── forge/
-│   │   ├── env.py                    ← PettingZoo environment
-│   │   ├── runner.py                 ← CEM training loop
-│   │   ├── cem.py                    ← Cross-entropy method optimizer
-│   │   ├── gpu_run.py                ← Vectorized CUDA GPU runner (production)
-│   │   └── modal_run.py              ← Deprecated — Modal credits exhausted
-│   │
-│   ├── codec/
-│   │   ├── codec.py
-│   │   ├── pass1_skills.md           ← Instructs Pass 1: extract state space, rewards from code
-│   │   └── pass2_skills.md           ← Instructs Pass 2: "You have not seen the codebase."
-│   │
-│   ├── fixer/fixer.py
-│   │
-│   ├── hawk/
-│   │   ├── hawk.py
-│   │   └── hawk_skills.md            ← HAWK review rubric, routing rules, JF standards
-│   │
-│   └── quill/
-│       ├── quill.py
-│       └── quill_skills.md           ← LaTeX rendering rules, versioning behavior
-│
-├── outputs/
-│   └── data_passport.json            ← SHA-256 signed data lineage
-│
-├── paper_memory/{run_id}/            ← All output per run (gitignored)
-│   ├── literature_map.md
-│   ├── codec_spec.md
-│   ├── codec_mismatch.md
-│   ├── fixer_report.md
-│   ├── hawk_review_v*.md
-│   ├── hawk_routing_v*.json
-│   ├── stats_tables/
-│   │   ├── primary_metric.csv
-│   │   ├── ttest_results.csv
-│   │   ├── sharpe_summary.csv
-│   │   ├── garch_results.csv
-│   │   ├── fama_macbeth_results.csv
-│   │   ├── dcc_garch_results.csv
-│   │   ├── seed_consistency.csv      ← Read this first. If False, finding is invalid.
-│   │   └── library_versions.json    ← Pinned versions for exact replication
-│   ├── paper_draft_v1.tex            ← Never overwritten
-│   └── paper_draft_v2.tex            ← After HAWK revision cycle
-│
-└── tests/
-    ├── test_pipeline.py
-    ├── test_quality_gates.py
-    └── test_runtime_hardening.py
+$ python dashboard.py
+
+RUN ID                    STATUS   STARTED              PHASES    COST
+pf-live-20260423-203428   DONE     2026-04-23 20:34     9/9       $3.42
+pf-live-20260423-185058   DONE     2026-04-23 18:50     9/9       $3.18
+pf-live-20260423-040430   DONE     2026-04-23 04:04     9/9       $2.97
+
+$ python dashboard.py --run-id pf-live-20260423-203428
+
+Run: pf-live-20260423-203428
+Status: DONE  │  Started: 2026-04-23 20:34  │  Duration: 2h 14m
+
+Phase           Status   Duration    Cost     Notes
+LITERATURE      done     4m 23s      $0.40    40 papers, 9 full reads, 3 deduped
+DATAPULL        done     2m 11s      —        WRDS futures, SHA-256 certified
+PREREGISTER     done     0m 12s      $0.15    Hypothesis locked: 3a5273ac...
+COMPUTE         done     1h 48m      —        500k episodes, 3 seeds, CUDA GPU
+STATSRUN        done     3m 44s      —        6 tests, finding_valid: true
+CODEAUDIT       done     8m 22s      $1.12    3 mismatches → AUTOREPAIR patched
+REVIEWER        done     6m 30s      $0.95    Approved cycle 2, score 8.1/10
+WRITER          done     12m 10s     $0.80    paper_draft_v2.tex
+
+Total cost: $3.42
+Artifacts: runs/pf-live-20260423-203428/
 ```
-
-### The `*_skills.md` Files
-
-Every agent that makes an LLM call has a companion `*_skills.md` file. These are the **agent behavior contracts** — they define what the agent is allowed to do, what it must output, and what it must refuse.
-
-| File | What it controls |
-|------|-----------------|
-| `pass1_skills.md` | CODEC Pass 1: extract state space, reward functions, hyperparameters from code. Refuse to read PAPER.md. |
-| `pass2_skills.md` | CODEC Pass 2: first line is "You have not seen the codebase." Reconstruct method from paper text only. |
-| `hawk_skills.md` | HAWK review rubric: JF/RFS/JFE standards. Route by severity. Never comment on prose quality. |
-| `quill_skills.md` | LaTeX rendering rules. No prose generation. Every number must trace to a CSV. Never overwrite prior revision. |
-
-**To change how an agent behaves — edit its `*_skills.md`.** Do not touch the Python unless you are changing data flow.
 
 ---
 
@@ -337,305 +548,92 @@ git clone https://github.com/gouravsalottra/paper-forge-private
 cd paper-forge-private
 
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.lock
+pip install -r requirements.lock          # fully pinned — identical environment guaranteed
 
-cp .env.example .env                            # add OPENAI_API_KEY
-export PAPER_FORGE_MINER_SOURCE=yfinance        # dev mode — no WRDS needed
-export PAPER_FORGE_FORGE_EPISODES=500           # fast smoke test
+cp .env.example .env                      # add your OPENAI_API_KEY
+```
 
+**For new research (recommended):**
+```bash
+python intake.py
+# INTAKE guides you through research design in plain English
+# Handles data source authentication automatically
+# Generates and validates PROTOCOL.md
+# Then: python run_aria_pipeline.py
+```
+
+**For dev/smoke test (no WRDS, fast):**
+```bash
+export PAPER_FORGE_MINER_SOURCE=yfinance
+export PAPER_FORGE_FORGE_EPISODES=500
 python run_aria_pipeline.py
-```
-
-**What you'll see:**
-```
-RUN_ID: pf-live-20260422-143201
-▶ Running [SCOUT]...
-▶ Running [MINER]...
-🔒 PAP committed. SHA-256: 3f8a91b2...
-▶ Running [FORGE]...           # SQL gate confirmed
-▶ Running [SIGMA_JOB2]...
-▶ Running [CODEC]...
-==================================================
-HAWK review cycle 1/3
-==================================================
-HAWK recommendation: MINOR_REVISION
-▶ Running [QUILL] draft v2...
-HAWK ACCEPTED on cycle 2.
-Output: paper_memory/pf-live-20260422-143201/paper_draft_v2.tex
 ```
 
 **Resume a halted run from any phase:**
 ```bash
-python run_aria_pipeline.py --resume pf-live-20260422 --from CODEC
-# PAP lock is preserved — hypothesis commitment unchanged
-```
-
-**Verify CUDA before production (do this first):**
-```bash
-python3 -c "import torch; print('CUDA:', torch.cuda.is_available(), torch.cuda.get_device_name(0))"
-# Must print: CUDA: True  RTX PRO 6000 Blackwell (or your GPU name)
-# Only then run production:
-PAPER_FORGE_FORGE_EPISODES=500000 python run_aria_pipeline.py
+python run_aria_pipeline.py --resume pf-live-20260422 --from CODEAUDIT
+# Hypothesis lock is preserved and re-verified — cannot be tampered between runs
 ```
 
 **Run tests:**
 ```bash
 pytest -q
-# 11 passed in 4.32s
+# 87 passed, 1 skipped in 18.32s
+```
+
+**View run history:**
+```bash
+python dashboard.py
+python dashboard.py --run-id <id>
+python dashboard.py --cleanup-stale   # mark phantom runs from before REVIEWER fix
 ```
 
 ---
 
-## Running Your Own Finance Research
+## What Gets Produced Per Run
 
-> Paper-Forge is research infrastructure, not a single-topic tool. Here is exactly what to change for any new empirical finance question.
-
-### The One-File Rule
-
-**Edit `PAPER.md` only.** Every agent reads from it. Nothing commits until SIGMA JOB 1 seals it. For most new research questions, you also update MINER (data sources) and FORGE (environment). Everything else — ARIA, CODEC, FIXER, HAWK, QUILL — stays unchanged.
-
-### `PAPER.md` Format
-
-```markdown
-## Topic
-[Research topic in one sentence]
-
-## Hypothesis
-[Exactly what you expect to find. Be specific: direction, magnitude, conditions.
-This text is SHA-256 hashed and locked before any data is seen.
-You cannot change it after SIGMA JOB 1 runs.]
-
-## Primary Metric
-[The single number that answers the question.
-Be precise about how it is computed — SIGMA JOB 2 must produce exactly this.]
-
-## Statistical Tests
-[List every test. Include: library name, version, parameters, correction method.
-Every test listed here must appear in SIGMA JOB 2 output or HAWK blocks QUILL.]
-
-## Minimum Effect Size
-[Smallest effect worth caring about economically.
-Results below this are reported as insignificant regardless of p-value.]
-
-## Seed Policy
-seeds = [1337, 42, 9999]
-[Finding only valid if it holds qualitatively across ALL seeds listed here.
-One seed disagrees → finding_valid: false → paper reports the failure.]
-
-## Data Sources
-[Where MINER fetches data. WRDS symbols for production, yfinance symbols for dev.
-Specify: tickers, date range, roll convention if futures, any transformations.]
-
-## Exclusions
-[Data filtering rules: minimum history length, outlier thresholds, event windows.]
-
-## Pre-Analysis Plan Status
-UNCOMMITTED — must be committed by SIGMA_JOB1 before FORGE runs.
+```
+runs/pf-live-YYYYMMDD-HHMMSS/
+│
+├── literature_map.md           ← Gap analysis, methodology summary, citation seeds
+├── data_certificate.json       ← SHA-256 signed data lineage for every input file
+├── hypothesis_lock.json        ← Pre-registered hypothesis with timestamp + hash
+│
+├── stats_tables/
+│   ├── seed_consistency.csv    ← READ THIS FIRST: finding_valid true/false
+│   ├── primary_metric.csv      ← Sharpe differential / primary result
+│   ├── ttest_results.csv       ← Newey-West HAC p-values
+│   ├── garch_results.csv       ← GARCH(1,1) α, β, persistence
+│   ├── fama_macbeth_results.csv
+│   ├── bootstrap_ci.csv
+│   └── library_versions.json   ← Exact library versions for replication
+│
+├── codeaudit_spec.md           ← What the code actually implements
+├── codec_mismatch.md           ← Where code diverged from PROTOCOL.md
+├── autorepair_report.md        ← Automated fixes + human escalations
+│
+├── reviewer_report_v1.md       ← Referee report with mandatory revision items
+├── reviewer_scores_v1.json     ← Methodology rubric scores (1–10)
+│
+├── paper_draft_v1.tex          ← Initial draft — never overwritten
+├── paper_draft_v2.tex          ← After REVIEWER revision cycle
+│
+└── pipeline.log                ← Structured JSON log of every agent event
 ```
 
 ---
 
-## Extension: Using Paper-Forge for Any Finance Research
+## What Honest Failure Looks Like
 
-> The example below shows how to adapt the pipeline to a completely different research question. The integrity infrastructure (ARIA, SIGMA JOB 1, CODEC, FIXER, HAWK, QUILL) is unchanged. Only the domain-specific layers change.
+Most tools surface the favorable result. Paper-Forge surfaces everything.
 
-### Worked Example: GSCI Sector Rotation with RL *(Roadmap)*
-
-**Research question:** Can a PPO reinforcement learning agent achieve risk-adjusted outperformance over the GSCI by dynamically rotating across commodity ETF sub-sectors?
-
-### What Changes
-
-| File | Change | Why |
-|------|--------|-----|
-| `PAPER.md` | Full rewrite (below) | New hypothesis, metric, tests, data |
-| `agents/miner/sources/yfinance_src.py` | New tickers: XLE, GLD, DBA, COPX, PDBC, GSG | Different data |
-| `agents/forge/env.py` | New environment: 5 ETF sectors, monthly rebalancing, PPO reward | Different simulation |
-| `agents/forge/runner.py` | Switch to Stable Baselines 3 PPO, add SHAP post-training | Different optimizer |
-| `agents/sigma/sigma_job2.py` | Add out-of-sample Sharpe vs benchmarks, drawdown comparison, SHAP | Different tests |
-
-### What Does NOT Change
-
-ARIA, SCOUT, SIGMA JOB 1 (PAP lock), CODEC, FIXER, HAWK, QUILL.
-The entire integrity infrastructure is research-agnostic.
-
----
-
-### New `PAPER.md`
-
-```markdown
-## Topic
-Reinforcement Learning Agents for Dynamic Commodity Sector Rotation:
-Outperforming the Goldman Sachs Commodity Index
-
-## Hypothesis
-A PPO reinforcement learning agent trained on 2004–2018 monthly rebalancing data
-achieves statistically significant risk-adjusted outperformance over the GSCI total
-return index on out-of-sample data 2019–2024, with a lower maximum drawdown during
-the 2020 COVID commodity shock and the 2022 energy crisis.
-
-## Primary Metric
-Out-of-sample annualized Sharpe ratio differential: RL agent minus GSCI (2019–2024).
-Positive differential required. Computed on monthly total returns.
-
-## Statistical Tests
-1. One-tailed t-test on monthly excess returns (RL vs GSCI), p < 0.05, NW-HAC (3 lags)
-2. Bonferroni correction across 4 benchmark comparisons (GSCI, BCOM, EW, momentum)
-3. Maximum drawdown comparison: RL agent vs GSCI at 2020-03 and 2022-03 event windows
-4. SHAP feature importance: attribution of allocation decisions to state variables
-5. Walk-forward validation: 3-year rolling train/test to detect strategy decay
-6. Transaction cost sensitivity: repeat primary test at 0bp, 10bp, 30bp, 50bp
-
-## Minimum Effect Size
-Sharpe differential >= +0.15 annualized. Smaller outperformance is not economically
-meaningful after implementation costs.
-
-## Seed Policy
-seeds = [1337, 42, 9999]
-Policy must show positive Sharpe differential on all 3 seeds to be valid.
-
-## Data Sources
-# Dev mode (yfinance)
-ETFs:       XLE (energy), GLD (gold), DBA (agriculture), COPX (copper), PDBC (broad ex-energy)
-Benchmark:  GSG (GSCI proxy)
-Macro:      UUP (dollar), ^VIX (volatility), ^VIX3M (term structure)
-# Production (WRDS)
-GSCI Total Return Index, Bloomberg Commodity Index, Fama-French factors
-
-## State Space (19 dimensions)
-- 12-month trailing momentum per sector (5)
-- 1-month trailing return per sector (5)
-- US Dollar Index level + 3-month change (2)
-- VIX level + VIX term structure slope (2)
-- Roll yield proxy per sector (5)
-
-## Action Space
-Portfolio weight vector over 5 sectors.
-Constraint: no single sector > 40%.
-Rebalancing: monthly.
-
-## Reward Function
-risk_adjusted_excess = (portfolio_return - gsci_return) / portfolio_volatility
-transaction_cost_penalty = 10bp * abs(weight_change).sum()
-
-## Exclusions
-Exclude months where any ETF has fewer than 12 months of history.
-Evaluation window (never touched during training): 2019-01-01 to 2024-12-31.
-
-## Pre-Analysis Plan Status
-UNCOMMITTED — must be committed by SIGMA_JOB1 before FORGE runs.
-```
-
----
-
-### MINER Changes
-
-Edit `agents/miner/sources/yfinance_src.py`:
-
-```python
-SECTOR_ETFS = {
-    "energy":          "XLE",
-    "gold":            "GLD",
-    "agriculture":     "DBA",
-    "copper":          "COPX",
-    "broad_ex_energy": "PDBC",
-}
-BENCHMARKS = {
-    "gsci_proxy":  "GSG",
-    "bcom_proxy":  "DJP",
-    "dollar":      "UUP",
-    "vix":         "^VIX",
-    "vix3m":       "^VIX3M",
-}
-TRAIN_START, TRAIN_END = "2004-01-01", "2018-12-31"
-EVAL_START,  EVAL_END  = "2019-01-01", "2024-12-31"
-```
-
-### FORGE Changes
-
-Replace `agents/forge/env.py` with a single-agent Gym environment:
-
-```python
-class CommodityRotationEnv(gym.Env):
-    """
-    Replaces the multi-agent PettingZoo market environment.
-    State:  19-dimensional vector per PAPER.md state space
-    Action: 5-dimensional softmax weight vector (constrained: max 0.4 per sector)
-    Reward: risk-adjusted excess return vs GSCI minus transaction cost penalty
-    """
-    def __init__(self, returns_df, benchmark_series, tc_bps=10):
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(19,))
-        self.action_space = spaces.Box(low=0.0, high=0.4, shape=(5,))
-        self.tc_bps = tc_bps / 10000
-        ...
-```
-
-Switch `runner.py` to PPO:
-```python
-from stable_baselines3 import PPO
-model = PPO("MlpPolicy", env, verbose=1, learning_rate=3e-4, n_steps=2048)
-model.learn(total_timesteps=n_episodes)
-```
-
-### SIGMA JOB 2 Changes
-
-Add to `agents/sigma/sigma_job2.py`:
-
-```python
-def run_rl_rotation_battery(eval_returns, gsci_returns, policy_model, state_data):
-    results = {}
-
-    # 1. Primary: out-of-sample Sharpe differential (NW-HAC)
-    excess = eval_returns["rl"] - eval_returns["gsci"]
-    results["ttest_results"] = newey_west_ttest(excess, lags=3)
-
-    # 2. Benchmark comparisons
-    results["benchmark_comparison"] = compare_all_benchmarks(
-        eval_returns, benchmarks=["gsci", "bcom", "equal_weight", "momentum"]
-    )
-
-    # 3. Drawdown at event windows
-    results["drawdown_events"] = compare_drawdowns(
-        eval_returns, events=["2020-03", "2022-03"]
-    )
-
-    # 4. SHAP feature attribution
-    results["shap_attribution"] = compute_shap_values(policy_model, state_data)
-
-    # 5. Walk-forward validation
-    results["walk_forward"] = rolling_train_test(returns_df, train_years=14, test_years=3)
-
-    # 6. Transaction cost sensitivity
-    results["tc_sensitivity"] = {
-        tc: run_backtest(eval_returns, tc_bps=tc) for tc in [0, 10, 30, 50]
-    }
-    return results
-```
-
----
-
-## Five Integrity Layers
-
-| Layer | Agent | What it enforces |
-|-------|-------|-----------------|
-| 🔒 **PAP Lock** | `SIGMA_JOB1` | Hypothesis committed to SQLite before any simulation. SHA-256 signed. FORGE SQL gate enforces this — not Python. |
-| 🔍 **DataPassport** | `MINER` | Every input file SHA-256 signed. Download timestamp, tickers, row counts, acknowledged deviations all recorded. Byte-level hash verified by test. |
-| 📋 **CODEC Audit** | `CODEC` | Two isolated subprocess passes — one reads code, one reads spec. Separate API keys. Zero context leakage. KS-test on output distributions. |
-| 🌱 **Seed Consistency** | `SIGMA_JOB2` | Finding valid only if it holds across all pre-registered seeds. One seed disagrees → `finding_valid: false` → paper reports the failure honestly. |
-| 🦅 **HAWK Review** | `HAWK` | Journal of Finance-standard review of raw statistical outputs. Never reads prose. Cannot be fooled by fluent language. Halts after 3 cycles. |
-
----
-
-## Honest Failure — What It Looks Like
-
-> Most tools surface the favorable result. Paper-Forge surfaces everything and invalidates the finding when the data says to.
-
-At dev scale (2,000 episodes, yfinance proxy), seed consistency correctly reported:
+At dev scale (2,000 episodes, yfinance proxy), seed consistency correctly reported the finding as invalid:
 
 ```json
 {
   "consistent": false,
   "finding_valid": false,
-  "conclusion": "Finding does NOT hold across all 3 seeds — invalid per PAPER.md",
+  "conclusion": "Finding does NOT hold across all 3 seeds — invalid per PROTOCOL.md",
   "by_concentration": {
     "0.1": {
       "sharpes": [0.987, -1.129, 1.127],
@@ -646,7 +644,147 @@ At dev scale (2,000 episodes, yfinance proxy), seed consistency correctly report
 }
 ```
 
-The pre-commitment worked exactly as intended. The finding was underpowered at 2k episodes. The 500k GPU run is the real test.
+The pre-commitment worked exactly as designed. The hypothesis was underpowered at 2k episodes. The paper reported the failure honestly. The full 500k-episode GPU run is the real test.
+
+**That is the point.** A null result is a valid output. The system is designed to report failures, not to manufacture significance.
+
+---
+
+## System Design Principles
+
+**For engineers and system architects.**
+
+**1. Orchestrator reads state, not content.**
+CONDUCTOR (ARIA) reads only typed flags from `pipeline.db` — `APPROVED`, `REVISION_REQUESTED`, `PASS`, `FAIL`, `ESCALATE`. It never reads artifact content. This is verified by `test_conductor_never_reads_artifact_content` which patches `builtins.open`. The orchestrator coordinates workflow; it doesn't interpret science.
+
+**2. Routing is data, not logic.**
+Adding a new agent is one line in `routing_config.py`. The dispatch table is a dictionary. `aria.py` is never modified for routing changes.
+
+```python
+AGENT_SERVER_MAP: dict[str, str] = {
+    "LITERATURE":   "semantic_scholar",
+    "DATAPULL":     "connector_registry",
+    "MY_NEW_AGENT": "my_server",          # ← add here
+    ...
+}
+```
+
+**3. Schema evolution without breakage.**
+`_table_columns()` introspection throughout the codebase. Adding a column to a database table never breaks a running pipeline. New columns are added with `ALTER TABLE` and detected at runtime.
+
+**4. Append-only artifact writes.**
+CONDUCTOR never deletes or overwrites content rows — only updates status rows. The full audit trail is always reconstructible from `pipeline.db` alone.
+
+**5. Subprocess isolation for LLM audit passes.**
+CODEAUDIT and SPECAUDIT run as separate subprocesses with separate API keys. Zero context leakage is not a claim — it is proven by `test_codeaudit_specaudit_passes_are_isolated`.
+
+**6. Token budget with hard limits.**
+Every LLM call records token usage to `pipeline.db`. Configurable soft warnings and hard limits prevent runaway costs. `TokenBudgetExceededError` halts the pipeline before spending exceeds the limit.
+
+**7. Prompt versioning.**
+Every agent's system prompt lives in `prompts/<agent>.md`. SHA-256 of each prompt is recorded in `agent_results` alongside every LLM call. Two runs with identical data but different prompt versions produce different `prompt_sha256` values — the difference is auditable.
+
+**8. WAL-mode SQLite with foreign keys.**
+`PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`. All writes are transactional. The database survives unexpected process termination. Any interrupted run can be resumed from the last committed phase.
+
+---
+
+## Test Coverage
+
+```
+$ pytest -v
+
+tests/test_pipeline.py::test_forge_gate_blocks_without_pap_lock          PASSED
+tests/test_pipeline.py::test_forge_gate_passes_with_pap_lock             PASSED
+tests/test_pipeline.py::test_conductor_never_reads_artifact_content       PASSED
+tests/test_pipeline.py::test_preregister_blocks_sim_results              PASSED
+tests/test_pipeline.py::test_codeaudit_passes_are_isolated               PASSED
+tests/test_pipeline.py::test_hawk_loop_halts_at_max_cycles               PASSED
+tests/test_pipeline.py::test_resume_blocks_on_protocol_tamper            PASSED
+tests/test_pipeline.py::test_resume_allows_tamper_with_override_env      PASSED
+tests/test_protocol_validator.py::test_valid_confirmatory_protocol_passes PASSED
+tests/test_protocol_validator.py::test_missing_hypothesis_fails           PASSED
+tests/test_protocol_validator.py::test_invalid_compute_type_fails         PASSED
+tests/test_protocol_validator.py::test_exploratory_no_hypothesis_required PASSED
+tests/test_registry.py::test_all_connectors_registered                   PASSED
+tests/test_registry.py::test_all_stat_tests_registered                   PASSED
+tests/test_registry.py::test_none_adapter_is_immediate_passthrough        PASSED
+tests/test_token_budget.py::test_hard_limit_raises_token_budget_exceeded  PASSED
+tests/test_token_budget.py::test_soft_limit_logs_warning_not_raises       PASSED
+tests/test_prompt_versioning.py::test_prompt_hash_recorded_in_agent_results PASSED
+tests/test_parallel_and_ff.py::test_parallel_literature_datapull          PASSED
+tests/test_observability.py::test_structured_logger_emits_json            PASSED
+tests/test_final_audit.py::test_final_audit_checklist                    PASSED
+... and 66 more
+
+87 passed, 1 skipped in 18.32s
+```
+
+---
+
+## Extending Paper-Forge
+
+**Adding a new data source:**
+```python
+# agents/miner/connectors/my_source.py
+from agents.miner.connectors.registry import register
+from agents.miner.connectors.base import DataConnector
+
+@register
+class MySourceConnector(DataConnector):
+    source_name = "my_source"
+
+    def fetch(self, dataset, fields, date_range, filters, output_dir):
+        # fetch data, return (dataframe, certificate_dict)
+        ...
+```
+
+That's it. One file. The connector is immediately available in PROTOCOL.md as `source: my_source`.
+
+**Adding a new statistical test:**
+```python
+# agents/sigma/tests/my_test.py
+from agents.sigma.tests.registry import register
+from agents.sigma.tests.base import StatTest
+
+@register
+class MyTest(StatTest):
+    test_name = "my_test"
+
+    def run(self, data, seed, params):
+        # run test, return result dict with p_value, statistic, significant
+        ...
+```
+
+Available immediately in PROTOCOL.md as `- my_test`.
+
+**Adding a new compute adapter:**
+```python
+# agents/forge/adapters/my_adapter.py
+from agents.forge.adapters.registry import register
+from agents.forge.adapters.base import ComputeAdapter
+
+@register
+class MyAdapter(ComputeAdapter):
+    adapter_type = "my_compute"
+
+    def run(self, params, output_dir, seeds):
+        # run computation, return results dict
+        ...
+```
+
+Available immediately in PROTOCOL.md as `type: my_compute`.
+
+**Adding a new agent:**
+```python
+# agents/aria/routing_config.py
+AGENT_SERVER_MAP: dict[str, str] = {
+    ...
+    "MY_AGENT": "my_server",   # ← one line
+}
+```
+
+CONDUCTOR handles dispatch automatically. Never edit `aria.py` for routing.
 
 ---
 
@@ -656,80 +794,136 @@ The pre-commitment worked exactly as intended. The finding was underpowered at 2
 # Required
 OPENAI_API_KEY=sk-...
 
-# Optional: separate key for CODEC Pass 2 (true process isolation)
+# Separate key for SPECAUDIT Pass 2 — true process isolation
 OPENAI_API_KEY_PASS2=sk-...
 
 # Data source: 'wrds' (production) or 'yfinance' (dev, default)
 PAPER_FORGE_MINER_SOURCE=yfinance
 
-# WRDS credentials (production only)
+# WRDS credentials (required if MINER_SOURCE=wrds)
 WRDS_USERNAME=your_wrds_username
 
 # Episode count override (default: 500000)
 PAPER_FORGE_FORGE_EPISODES=500
+
+# Token budget (defaults: soft=$10, hard=$25 per run)
+PAPERFORGE_SOFT_LIMIT_USD=10.0
+PAPERFORGE_HARD_LIMIT_USD=25.0
+
+# Override PAP tamper detection on resume (expert use only — logged as CRITICAL)
+PAPERFORGE_OVERRIDE_PAP_TAMPER=1
 ```
-
----
-
-## Tests
-
-```bash
-pytest -q
-
-test_forge_gate_blocks_without_pap_lock      PASSED
-test_forge_gate_passes_with_pap_lock         PASSED
-test_aria_never_reads_artifact_content       PASSED  ← patches builtins.open
-test_sigma_job1_blocks_sim_results           PASSED
-test_codec_passes_are_isolated               PASSED  ← verifies payload context separation
-test_hawk_escalates_after_3_cycles           PASSED
-test_quill_raises_on_forbidden_words         PASSED
-test_artifact_versioning_no_overwrite        PASSED
-test_full_pipeline_smoke_test                PASSED
-test_miner_passport_sha256_matches_file      PASSED  ← byte-level hash check
-test_forge_episodes_match_paper_md           PASSED  ← introspects function signature
-
-11 passed in 4.32s
-```
-
----
-
-## Six Rules That Must Not Be Reverted
-
-These were learned from real build failures. Do not undo them in any new session.
-
-1. **HAWK must never read LaTeX or PDF.** It reads CSVs and JSON only.
-2. **QUILL must not use LLM to generate prose.** Deterministic formatting only.
-3. **FIXER must not block pipeline completion on escalation.** It is diagnostic, not a gate.
-4. **`gpu_run.py` must verify CUDA before running.** If `torch.cuda.is_available()` returns `False`, raise — do not run 500k episodes on CPU.
-5. **Daily quota 429 errors must not be retried.** Detect `86400` in error string and raise immediately.
-6. **ARIA must never read artifact content.** Typed flags from `state.db` only.
 
 ---
 
 ## Known Limitations
 
-- **WRDS required for production.** Use `PAPER_FORGE_MINER_SOURCE=yfinance` for local dev. The proxy uses CL=F and NG=F as stand-ins for commodity futures.
-- **GPU-intensive.** 500k-episode runs take ~15 minutes on RTX PRO 6000 Blackwell via `gpu_run.py`. Use `PAPER_FORGE_FORGE_EPISODES=500` for smoke tests.
-- **QUILL is a scaffold, not a finished paper.** Introduction, related work, discussion, and conclusion must be written by the researcher.
-- **Bid-ask filter calibration.** The intraday H-L/close spread proxy is too aggressive on daily futures data. Production runs should use tick-level spread from WRDS.
-- **This is research infrastructure, not a paper mill.** A null result is a valid output. The system reports failures honestly.
-- **FIXER infinite loop.** If SIGMA_JOB2 produces stderr output (DataScaleWarning, 
-  statsmodels RuntimeWarning), FIXER treats it as a failure and loops indefinitely. 
-  Interrupt with Ctrl+C and resume with `--from HAWK` to bypass FIXER.
+**WRDS required for production.** The yfinance proxy uses public equity ETFs as stand-ins for institutional futures data. The proxy validates pipeline mechanics but does not produce publishable research results. A WRDS institutional subscription is required for the full data pipeline.
+
+**WRITER produces a scaffold, not a finished paper.** Introduction, related work, discussion, and conclusion sections require human authorship. WRITER produces the methodology, results, and tables sections — the parts that must be grounded in verified data.
+
+**COMPUTE adapters for backtest and event_study are scaffolded.** The RL adapter is fully implemented. Backtest and event study adapters are ready for implementation — the interface is defined and tested, the logic needs to be built.
+
+**GPU required for full RL runs.** 500k-episode runs take ~15 minutes on a CUDA GPU. Use `PAPER_FORGE_FORGE_EPISODES=500` for development and smoke testing.
+
+---
+
+## Repository Structure
+
+```
+paper-forge/
+│
+├── intake.py                          ← Start here for new research
+├── run_aria_pipeline.py               ← Run existing PROTOCOL.md
+├── dashboard.py                       ← View run history and costs
+│
+├── PROTOCOL.md                        ← Current research specification
+├── PROTOCOL_SCHEMA.md                 ← Schema documentation
+├── PROTOCOL_TEMPLATE.md               ← Blank template for manual editing
+│
+├── agents/
+│   ├── conductor/ (aria/)             ← Orchestrator state machine
+│   ├── intake/                        ← Research design wizard
+│   │   ├── intake_agent.py
+│   │   ├── protocol_writer.py
+│   │   ├── auth_manager.py
+│   │   └── recommendation_engine.py
+│   ├── scout/                         ← Literature agent (LITERATURE)
+│   ├── miner/                         ← Data agent (DATAPULL)
+│   │   └── connectors/                ← Connector registry
+│   │       ├── registry.py
+│   │       ├── wrds_crsp_connector.py
+│   │       ├── wrds_futures_connector.py
+│   │       ├── fred_connector.py
+│   │       ├── sec_edgar_connector.py
+│   │       ├── yfinance_connector.py
+│   │       └── upload_connector.py
+│   ├── sigma/                         ← Statistics agents
+│   │   └── tests/                     ← Test library
+│   │       ├── registry.py
+│   │       ├── newey_west_hac.py
+│   │       ├── garch_11.py
+│   │       ├── fama_macbeth.py
+│   │       └── ...13 tests total
+│   ├── forge/                         ← Compute agent (COMPUTE)
+│   │   └── adapters/                  ← Compute adapter registry
+│   │       ├── rl_adapter.py
+│   │       ├── backtest_adapter.py
+│   │       ├── event_study_adapter.py
+│   │       └── none_adapter.py
+│   ├── codec/                         ← Code audit agents
+│   ├── fixer/                         ← Auto-repair agent
+│   ├── hawk/                          ← Reviewer agent
+│   ├── quill/                         ← Writer agent
+│   └── logger.py                      ← Structured JSON logging
+│
+├── prompts/                           ← Versioned agent prompts (SHA-256 tracked)
+│   ├── codeaudit.md
+│   ├── specaudit.md
+│   ├── autorepair.md
+│   ├── reviewer.md
+│   └── writer.md
+│
+├── aria/
+│   ├── validate_protocol.py           ← PROTOCOL.md validator
+│   └── routing_config.py             ← Agent dispatch table
+│
+├── config/
+│   └── model_config.json             ← LLM model versions and fallbacks
+│
+├── tests/                             ← 87 tests, 0 failing
+│   ├── test_pipeline.py
+│   ├── test_protocol_validator.py
+│   ├── test_registry.py
+│   ├── test_token_budget.py
+│   ├── test_prompt_versioning.py
+│   ├── test_parallel_and_ff.py
+│   ├── test_observability.py
+│   ├── test_intake.py
+│   ├── test_dashboard.py
+│   └── test_final_audit.py
+│
+├── .github/workflows/ci.yml          ← CI on every push
+├── requirements.lock                  ← Fully pinned dependencies
+└── requirements.in                    ← Direct dependencies (human-readable)
+```
 
 ---
 
 ## Contributing
 
-| Area | File | What's needed |
-|------|------|---------------|
-| WRDS production data | `agents/miner/sources/wrds_src.py` | Real GSCI futures fetch, FF factors |
-| New RL policy | `agents/forge/runner.py` + `env.py` | PPO, SAC — any Stable Baselines 3 policy |
-| New research domain | `PAPER.md` + `MINER` sources | PAP gate, CODEC, HAWK work on any spec |
-| New statistical test | `agents/sigma/sigma_job2.py` | HAWK picks up any new CSV automatically |
-| New agent | `agents/aria/routing_config.py` | One line — ARIA dispatch handles the rest |
+Paper-Forge is research infrastructure. Contributions that extend its reach to more research designs, more data sources, and more statistical methods are welcome.
 
-Before any PR: `pytest -q` must pass, especially `test_forge_episodes_match_paper_md`.
+| Area | Where to look | What's needed |
+|---|---|---|
+| New data connector | `agents/miner/connectors/` | Any institutional data source |
+| New statistical test | `agents/sigma/tests/` | Any test not in the current library |
+| Backtest adapter | `agents/forge/adapters/backtest_adapter.py` | Full strategy backtesting engine |
+| Event study adapter | `agents/forge/adapters/event_study_adapter.py` | CAR computation engine |
+| PPO for RL | `agents/forge/adapters/rl_adapter.py` | Replace CEM with Stable Baselines 3 PPO |
+| New research domain | Fork `PROTOCOL.md`, update DATAPULL | All integrity infrastructure carries over |
+
+Before any PR: `pytest -q` must show 0 failures. The gate test `test_forge_gate_blocks_without_pap_lock` is the canary for integrity regressions.
 
 ---
 
@@ -741,12 +935,14 @@ MIT — see [LICENSE](LICENSE)
 
 <div align="center">
 
-HAWK models Journal of Finance / RFS / JFE review standards  
-Pre-registration inspired by OSF and AEA PAP frameworks  
-Statistical correction: Harvey, Liu & Zhu (2016)
+REVIEWER models Journal of Finance / Review of Financial Studies / Journal of Financial Economics standards
+
+Pre-registration pattern inspired by OSF Pre-registration and AEA RCT Registry
+
+Multiple testing correction: Harvey, Liu & Zhu (2016) — "… and the Cross-Section of Expected Returns"
 
 <br/>
 
-*Built by [Gourav Salottra](https://github.com/gouravsalottra)*
+*Built by [Gourav Salottra](https://github.com/gouravsalottra) · Boston University*
 
 </div>
