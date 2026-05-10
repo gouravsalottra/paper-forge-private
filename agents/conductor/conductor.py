@@ -819,7 +819,6 @@ class ConductorPipeline:
     def _advance_phase(self, phase_name: str, status: str) -> None:
         now = self._now()
         with sqlite3.connect(self.db_path) as conn:
-            phase_cols = self._table_columns(conn, "phases")
             finished_col = "finished_at"
 
             row = conn.execute(
@@ -1082,7 +1081,6 @@ class ConductorPipeline:
 
     def _set_run_status(self, status: str) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            run_cols = set(self._table_columns(conn, "pipeline_runs"))
             finished_col = "finished_at"
             if status == "done":
                 conn.execute(
