@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agents.quill.quill import WriterAgent
+from agents.writer.writer import WriterAgent
 from agents.literature.literature import LiteratureAgent
 
 

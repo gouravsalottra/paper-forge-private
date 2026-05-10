@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agents.hawk.hawk import ReviewerAgent
+from agents.reviewer.reviewer import ReviewerAgent
 
 
 def test_programmatic_review_flags_codec_and_min_effect(tmp_path: Path, monkeypatch) -> None:

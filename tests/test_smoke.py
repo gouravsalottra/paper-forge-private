@@ -11,8 +11,8 @@ from agents.aria.aria import ConductorPipeline
 
 
 @pytest.mark.skipif(
-    os.getenv("PAPERCOMPUTE_RUN_SMOKE", "0") != "1",
-    reason="Set PAPERCOMPUTE_RUN_SMOKE=1 to run end-to-end smoke test.",
+    os.getenv("PAPERFORGE_RUN_SMOKE", "0") != "1",
+    reason="Set PAPERFORGE_RUN_SMOKE=1 to run end-to-end smoke test.",
 )
 def test_smoke_pipeline_end_to_end() -> None:
     run_id = "pf-smoke-test"

@@ -166,7 +166,7 @@ class LiteratureAgent:
             "https://api.semanticscholar.org/graph/v1/paper/search"
             f"?query={q}&limit={max(1, limit)}&fields=title,abstract,year,venue,authors,tldr,externalIds"
         )
-        req = Request(url, headers={"User-Agent": "paper-forge-scout/1.0"})
+        req = Request(url, headers={"User-Agent": "paper-forge-literature/1.0"})
         for attempt in range(3):
             try:
                 with urlopen(req, timeout=30) as resp:
@@ -181,7 +181,7 @@ class LiteratureAgent:
     def _arxiv_search(self, query: str, limit: int) -> list[dict]:
         q = quote_plus(query)
         url = f"http://export.arxiv.org/api/query?search_query=all:{q}&start=0&max_results={max(1, limit)}"
-        req = Request(url, headers={"User-Agent": "paper-forge-scout/1.0"})
+        req = Request(url, headers={"User-Agent": "paper-forge-literature/1.0"})
         xml = ""
         for attempt in range(3):
             try:
@@ -401,5 +401,5 @@ class LiteratureAgent:
                     (self.run_id, "LITERATURE", None, flag, now),
                 )
             else:
-                raise RuntimeError("Unsupported agent_results schema in scout writer")
+                raise RuntimeError("Unsupported agent_results schema in literature writer")
             conn.commit()

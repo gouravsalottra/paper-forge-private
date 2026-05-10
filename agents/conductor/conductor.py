@@ -1,4 +1,4 @@
-"""ARIA pipeline conductor (state machine only)."""
+"""CONDUCTOR pipeline orchestrator (state machine only)."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class ConductorPipeline:
         - Logs failures, retries, and controlled skips.
         """
         self._set_run_status("running")
-        self._log_audit("ARIA", "INFO", f"Goal: {self.GOAL}")
+        self._log_audit("CONDUCTOR", "INFO", f"Goal: {self.GOAL}")
 
         retries: dict[str, int] = {}
         max_retries = {
@@ -75,7 +75,7 @@ class ConductorPipeline:
         while loop_count < self.MAX_MAIN_LOOPS:
             if self._terminal_failure:
                 self._set_run_status("failed")
-                self._log_audit("ARIA", "ERROR", "Terminal failure reached; stopping main loop.")
+                self._log_audit("CONDUCTOR", "ERROR", "Terminal failure reached; stopping main loop.")
                 return
 
             loop_count += 1
@@ -83,7 +83,7 @@ class ConductorPipeline:
             if self._paper_is_publishable():
                 self._mark_remaining_phases_done()
                 self._set_run_status("done")
-                self._log_audit("ARIA", "INFO", f"Goal achieved after {loop_count} loop(s).")
+                self._log_audit("CONDUCTOR", "INFO", f"Goal achieved after {loop_count} loop(s).")
                 return
 
             if self._phase_status("LITERATURE") != "done" and self._phase_status("DATAPULL") != "done":
@@ -372,9 +372,9 @@ class ConductorPipeline:
             return
         try:
             v1.write_text(latest.read_text(encoding="utf-8", errors="ignore"), encoding="utf-8")
-            self._log_audit("ARIA", "INFO", f"Promoted {latest.name} to paper_draft_v1.tex for goal completion.")
+            self._log_audit("CONDUCTOR", "INFO", f"Promoted {latest.name} to paper_draft_v1.tex for goal completion.")
         except Exception as exc:
-            self._log_audit("ARIA", "WARN", f"Failed promoting latest draft to v1: {exc}")
+            self._log_audit("CONDUCTOR", "WARN", f"Failed promoting latest draft to v1: {exc}")
 
     def _paper_is_publishable(self, path: Path | None = None) -> bool:
         run_dir = Path("runs") / self.run_id
@@ -732,8 +732,7 @@ class ConductorPipeline:
             agent = SigmaJob2(run_id=self.run_id, db_path=self.db_path, output_dir="runs")
             return agent.run()
         if agent_name == "DATAPULL":
-            # Backward-compatible import path expected by legacy tests/integrations.
-            from agents.miner.miner import run_miner_pipeline
+            from agents.datapull.datapull import run_miner_pipeline
 
             source = os.getenv("PAPER_COMPUTE_DATAPULL_SOURCE", "wrds").strip().lower() or "wrds"
             if source not in {"wrds", "yfinance"}:
@@ -1067,8 +1066,8 @@ class ConductorPipeline:
                         (self.run_id, phase),
                     )
             if "token_limits" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}:
-                soft_limit = float(os.getenv("PAPERCOMPUTE_SOFT_LIMIT_USD", "10.0"))
-                hard_limit = float(os.getenv("PAPERCOMPUTE_HARD_LIMIT_USD", "25.0"))
+                soft_limit = float(os.getenv("PAPERFORGE_SOFT_LIMIT_USD", "10.0"))
+                hard_limit = float(os.getenv("PAPERFORGE_HARD_LIMIT_USD", "25.0"))
                 conn.execute(
                     """
                     INSERT INTO token_limits (run_id, soft_limit_usd, hard_limit_usd, total_spent_usd, last_updated)

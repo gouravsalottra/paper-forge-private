@@ -64,9 +64,7 @@ def _reset_from_phase(run_id: str, from_phase: str) -> None:
             (run_id,),
         ).fetchone()
         stored_hash = (lock_row[0] if lock_row else None) or ""
-        override = (
-            os.getenv("PAPERFORGE_OVERRIDE_PAP_TAMPER", os.getenv("PAPERCOMPUTE_OVERRIDE_PAP_TAMPER", "0")) == "1"
-        )
+        override = os.getenv("PAPERFORGE_OVERRIDE_PAP_TAMPER", "0") == "1"
         env_mode = os.getenv("PAPERFORGE_ENV", "prod").strip().lower()
         allowed_users_raw = os.getenv("PAPERFORGE_OVERRIDE_ALLOW_USERS", "")
         allowed_users = {u.strip() for u in allowed_users_raw.split(",") if u.strip()}
@@ -81,7 +79,7 @@ def _reset_from_phase(run_id: str, from_phase: str) -> None:
                 "Resume is blocked to preserve pre-registration integrity.\n"
                 "To start fresh: python run_pipeline.py (new run)\n"
                 "To acknowledge and override (expert use only): set env var\n"
-                "PAPERFORGE_OVERRIDE_PAP_TAMPER=1 (or legacy PAPERCOMPUTE_OVERRIDE_PAP_TAMPER=1)"
+                "PAPERFORGE_OVERRIDE_PAP_TAMPER=1"
             )
             if not override:
                 raise PAPTamperError(msg)

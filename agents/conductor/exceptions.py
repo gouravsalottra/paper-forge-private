@@ -1,4 +1,4 @@
-"""Typed exceptions for ARIA pipeline orchestration."""
+"""Typed exceptions for CONDUCTOR pipeline orchestration."""
 
 from __future__ import annotations
 

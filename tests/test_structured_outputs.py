@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agents.aria.exceptions import StructuredOutputError
 from agents.codeaudit.codeaudit import CodeAuditResult, CodecAgent
-from agents.hawk.hawk import ReviewerAgent, HawkReview
+from agents.reviewer.reviewer import ReviewerAgent, HawkReview
 
 
 def test_hawk_review_parses_valid_response() -> None:

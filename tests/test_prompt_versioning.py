@@ -5,7 +5,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from agents.hawk.hawk import ReviewerAgent
+from agents.reviewer.reviewer import ReviewerAgent
 from init_db import init_db
 
 

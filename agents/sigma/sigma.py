@@ -1,5 +1,5 @@
-# DEPRECATED: StatsrunAgent is not dispatched by ARIA.
-# ARIA dispatches agents/preregister.py (SigmaJob1) and agents/statsrun/statsrun_job.py (SigmaJob2).
+# DEPRECATED: StatsrunAgent is not dispatched by CONDUCTOR.
+# CONDUCTOR dispatches agents/preregister.py (SigmaJob1) and agents/statsrun/statsrun_job.py (SigmaJob2).
 # This file is retained for reference only and will be removed in a future release.
 
 """SIGMA agent: PAP pre-registration and econometric evaluation."""

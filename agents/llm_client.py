@@ -168,8 +168,8 @@ def track_usage(
             (run_id,),
         ).fetchone()
         if row is None:
-            soft_limit = float(os.getenv("PAPERCOMPUTE_SOFT_LIMIT_USD", "10.0"))
-            hard_limit = float(os.getenv("PAPERCOMPUTE_HARD_LIMIT_USD", "25.0"))
+            soft_limit = float(os.getenv("PAPERFORGE_SOFT_LIMIT_USD", "10.0"))
+            hard_limit = float(os.getenv("PAPERFORGE_HARD_LIMIT_USD", "25.0"))
             total_spent = 0.0
             conn.execute(
                 """

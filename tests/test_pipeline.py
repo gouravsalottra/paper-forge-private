@@ -12,10 +12,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from agents.aria.aria import ConductorPipeline
 from agents.aria.exceptions import ComputeGateError, IntegrityViolationError, PipelineHaltError
 from agents.codeaudit.codeaudit import CodecAgent
-from agents.hawk.hawk import ReviewerAgent
-from agents.quill.quill import WriterAgent
+from agents.reviewer.reviewer import ReviewerAgent
+from agents.writer.writer import WriterAgent
 from agents.sigma.sigma import StatsrunAgent
-from run_aria_pipeline import _reset_from_phase
+from run_pipeline import _reset_from_phase
 
 
 def _make_pipeline(tmp_path: Path, run_id: str = "run-test") -> ConductorPipeline:

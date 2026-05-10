@@ -1,6 +1,6 @@
-"""Routing configuration for ARIA pipeline dispatch.
+"""Routing configuration for CONDUCTOR pipeline dispatch.
 
-ARIA reads this dict — it never contains routing logic inline.
+CONDUCTOR reads this dict — it never contains routing logic inline.
 Adding a new agent = adding one entry here. Never modify aria.py for routing.
 """
 

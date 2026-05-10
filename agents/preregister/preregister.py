@@ -22,7 +22,8 @@ class SigmaJob1:
     def run(self) -> dict:
         _skills_candidates = [
             Path("agents/sigma/skills.md"),
-            Path("skills/preregister_skills.md"),
+            Path("prompts/preregister.md"),
+            Path("prompts/intake.md"),
             Path("agents/preregister_skills.md"),
         ]
         _skills_path = next((p for p in _skills_candidates if p.exists()), None)

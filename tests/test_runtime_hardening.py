@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 
 from agents.aria.aria import ConductorPipeline
-from agents.hawk.hawk import ReviewerAgent
-from agents.quill.quill import WriterAgent
+from agents.reviewer.reviewer import ReviewerAgent
+from agents.writer.writer import WriterAgent
 from agents.literature.literature import LiteratureAgent
 from agents.statsrun.statsrun_job import SigmaJob2
 
@@ -30,9 +30,9 @@ def test_aria_dispatches_real_miner(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         assert source == "wrds"
         return {"result_flag": "DONE", "source": source}
 
-    import agents.miner.miner as miner_mod
+    import agents.datapull.datapull as datapull_mod
 
-    monkeypatch.setattr(miner_mod, "run_miner_pipeline", fake_run_miner, raising=True)
+    monkeypatch.setattr(datapull_mod, "run_miner_pipeline", fake_run_miner, raising=True)
     out = pipeline._dispatch("DATAPULL", "wrds", {})
     assert called["miner"] is True
     assert out["result_flag"] == "DONE"
@@ -67,16 +67,16 @@ def test_aria_dispatches_real_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 
 def test_miner_requires_wrds_by_default() -> None:
-    import agents.miner.miner as miner_mod
+    import agents.datapull.datapull as datapull_mod
 
     with pytest.raises(RuntimeError):
-        miner_mod.select_data_source(require_wrds=True, wrds_available=False)
+        datapull_mod.select_data_source(require_wrds=True, wrds_available=False)
 
 
-def test_scout_filters_non_finance_citations(tmp_path: Path) -> None:
+def test_literature_filters_non_finance_citations(tmp_path: Path) -> None:
     paper = tmp_path / "PAPER.md"
     paper.write_text("## Topic\nCommodity futures\n## Hypothesis\nMomentum and concentration\n", encoding="utf-8")
-    scout = LiteratureAgent(run_id="r", paper_md_path=str(paper), output_dir=str(tmp_path))
+    literature = LiteratureAgent(run_id="r", paper_md_path=str(paper), output_dir=str(tmp_path))
     papers = [
         {
             "title": "Non-relativistic Conformal Field Theory in Momentum Space",
@@ -93,7 +93,7 @@ def test_scout_filters_non_finance_citations(tmp_path: Path) -> None:
             "ids": {"DOI": "10.1016/j.jfineco.2011.11.003"},
         },
     ]
-    lit = scout._build_literature_map(papers)
+    lit = literature._build_literature_map(papers)
     assert "Conformal Field Theory" not in lit
     assert "Time Series Momentum" in lit
 
@@ -177,7 +177,7 @@ def test_miner_passport_sha256_matches_file(tmp_path: Path, monkeypatch: pytest.
 
     monkeypatch.chdir(tmp_path)
 
-    import agents.miner.miner as miner_mod
+    import agents.datapull.datapull as datapull_mod
 
     (tmp_path / "outputs").mkdir()
     import pandas as pd
@@ -194,9 +194,9 @@ def test_miner_passport_sha256_matches_file(tmp_path: Path, monkeypatch: pytest.
         index=idx,
     )
     fake_returns.index.name = "date"
-    monkeypatch.setattr(miner_mod, "build_returns_frame", lambda: fake_returns, raising=True)
+    monkeypatch.setattr(datapull_mod, "build_returns_frame", lambda: fake_returns, raising=True)
 
-    miner_mod.run_miner_pipeline(run_id="r-passport", output_dir=str(tmp_path), source="yfinance")
+    datapull_mod.run_miner_pipeline(run_id="r-passport", output_dir=str(tmp_path), source="yfinance")
 
     passport_path = Path("outputs/data_passport.json")
     assert passport_path.exists(), "DataPassport not written"

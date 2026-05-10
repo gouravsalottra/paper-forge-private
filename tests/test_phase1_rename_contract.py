@@ -31,8 +31,6 @@ def test_no_old_names_in_codebase() -> None:
     offenders: list[str] = []
     root = Path(".")
     for py in root.rglob("*.py"):
-        if py.name == "run_aria_pipeline.py":
-            continue
         if py.name == Path(__file__).name:
             continue
         text = py.read_text(encoding="utf-8", errors="ignore")

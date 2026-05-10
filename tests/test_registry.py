@@ -83,12 +83,12 @@ def test_compute_registry_has_rl_none_backtest_event_study() -> None:
 
 
 def test_miner_legacy_mode_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import agents.miner.miner as miner_mod
+    import agents.datapull.datapull as datapull_mod
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(miner_mod, "build_returns_frame", lambda: pd.DataFrame({"x": [0.1, 0.2]}), raising=True)
-    monkeypatch.setattr(miner_mod, "write_data_passport", lambda _df: {"ok": True}, raising=True)
-    out = miner_mod.run_miner_pipeline(run_id="r-miner", output_dir=str(tmp_path / "runs"), source="yfinance")
+    monkeypatch.setattr(datapull_mod, "build_returns_frame", lambda: pd.DataFrame({"x": [0.1, 0.2]}), raising=True)
+    monkeypatch.setattr(datapull_mod, "write_data_passport", lambda _df: {"ok": True}, raising=True)
+    out = datapull_mod.run_miner_pipeline(run_id="r-miner", output_dir=str(tmp_path / "runs"), source="yfinance")
     assert out["result_flag"] == "DONE"
     assert (tmp_path / "outputs" / "commodity_returns.csv").exists()
 

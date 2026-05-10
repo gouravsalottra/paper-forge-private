@@ -8,5 +8,5 @@ When implemented, this server will expose:
   - fetch_ff_factors(start, end) -> DataFrame
   - health() -> dict
 
-ARIA health check: verifies WRDS connection on startup.
+CONDUCTOR health check: verifies WRDS connection on startup.
 """
