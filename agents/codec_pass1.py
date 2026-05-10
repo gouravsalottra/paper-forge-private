@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agents.llm_client import get_client
+from agents.llm_client import get_client, track_usage
 
 
 class CodecPass1:
@@ -16,6 +17,7 @@ class CodecPass1:
         self.run_id = run_id
         self.db_path = db_path
         self.output_dir = Path(output_dir)
+        self._prompt_sha256: str | None = None
 
     def run(self) -> dict:
         code_files = self._collect_code_files()
@@ -54,8 +56,7 @@ class CodecPass1:
             chunks.append(f"\n\n### FILE: {rel}\n{text}")
         return "".join(chunks)
 
-    @staticmethod
-    def _call_gpt4o(code_context: str) -> str:
+    def _call_gpt4o(self, code_context: str) -> str:
         try:
             from dotenv import load_dotenv
         except Exception:
@@ -80,6 +81,9 @@ class CodecPass1:
             "Use markdown with clear headings and file references.\n\n"
             f"CODEBASE CONTENT START\n{code_context}\nCODEBASE CONTENT END"
         )
+        self._prompt_sha256 = hashlib.sha256(
+            f"{system_prompt}\n{user_prompt}".encode("utf-8")
+        ).hexdigest()
 
         resp = client.chat.completions.create(
             model=model,
@@ -89,6 +93,14 @@ class CodecPass1:
             ],
             temperature=0,
         )
+        track_usage(
+            resp,
+            run_id=self.run_id,
+            phase_name="CODEC",
+            agent_name="CODEC_PASS1",
+            model=model,
+            db_path=self.db_path,
+        )
         return (resp.choices[0].message.content or "").strip()
 
     def _write_result_flag(self, status: str) -> None:
@@ -96,18 +108,33 @@ class CodecPass1:
         with sqlite3.connect(self.db_path) as conn:
             cols = [row[1] for row in conn.execute("PRAGMA table_info(agent_results)")]
             if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
-                conn.execute(
-                    "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (self.run_id, "CODEC", "PASS1", status, created_at),
-                )
+                if "prompt_sha256" in cols:
+                    conn.execute(
+                        "INSERT INTO agent_results (run_id, agent, job, prompt_sha256, result_flag, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (self.run_id, "CODEC", "PASS1", self._prompt_sha256, status, created_at),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
+                        (self.run_id, "CODEC", "PASS1", status, created_at),
+                    )
             elif {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
-                conn.execute(
-                    """
-                    INSERT INTO agent_results (result_id, run_id, phase_name, agent_name, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (uuid.uuid4().hex, self.run_id, "CODEC", "CODEC_PASS1", status, created_at),
-                )
+                if "prompt_sha256" in cols:
+                    conn.execute(
+                        """
+                        INSERT INTO agent_results (result_id, run_id, phase_name, agent_name, prompt_sha256, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (uuid.uuid4().hex, self.run_id, "CODEC", "CODEC_PASS1", self._prompt_sha256, status, created_at),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO agent_results (result_id, run_id, phase_name, agent_name, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (uuid.uuid4().hex, self.run_id, "CODEC", "CODEC_PASS1", status, created_at),
+                    )
             conn.commit()
 
 

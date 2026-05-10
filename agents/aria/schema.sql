@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS agent_results (
     run_id TEXT NOT NULL,
     agent TEXT NOT NULL,
     job TEXT,
+    prompt_sha256 TEXT,
     result_flag TEXT NOT NULL,
     phase_name TEXT,
     agent_name TEXT,
@@ -73,4 +74,38 @@ CREATE TABLE IF NOT EXISTS pap (
     updated_at TEXT,
     payload_json TEXT,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS checkpoints (
+    checkpoint_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    phase_name TEXT NOT NULL,
+    checkpoint_key TEXT NOT NULL,
+    value_json TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE(run_id, phase_name, checkpoint_key),
+    FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
+);
+
+CREATE TABLE IF NOT EXISTS token_budget (
+    budget_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    phase_name TEXT NOT NULL,
+    agent_name TEXT NOT NULL,
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    estimated_cost_usd REAL,
+    model TEXT,
+    recorded_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
+);
+
+CREATE TABLE IF NOT EXISTS token_limits (
+    run_id TEXT PRIMARY KEY,
+    soft_limit_usd REAL NOT NULL DEFAULT 10.0,
+    hard_limit_usd REAL NOT NULL DEFAULT 25.0,
+    total_spent_usd REAL NOT NULL DEFAULT 0.0,
+    last_updated TEXT,
+    FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
 );

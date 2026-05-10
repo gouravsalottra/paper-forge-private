@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from agents.llm_client import get_client
+from agents.llm_client import track_usage
 
 
 class CodecAgent:
@@ -431,6 +432,14 @@ class CodecAgent:
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0,
+            )
+            track_usage(
+                resp,
+                run_id=self.run_id,
+                phase_name="CODEC",
+                agent_name="CODEC",
+                model=self._model_name,
+                db_path=self.db_path,
             )
             return (resp.choices[0].message.content or "").strip()
         if callable(self.llm_client):

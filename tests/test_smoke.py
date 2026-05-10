@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from agents.aria.aria import ARIAPipeline
 
 
 @pytest.mark.skipif(
@@ -45,3 +46,51 @@ def test_smoke_pipeline_end_to_end() -> None:
     assert "\\begin{document}" in text
     assert "\\end{document}" in text
 
+
+def test_smoke_pipeline_mock_no_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run_id = "pf-smoke-mock"
+    paper_path = tmp_path / "PAPER.md"
+    paper_path.write_text("# Mock Protocol\n", encoding="utf-8")
+
+    pipeline = ARIAPipeline(
+        db_path=str(tmp_path / "state.db"),
+        run_id=run_id,
+        paper_md_path=str(paper_path),
+    )
+
+    calls: list[str] = []
+
+    def fake_dispatch(agent_name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(agent_name)
+        if agent_name == "HAWK":
+            return {"result_flag": "DONE", "approved_for_quill": True}
+        if agent_name == "CODEC":
+            return {"result_flag": "PASS", "approved_for_quill": True}
+        return {"result_flag": "DONE"}
+
+    monkeypatch.setattr(pipeline, "_dispatch", fake_dispatch)
+    monkeypatch.setattr(pipeline, "_check_forge_gate", lambda: None)
+    monkeypatch.setattr(pipeline, "_hawk_is_approved_for_quill", lambda: True)
+    sequence = iter(["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "HAWK"])
+    monkeypatch.setattr(pipeline, "_next_tool_call", lambda: next(sequence, None))
+    monkeypatch.setattr(
+        pipeline,
+        "_paper_is_publishable",
+        lambda path=None: all(pipeline._phase_status(p) == "done" for p in pipeline.PHASE_ORDER),
+    )
+
+    pipeline.run()
+
+    with sqlite3.connect(pipeline.db_path) as conn:
+        rows = conn.execute(
+            "SELECT phase_name, status FROM phases WHERE run_id=?",
+            (run_id,),
+        ).fetchall()
+
+    by_phase = {name: status for name, status in rows}
+    expected = ["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "QUILL", "HAWK"]
+    for phase in expected:
+        assert by_phase.get(phase) == "done"
+
+    for phase in ["SCOUT", "MINER", "SIGMA_JOB1", "FORGE", "SIGMA_JOB2", "CODEC", "HAWK", "QUILL"]:
+        assert phase in calls

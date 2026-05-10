@@ -1,0 +1,10 @@
+{
+  "primary_model": "gpt-5.4-2026-03-05",
+  "primary_model_alias": "gpt-5.4",
+  "fallback_model": "gpt-4o-2024-11-20",
+  "codec_pass2_model": "gpt-5.4-2026-03-05",
+  "codec_pass2_temperature": 0.0,
+  "default_temperature": 0.1,
+  "last_verified": "2026-05-09",
+  "deprecation_check_url": "https://platform.openai.com/docs/models"
+}

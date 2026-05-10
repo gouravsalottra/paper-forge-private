@@ -15,6 +15,8 @@ TABLE_NAMES = [
     "agent_results",
     "server_health_log",
     "checkpoints",
+    "token_budget",
+    "token_limits",
 ]
 
 
@@ -88,6 +90,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 run_id TEXT NOT NULL,
                 phase_name TEXT,
                 agent_name TEXT NOT NULL,
+                prompt_sha256 TEXT,
                 pap_id TEXT,
                 status TEXT NOT NULL,
                 score REAL,
@@ -116,8 +119,36 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 UNIQUE(run_id, phase_name, checkpoint_key),
                 FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
             );
+
+            CREATE TABLE IF NOT EXISTS token_budget (
+                budget_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                phase_name TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_usd REAL,
+                model TEXT,
+                recorded_at TEXT NOT NULL,
+                FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS token_limits (
+                run_id TEXT PRIMARY KEY,
+                soft_limit_usd REAL NOT NULL DEFAULT 10.0,
+                hard_limit_usd REAL NOT NULL DEFAULT 25.0,
+                total_spent_usd REAL NOT NULL DEFAULT 0.0,
+                last_updated TEXT,
+                FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
+            );
             """
         )
+
+        # Backward-compatible schema migration.
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(agent_results)")]
+        if "prompt_sha256" not in cols:
+            conn.execute("ALTER TABLE agent_results ADD COLUMN prompt_sha256 TEXT")
 
         conn.commit()
 

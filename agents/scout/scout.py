@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -75,16 +76,70 @@ class ScoutAgent:
                     except Exception:
                         continue
 
-        # Deduplicate by identifier
-        unique: dict[str, dict] = {}
-        for p in papers:
-            key = p.get("paperId") or p.get("arxivId") or p.get("title", "")
-            if key and key not in unique:
-                unique[key] = p
-        out = list(unique.values())
+        out = self.deduplicate_papers(papers)
+        out = self.filter_by_citation_quality(out)
         if out:
             return out
         return self._fallback_seed_papers()
+
+    @staticmethod
+    def _normalize_title(title: str) -> str:
+        lowered = (title or "").lower()
+        lowered = re.sub(r"[-_/]", " ", lowered)
+        lowered = re.sub(r"[^\w\s]", " ", lowered)
+        return re.sub(r"\s+", " ", lowered).strip()
+
+    def deduplicate_papers(self, papers: list[dict]) -> list[dict]:
+        seen_dois: dict[str, bool] = {}
+        seen_titles: dict[str, bool] = {}
+        out: list[dict] = []
+
+        def source_rank(p: dict) -> int:
+            src = (p.get("source") or "").lower()
+            if "semscholar" in src:
+                return 2
+            if "arxiv" in src:
+                return 1
+            return 0
+
+        ordered = sorted(
+            papers,
+            key=lambda p: (float(p.get("relevance_score", 0.0)), source_rank(p)),
+            reverse=True,
+        )
+        for p in ordered:
+            doi = (p.get("doi") or p.get("externalIds", {}).get("DOI") or "").strip().lower()
+            title_norm = self._normalize_title(p.get("title", ""))
+            if doi and doi in seen_dois:
+                continue
+            if title_norm and title_norm in seen_titles:
+                continue
+            if doi:
+                seen_dois[doi] = True
+            if title_norm:
+                seen_titles[title_norm] = True
+            out.append(p)
+        return out
+
+    @staticmethod
+    def filter_by_citation_quality(
+        papers: list[dict],
+        min_citations: int = 0,
+        exclude_preprints_as_primary: bool = False,
+    ) -> list[dict]:
+        del exclude_preprints_as_primary
+        out: list[dict] = []
+        for p in papers:
+            src = (p.get("source") or "").lower()
+            doi = (p.get("doi") or p.get("externalIds", {}).get("DOI") or "").strip()
+            if not doi and src == "arxiv":
+                p["peer_reviewed"] = False
+                p["citation_note"] = "Working paper / preprint — not peer reviewed"
+            else:
+                p["peer_reviewed"] = True
+            if int(p.get("citation_count", 0) or 0) >= min_citations:
+                out.append(p)
+        return out
 
     def _arxiv_server_search(self, query: str, limit: int) -> list[dict]:
         from mcp_servers.arxiv_server import query as arxiv_query

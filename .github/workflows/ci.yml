@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Run tests
+        run: python -m pytest . -v --tb=short --ignore=tests/test_smoke.py
+      - name: Verify PAP gate integrity
+        run: >
+          python -m pytest
+          tests/test_pipeline.py::test_forge_gate_blocks_without_pap_lock
+          tests/test_pipeline.py::test_forge_gate_passes_with_pap_lock
+          -v

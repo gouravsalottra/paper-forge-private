@@ -39,3 +39,22 @@ ALLOWED_ARTIFACTS: dict[str, set[str]] = {
     "QUILL": {"literature_map", "codec_spec", "stats_tables", "pap", "codec_mismatch"},
     "HAWK": {"paper_draft", "codec_spec", "stats_tables", "codec_mismatch"},
 }
+
+AGENT_DISPLAY_NAMES: dict[str, str] = {
+    "SCOUT": "LITERATURE",
+    "MINER": "DATAPULL",
+    "SIGMA_JOB1": "PREREGISTER",
+    "FORGE": "COMPUTE",
+    "SIGMA_JOB2": "STATSRUN",
+    "CODEC": "CODEAUDIT / SPECAUDIT",
+    "FIXER": "AUTOREPAIR",
+    "QUILL": "WRITER",
+    "HAWK": "REVIEWER",
+}
+
+SYSTEM_DISPLAY_NAMES: dict[str, str] = {
+    "ARIA": "CONDUCTOR",
+    "INTAKE": "INTAKE",
+    "PAPER.md": "PROTOCOL.md",
+    "state.db": "pipeline.db",
+}

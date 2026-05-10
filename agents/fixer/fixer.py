@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agents.llm_client import get_client
+from agents.llm_client import get_client, track_usage
 
 
 class FixerAgent:
@@ -172,6 +172,14 @@ class FixerAgent:
             max_completion_tokens=3000,
             temperature=0,
         )
+        track_usage(
+            resp,
+            run_id=self.run_id,
+            phase_name="FIXER",
+            agent_name="FIXER",
+            model=model,
+            db_path=self.db_path,
+        )
         raw = (resp.choices[0].message.content or "{}").strip()
         try:
             clean = re.sub(r"```json|```", "", raw).strip()
@@ -254,6 +262,14 @@ class FixerAgent:
             }],
             max_completion_tokens=500,
             temperature=0,
+        )
+        track_usage(
+            resp,
+            run_id=self.run_id,
+            phase_name="FIXER",
+            agent_name="FIXER",
+            model=model,
+            db_path=self.db_path,
         )
         raw = (resp.choices[0].message.content or "{}").strip()
         clean = re.sub(r"```json|```", "", raw).strip()

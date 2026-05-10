@@ -1,13 +1,20 @@
 .env
 state.db
+state.db-wal
+state.db-shm
+data/raw/
+data/uploads/
+runs/
 paper_memory/
+outputs/
 
 # Python cache/artifacts
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
 .DS_Store
-outputs/
-data/
-paper_memory/

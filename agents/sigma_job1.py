@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agents.llm_client import get_client
+from agents.llm_client import get_client, track_usage
 
 
 class SigmaJob1:
@@ -79,6 +79,14 @@ class SigmaJob1:
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format={"type": "json_object"},
+            )
+            track_usage(
+                completion,
+                run_id=self.run_id,
+                phase_name="SIGMA_JOB1",
+                agent_name="SIGMA",
+                model=self._model,
+                db_path=self.db_path,
             )
             pap_json_str = completion.choices[0].message.content or "{}"
             pap_obj = json.loads(pap_json_str)

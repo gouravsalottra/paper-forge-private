@@ -7,12 +7,15 @@ import time
 import re
 import subprocess
 import math
+import json
 import logging
+import threading
 from collections import Counter
 from datetime import datetime, timezone
 import os
 from pathlib import Path
 from typing import Any
+import uuid
 
 from agents.aria.exceptions import ForgeGateError, IntegrityViolationError, PipelineHaltError, ServerUnavailableError
 from agents.aria.routing_config import AGENT_SERVER_MAP, AGENT_TIMEOUTS_SECONDS
@@ -83,6 +86,10 @@ class ARIAPipeline:
                 self._log_audit("ARIA", "INFO", f"Goal achieved after {loop_count} loop(s).")
                 return
 
+            if self._phase_status("SCOUT") != "done" and self._phase_status("MINER") != "done":
+                self._run_phase_parallel(["SCOUT", "MINER"])
+                continue
+
             next_step = self._next_tool_call()
             if next_step is None:
                 # No deterministic upstream gap left.
@@ -110,6 +117,40 @@ class ARIAPipeline:
             "WARN",
             f"Main loop exhausted ({self.MAX_MAIN_LOOPS}) before reaching publishable draft goal.",
         )
+
+    def _run_phase_parallel(self, phases: list[str]) -> dict[str, dict]:
+        results: dict[str, dict] = {}
+        errors: list[str] = []
+        lock = threading.Lock()
+
+        def run_phase(phase: str) -> None:
+            try:
+                self._advance_phase(phase, "running")
+                res = self._dispatch(phase, self._server_for_phase(phase), self._context_config_for_phase(phase))
+                flag = str(res.get("result_flag", "DONE"))
+                self._write_result_flag(agent=phase, job="parallel", flag=flag)
+                if flag in {"FAIL", "FAILED", "ESCALATE"}:
+                    raise RuntimeError(f"{phase} returned {flag}")
+                self._advance_phase(phase, "done")
+                with lock:
+                    results[phase] = res
+            except Exception as exc:
+                self._advance_phase(phase, "failed")
+                with lock:
+                    errors.append(f"{phase}: {exc}")
+
+        threads: list[threading.Thread] = []
+        for phase in phases:
+            t = threading.Thread(target=run_phase, args=(phase,), daemon=True)
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join(timeout=max(AGENT_TIMEOUTS_SECONDS.get(p, 300) for p in phases))
+
+        if errors:
+            raise PipelineHaltError(f"Parallel phase(s) failed: {errors}")
+        return results
 
     def _run_step(self, phase: str, retries: dict[str, int], max_retries: dict[str, int]) -> None:
         if phase == "FIXER" and self._last_failure_phase == "QUILL":
@@ -543,8 +584,9 @@ class ARIAPipeline:
                 self._advance_phase(str(phase_name), "done")
 
     def _run_hawk_loop(self, max_cycles: int = 3) -> None:
-        """HAWK review loop that always terminates and accepts best available draft at max cycles."""
-        for cycle in range(1, max_cycles + 1):
+        """HAWK review loop with persisted cycle cap."""
+        prior_cycles = self._get_checkpoint_count("HAWK", "hawk_fixer_cycles")
+        for cycle in range(prior_cycles + 1, max_cycles + 1):
             print(f"\n{'=' * 50}")
             print(f"HAWK review cycle {cycle}/{max_cycles}")
             print(f"{'=' * 50}")
@@ -570,15 +612,15 @@ class ARIAPipeline:
                 print(f"Read: paper_memory/{self.run_id}/hawk_review_v{cycle}.md")
                 return
 
+            self._set_checkpoint_count("HAWK", "hawk_fixer_cycles", cycle)
+
             if cycle == max_cycles:
-                self._log_audit(
-                    "HAWK",
-                    "WARN",
-                    f"Max cycles reached ({max_cycles}). Accepting best available draft for publication.",
+                self._write_result_flag("HAWK", f"CYCLE{cycle}", "ESCALATE")
+                self._advance_phase("HAWK", "failed")
+                raise PipelineHaltError(
+                    "HAWK/FIXER cycle limit reached (3 cycles). "
+                    "Pipeline halted. Review hawk_review_v3.md and fixer_report.md for diagnosis."
                 )
-                self._advance_phase("HAWK", "done")
-                print("Max cycles reached. Accepting best available draft for publication.")
-                return
 
             # Run FIXER between HAWK cycles. FIXER outcomes never reset HAWK cycle counting.
             try:
@@ -636,9 +678,57 @@ class ARIAPipeline:
                 )
                 self._write_result_flag("CODEC", f"HAWK_CYCLE{cycle}", codec_result.get("result_flag", "WARN"))
 
+        if prior_cycles >= max_cycles:
+            raise PipelineHaltError(
+                "HAWK/FIXER cycle limit reached (3 cycles). "
+                "Pipeline halted. Review hawk_review_v3.md and fixer_report.md for diagnosis."
+            )
         self._advance_phase("HAWK", "done")
-        print("Max cycles reached. Accepting best available draft for publication.")
         return
+
+    def _get_checkpoint_count(self, phase_name: str, key: str) -> int:
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT value_json FROM checkpoints WHERE run_id=? AND phase_name=? AND checkpoint_key=? LIMIT 1",
+                (self.run_id, phase_name, key),
+            ).fetchone()
+        if not row or not row[0]:
+            return 0
+        try:
+            data = json.loads(row[0])
+            return int(data.get("count", 0))
+        except Exception:
+            return 0
+
+    def _set_checkpoint_count(self, phase_name: str, key: str, count: int) -> None:
+        payload = json.dumps({"count": int(count)})
+        now = self._now()
+        with sqlite3.connect(self.db_path) as conn:
+            cols = set(self._table_columns(conn, "checkpoints"))
+            if not cols:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS checkpoints (
+                        checkpoint_id TEXT PRIMARY KEY,
+                        run_id TEXT NOT NULL,
+                        phase_name TEXT NOT NULL,
+                        checkpoint_key TEXT NOT NULL,
+                        value_json TEXT,
+                        created_at TEXT NOT NULL,
+                        UNIQUE(run_id, phase_name, checkpoint_key)
+                    )
+                    """
+                )
+            conn.execute(
+                """
+                INSERT INTO checkpoints (checkpoint_id, run_id, phase_name, checkpoint_key, value_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(run_id, phase_name, checkpoint_key)
+                DO UPDATE SET value_json=excluded.value_json, created_at=excluded.created_at
+                """,
+                (uuid.uuid4().hex, self.run_id, phase_name, key, payload, now),
+            )
+            conn.commit()
 
     def _dispatch(self, agent_name: str, server_name: str, context_config: dict[str, Any]) -> dict[str, Any]:
         self._health_check_or_raise(server_name)
@@ -966,6 +1056,9 @@ class ARIAPipeline:
         sql = schema_path.read_text(encoding="utf-8")
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(sql)
+            cols = self._table_columns(conn, "agent_results")
+            if "prompt_sha256" not in cols:
+                conn.execute("ALTER TABLE agent_results ADD COLUMN prompt_sha256 TEXT")
             conn.commit()
 
     def _ensure_run_rows(self) -> None:
@@ -1009,6 +1102,17 @@ class ARIAPipeline:
                         "INSERT INTO phases (run_id, phase_name, status) VALUES (?, ?, 'pending')",
                         (self.run_id, phase),
                     )
+            if "token_limits" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}:
+                soft_limit = float(os.getenv("PAPERFORGE_SOFT_LIMIT_USD", "10.0"))
+                hard_limit = float(os.getenv("PAPERFORGE_HARD_LIMIT_USD", "25.0"))
+                conn.execute(
+                    """
+                    INSERT INTO token_limits (run_id, soft_limit_usd, hard_limit_usd, total_spent_usd, last_updated)
+                    VALUES (?, ?, ?, 0.0, ?)
+                    ON CONFLICT(run_id) DO NOTHING
+                    """,
+                    (self.run_id, soft_limit, hard_limit, self._now()),
+                )
             conn.commit()
 
     def _set_run_status(self, status: str) -> None:

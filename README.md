@@ -337,7 +337,7 @@ git clone https://github.com/gouravsalottra/paper-forge-private
 cd paper-forge-private
 
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock
 
 cp .env.example .env                            # add OPENAI_API_KEY
 export PAPER_FORGE_MINER_SOURCE=yfinance        # dev mode — no WRDS needed

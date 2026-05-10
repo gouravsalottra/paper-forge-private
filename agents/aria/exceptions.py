@@ -28,3 +28,21 @@ class IntegrityViolationError(RuntimeError):
 
 class PipelineHaltError(RuntimeError):
     """Raised when the pipeline must halt without recovery."""
+
+
+class PAPTamperError(RuntimeError):
+    """Raised when PAPER.md hash no longer matches the locked PAP hash on resume."""
+
+
+class TokenBudgetExceededError(RuntimeError):
+    """Raised when a run exceeds its hard token budget limit."""
+
+    def __init__(self, spent: float, limit: float) -> None:
+        self.spent = spent
+        self.limit = limit
+        super().__init__(
+            f"Token budget exceeded: ${spent:.4f} spent, "
+            f"${limit:.2f} hard limit. Pipeline halted to prevent "
+            f"runaway costs. Set a higher hard_limit_usd in token_limits "
+            f"table if this was intentional."
+        )

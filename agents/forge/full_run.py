@@ -74,7 +74,7 @@ def _run_scenario_worker(concentration: float, seed: int, n_episodes: int) -> di
     return result
 
 
-def run_full_sweep(n_episodes: int | None = None) -> dict[str, Any]:
+def run_full_sweep(n_episodes: int = 500_000) -> dict[str, Any]:
     n_episodes = int(n_episodes if n_episodes is not None else os.getenv("PAPER_FORGE_FORGE_EPISODES", "500000"))
 
     concentrations = [0.10, 0.30, 0.60]

@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from agents.prompt_loader import load_prompt
+
 
 class HawkAgent:
     def __init__(
@@ -27,6 +29,7 @@ class HawkAgent:
 
     def run(self, revision_number: int = 1) -> dict[str, Any]:
         _ = revision_number  # retained for interface compatibility
+        _, self._prompt_sha256 = load_prompt("reviewer")
         context = self._load_context()
         review = self._programmatic_review(context)
 
@@ -363,22 +366,39 @@ class HawkAgent:
 
     def _write_result_flag(self, flag: str) -> None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        prompt_sha = getattr(self, "_prompt_sha256", None)
         with sqlite3.connect(self.db_path) as conn:
             cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_results)")}
             if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
-                conn.execute(
-                    "INSERT INTO agent_results "
-                    "(run_id, agent, job, result_flag, created_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (self.run_id, "HAWK", None, flag, now),
-                )
+                if "prompt_sha256" in cols:
+                    conn.execute(
+                        "INSERT INTO agent_results "
+                        "(run_id, agent, job, prompt_sha256, result_flag, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (self.run_id, "HAWK", None, prompt_sha, flag, now),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO agent_results "
+                        "(run_id, agent, job, result_flag, created_at) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (self.run_id, "HAWK", None, flag, now),
+                    )
             elif {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
-                conn.execute(
-                    "INSERT INTO agent_results "
-                    "(result_id, run_id, phase_name, agent_name, status, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    (uuid.uuid4().hex, self.run_id, "HAWK", "HAWK", flag, now),
-                )
+                if "prompt_sha256" in cols:
+                    conn.execute(
+                        "INSERT INTO agent_results "
+                        "(result_id, run_id, phase_name, agent_name, prompt_sha256, status, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (uuid.uuid4().hex, self.run_id, "HAWK", "HAWK", prompt_sha, flag, now),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO agent_results "
+                        "(result_id, run_id, phase_name, agent_name, status, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (uuid.uuid4().hex, self.run_id, "HAWK", "HAWK", flag, now),
+                    )
             conn.commit()
 
     @staticmethod

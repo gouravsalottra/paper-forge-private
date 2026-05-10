@@ -10,6 +10,9 @@ from typing import Any
 
 import pandas as pd
 import wrds
+import pandas_datareader.data as web
+
+from agents.aria.exceptions import ServerUnavailableError
 
 OUTPUT_DIR = Path("outputs")
 PASSPORT_PATH = OUTPUT_DIR / "wrds_passport.json"
@@ -181,3 +184,53 @@ def fetch(config: dict[str, Any]) -> pd.DataFrame:
         return fetch_concentration(start=start, end=end)
 
     raise ValueError("config['kind'] must be one of: 'futures', 'concentration'.")
+
+
+def fetch_ff_factors(start: str, end: str) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Fetch Fama-French daily factors from WRDS with Kenneth French fallback for dev mode."""
+    source_mode = (__import__("os").environ.get("PAPER_FORGE_MINER_SOURCE", "wrds") or "wrds").lower()
+    try:
+        conn = wrds.Connection()
+        try:
+            df = conn.raw_sql(
+                """
+                SELECT date, mktrf, smb, hml, rf
+                FROM ff.factors_daily
+                WHERE date BETWEEN %(start)s AND %(end)s
+                ORDER BY date
+                """,
+                params={"start": start, "end": end},
+                date_cols=["date"],
+            )
+        finally:
+            conn.close()
+        out = pd.DataFrame(
+            {
+                "date": pd.to_datetime(df["date"]),
+                "mkt_rf": pd.to_numeric(df["mktrf"], errors="coerce"),
+                "smb": pd.to_numeric(df["smb"], errors="coerce"),
+                "hml": pd.to_numeric(df["hml"], errors="coerce"),
+                "rf": pd.to_numeric(df["rf"], errors="coerce"),
+            }
+        ).dropna()
+        return out, {"ff_source": "wrds_ff_factors_daily"}
+    except Exception as exc:
+        if source_mode == "yfinance":
+            ff = web.DataReader("F-F_Research_Data_Factors_daily", "famafrench", start, end)[0] / 100.0
+            ff = ff.reset_index()
+            date_col = ff.columns[0]
+            out = pd.DataFrame(
+                {
+                    "date": pd.to_datetime(ff[date_col]),
+                    "mkt_rf": pd.to_numeric(ff["Mkt-RF"], errors="coerce"),
+                    "smb": pd.to_numeric(ff["SMB"], errors="coerce"),
+                    "hml": pd.to_numeric(ff["HML"], errors="coerce"),
+                    "rf": pd.to_numeric(ff["RF"], errors="coerce"),
+                }
+            ).dropna()
+            return out, {"ff_source": "kenneth_french_library"}
+        raise ServerUnavailableError(
+            server_name="wrds_ff_factors",
+            detail=f"WRDS unavailable and fallback disabled: {exc}",
+            latency_ms=None,
+        ) from exc

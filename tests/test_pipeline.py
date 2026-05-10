@@ -15,6 +15,7 @@ from agents.codec.codec import CodecAgent
 from agents.hawk.hawk import HawkAgent
 from agents.quill.quill import QuillAgent
 from agents.sigma.sigma import SigmaAgent
+from run_aria_pipeline import _reset_from_phase
 
 
 def _make_pipeline(tmp_path: Path, run_id: str = "run-test") -> ARIAPipeline:
@@ -170,7 +171,7 @@ def test_codec_mismatch_report_contains_metadata(tmp_path: Path, monkeypatch: py
 
 
 def test_hawk_loop_accepts_after_max_cycles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """HAWK loop must accept best draft after max_cycles, never halt."""
+    """HAWK loop must halt at max_cycles with deterministic cap."""
     pipeline = _make_pipeline(tmp_path, run_id="r-hawk-accept")
 
     # HAWK always returns REVISION_REQUESTED
@@ -193,16 +194,16 @@ def test_hawk_loop_accepts_after_max_cycles(tmp_path: Path, monkeypatch: pytest.
 
     monkeypatch.setattr(pipeline, "_dispatch", always_revision)
 
-    # Should complete without raising, not loop forever
-    pipeline._run_hawk_loop(max_cycles=3)
+    with pytest.raises(PipelineHaltError):
+        pipeline._run_hawk_loop(max_cycles=3)
 
-    # Verify HAWK marked done, not failed
+    # Verify HAWK did not exceed cycle cap
     with sqlite3.connect(pipeline.db_path) as conn:
         row = conn.execute(
             "SELECT status FROM phases WHERE run_id=? AND phase_name='HAWK'",
             (pipeline.run_id,),
         ).fetchone()
-    assert row[0] == "done"
+    assert row[0] == "failed"
     assert call_count["hawk"] <= 3
 
 
@@ -233,7 +234,8 @@ def test_hawk_loop_terminates_despite_fixer_escalate(tmp_path: Path, monkeypatch
         return {"result_flag": "DONE"}
 
     monkeypatch.setattr(pipeline, "_dispatch", fake_dispatch)
-    pipeline._run_hawk_loop(max_cycles=3)
+    with pytest.raises(PipelineHaltError):
+        pipeline._run_hawk_loop(max_cycles=3)
 
     with sqlite3.connect(pipeline.db_path) as conn:
         row = conn.execute(
@@ -241,7 +243,7 @@ def test_hawk_loop_terminates_despite_fixer_escalate(tmp_path: Path, monkeypatch
             (pipeline.run_id,),
         ).fetchone()
 
-    assert row[0] == "done"
+    assert row[0] == "failed"
     assert call_count["hawk"] <= 3
     # FIXER should run in non-final cycles, and never reset HAWK cycle counting.
     assert 1 <= call_count["fixer"] <= 3
@@ -374,3 +376,81 @@ def test_full_pipeline_smoke_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         assert status_map.get(phase) == "done"
 
     assert (Path("paper_memory") / pipeline.run_id / "paper_draft_v1.tex").exists()
+
+
+def test_resume_blocks_on_paper_md_tamper(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from agents.aria.exceptions import PAPTamperError
+    import hashlib
+
+    monkeypatch.chdir(tmp_path)
+    paper = Path("PAPER.md")
+    paper.write_text("initial protocol\n", encoding="utf-8")
+
+    pipeline = ARIAPipeline(db_path="state.db", run_id="r-tamper", paper_md_path="PAPER.md")
+    locked_hash = hashlib.sha256(paper.read_bytes()).hexdigest()
+
+    with sqlite3.connect("state.db") as conn:
+        conn.execute(
+            """
+            INSERT INTO pap_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
+            VALUES (?, datetime('now'), 'SIGMA_JOB1', ?, NULL)
+            ON CONFLICT(run_id) DO UPDATE SET pap_sha256=excluded.pap_sha256
+            """,
+            (pipeline.run_id, locked_hash),
+        )
+        conn.execute(
+            "UPDATE phases SET status='done' WHERE run_id=? AND phase_name IN ('SCOUT','MINER')",
+            (pipeline.run_id,),
+        )
+        conn.commit()
+
+    paper.write_text("tampered protocol\n", encoding="utf-8")
+
+    with pytest.raises(PAPTamperError) as exc:
+        _reset_from_phase(pipeline.run_id, "FORGE")
+
+    msg = str(exc.value)
+    assert "Locked hash:" in msg
+    assert "Current hash:" in msg
+
+
+def test_resume_allows_tamper_with_override_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import hashlib
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPERFORGE_OVERRIDE_PAP_TAMPER", "1")
+
+    paper = Path("PAPER.md")
+    paper.write_text("initial protocol\n", encoding="utf-8")
+    pipeline = ARIAPipeline(db_path="state.db", run_id="r-tamper-override", paper_md_path="PAPER.md")
+    locked_hash = hashlib.sha256(paper.read_bytes()).hexdigest()
+
+    with sqlite3.connect("state.db") as conn:
+        conn.execute(
+            """
+            INSERT INTO pap_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
+            VALUES (?, datetime('now'), 'SIGMA_JOB1', ?, NULL)
+            ON CONFLICT(run_id) DO UPDATE SET pap_sha256=excluded.pap_sha256
+            """,
+            (pipeline.run_id, locked_hash),
+        )
+        conn.commit()
+
+    paper.write_text("tampered protocol\n", encoding="utf-8")
+    _reset_from_phase(pipeline.run_id, "FORGE")
+
+    with sqlite3.connect("state.db") as conn:
+        row = conn.execute(
+            """
+            SELECT status, detail
+            FROM server_health_log
+            WHERE run_id=?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (pipeline.run_id,),
+        ).fetchone()
+
+    assert row is not None
+    assert row[0] == "CRITICAL"
+    assert "PAPER.md has been modified since PAP was locked" in row[1]
