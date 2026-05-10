@@ -80,7 +80,7 @@ def test_datapull_uses_yfinance_connector_for_public_data(monkeypatch: pytest.Mo
 
 
 def test_protocol_template_fails_with_unfilled_placeholders(tmp_path: Path) -> None:
-    template = Path("PROTOCOL_TEMPLATE.md").read_text(encoding="utf-8")
+    template = Path("PROTOCOL.md").read_text(encoding="utf-8")
     (tmp_path / "PROTOCOL.md").write_text(template, encoding="utf-8")
     from conductor.validate_protocol import ProtocolValidator
 
@@ -109,11 +109,79 @@ def test_example_gsci_protocol_exists_and_is_valid() -> None:
 
 
 def test_core_protocol_template_has_no_gsci_content() -> None:
-    content = Path("PROTOCOL_TEMPLATE.md").read_text(encoding="utf-8")
+    content = Path("PROTOCOL.md").read_text(encoding="utf-8")
     assert "GSCI" not in content
     assert "passive investor concentration" not in content.lower()
     assert "commodity" not in content.lower()
     assert "[FILL IN" in content
+
+
+def test_protocol_template_md_does_not_exist() -> None:
+    assert not Path("PROTOCOL_TEMPLATE.md").exists(), (
+        "PROTOCOL_TEMPLATE.md is a duplicate of PROTOCOL.md. "
+        "Only PROTOCOL.md should exist as the canonical blank template."
+    )
+
+
+def test_protocol_md_is_blank_template() -> None:
+    content = Path("PROTOCOL.md").read_text(encoding="utf-8")
+    assert "FILL IN" in content, (
+        "PROTOCOL.md should be a blank template with [FILL IN] placeholders"
+    )
+    assert "GSCI" not in content
+    assert "passive investor" not in content.lower()
+
+
+def test_gitignore_excludes_all_run_artifacts() -> None:
+    content = Path(".gitignore").read_text(encoding="utf-8")
+    required = ["*.log", "pipeline.db", "runs/", "outputs/", ".env"]
+    for entry in required:
+        assert entry in content, f".gitignore missing: {entry}"
+
+
+def test_log_files_not_in_git_index() -> None:
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "ls-files", "*.log", "paper_draft_v1.log"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.stdout.strip() == "", (
+        f"Log files are tracked in git: {result.stdout.strip()}\n"
+        "Run: git rm --cached <filename>"
+    )
+
+
+def test_root_aria_conductor_are_shims_not_logic() -> None:
+    for dirpath in [Path("aria"), Path("conductor")]:
+        if not dirpath.exists():
+            continue
+        for pyfile in dirpath.glob("*.py"):
+            if pyfile.name == "__init__.py":
+                continue
+            content = pyfile.read_text(encoding="utf-8")
+            lines = [l.strip() for l in content.splitlines() if l.strip() and not l.strip().startswith("#")]
+            non_import_lines = [l for l in lines if not l.startswith("from ") and not l.startswith("import ")]
+            assert len(non_import_lines) == 0, (
+                f"{pyfile} contains logic, not just imports.\n"
+                "Root-level aria/ and conductor/ must be pure shims.\n"
+                "Move logic to agents/conductor/ or agents/aria/\n"
+                f"Non-import lines found: {non_import_lines}"
+            )
+
+
+def test_agents_conductor_is_canonical_import() -> None:
+    from agents.conductor.conductor import ConductorPipeline
+
+    assert ConductorPipeline is not None
+
+
+def test_conductor_validate_protocol_importable_from_root() -> None:
+    from conductor.validate_protocol import ProtocolValidator
+
+    assert ProtocolValidator is not None
 
 
 def test_compute_episodes_not_hardcoded() -> None:

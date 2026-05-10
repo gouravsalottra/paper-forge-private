@@ -26,3 +26,8 @@ build/
 data/*.parquet
 data/*.csv
 data/raw/
+*.log
+paper_draft_*.log
+paper_draft_*.tex
+pipeline.db-wal
+pipeline.db-shm

@@ -94,4 +94,4 @@ def test_master_context_present() -> None:
 
 def test_protocol_schema_and_template_present() -> None:
     assert Path("PROTOCOL_SCHEMA.md").exists()
-    assert Path("PROTOCOL_TEMPLATE.md").exists()
+    assert Path("PROTOCOL.md").exists()

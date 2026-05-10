@@ -7,9 +7,8 @@ from aria.validate_protocol import ProtocolValidator
 
 def test_protocol_schema_and_template_exist() -> None:
     assert Path("PROTOCOL_SCHEMA.md").exists()
-    assert Path("PROTOCOL_TEMPLATE.md").exists()
     assert Path("PROTOCOL_SCHEMA.md").stat().st_size > 500
-    assert Path("PROTOCOL_TEMPLATE.md").stat().st_size > 300
+    assert Path("PROTOCOL.md").stat().st_size > 300
 
 
 def test_protocol_validator_rejects_missing_confirmatory_fields(tmp_path: Path) -> None:
