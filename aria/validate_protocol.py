@@ -1,1 +1,1 @@
-from agents.conductor.validate_protocol import ProtocolValidator
+from conductor.validate_protocol import ProtocolValidator

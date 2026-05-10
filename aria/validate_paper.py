@@ -1,1 +1,1 @@
-from agents.conductor.validate_paper import *
+from conductor.validate_paper import *

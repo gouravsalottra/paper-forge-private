@@ -1,1 +1,3 @@
-from agents.miner.connectors.registry import *  # noqa: F401,F403
+from .registry import CONNECTOR_REGISTRY, get_connector
+
+__all__ = ["CONNECTOR_REGISTRY", "get_connector"]
