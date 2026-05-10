@@ -475,70 +475,6 @@ class ConductorPipeline:
                     return True
         return False
 
-    def _completed_quill_hawk_fixer_cycles(self) -> int:
-        """
-        Count completed WRITER -> REVIEWER -> AUTOREPAIR chains in agent_results for this run.
-        Requires schema-aware reads.
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            cols = set(self._table_columns(conn, "agent_results"))
-            if {"phase_name", "created_at"}.issubset(cols):
-                rows = conn.execute(
-                    """
-                    SELECT phase_name, status, created_at
-                    FROM agent_results
-                    WHERE run_id=?
-                    ORDER BY created_at
-                    """,
-                    (self.run_id,),
-                ).fetchall()
-                phase_idx, status_idx, time_idx = 0, 1, 2
-            elif {"agent", "created_at"}.issubset(cols):
-                rows = conn.execute(
-                    """
-                    SELECT agent, result_flag, created_at
-                    FROM agent_results
-                    WHERE run_id=?
-                    ORDER BY created_at
-                    """,
-                    (self.run_id,),
-                ).fetchall()
-                phase_idx, status_idx, time_idx = 0, 1, 2
-            else:
-                return 0
-
-        quill_times: list[str] = []
-        hawk_times: list[str] = []
-        fixer_times: list[str] = []
-        for r in rows:
-            phase = str(r[phase_idx] or "").upper()
-            status = str(r[status_idx] or "").upper()
-            ts = str(r[time_idx] or "")
-            if phase == "WRITER" and status not in {"FAIL", "FAILED", "ESCALATE"}:
-                quill_times.append(ts)
-            if phase == "REVIEWER" and status not in {"FAIL", "FAILED", "ESCALATE"}:
-                hawk_times.append(ts)
-            if phase == "AUTOREPAIR" and status not in {"FAIL", "FAILED", "ESCALATE"}:
-                fixer_times.append(ts)
-
-        cycles = 0
-        h_idx = 0
-        f_idx = 0
-        for q in quill_times:
-            while h_idx < len(hawk_times) and hawk_times[h_idx] < q:
-                h_idx += 1
-            if h_idx >= len(hawk_times):
-                break
-            h = hawk_times[h_idx]
-            h_idx += 1
-            while f_idx < len(fixer_times) and fixer_times[f_idx] < h:
-                f_idx += 1
-            if f_idx >= len(fixer_times):
-                break
-            f_idx += 1
-            cycles += 1
-        return cycles
-
     def _completed_quill_hawk_cycles(self) -> int:
         """Count completed WRITER -> REVIEWER chains; AUTOREPAIR is diagnostic and optional."""
         with sqlite3.connect(self.db_path) as conn:
@@ -614,6 +550,11 @@ class ConductorPipeline:
     def _run_hawk_loop(self, max_cycles: int = 3) -> None:
         """REVIEWER review loop with persisted cycle cap."""
         prior_cycles = self._get_checkpoint_count("REVIEWER", "hawk_fixer_cycles")
+        if prior_cycles >= max_cycles:
+            raise PipelineHaltError(
+                "REVIEWER/AUTOREPAIR cycle limit reached (3 cycles). "
+                "Pipeline halted. Review hawk_review_v3.md and fixer_report.md for diagnosis."
+            )
         for cycle in range(prior_cycles + 1, max_cycles + 1):
             print(f"\n{'=' * 50}")
             print(f"REVIEWER review cycle {cycle}/{max_cycles}")
@@ -706,13 +647,6 @@ class ConductorPipeline:
                     self._context_config_for_phase("CODEAUDIT"),
                 )
                 self._write_result_flag("CODEAUDIT", f"REVIEWER_CYCLE{cycle}", codec_result.get("result_flag", "WARN"))
-
-        if prior_cycles >= max_cycles:
-            raise PipelineHaltError(
-                "REVIEWER/AUTOREPAIR cycle limit reached (3 cycles). "
-                "Pipeline halted. Review hawk_review_v3.md and fixer_report.md for diagnosis."
-            )
-        self._advance_phase("REVIEWER", "done")
         return
 
     def _get_checkpoint_count(self, phase_name: str, key: str) -> int:
@@ -972,19 +906,22 @@ class ConductorPipeline:
         with sqlite3.connect(self.db_path) as conn:
             cols = set(self._table_columns(conn, "agent_results"))
             now = self._now()
-            if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
-                conn.execute(
-                    "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (self.run_id, agent, job, flag, now),
-                )
-            elif {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
-                conn.execute(
-                    """
-                    INSERT INTO agent_results (result_id, run_id, phase_name, agent_name, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (__import__("uuid").uuid4().hex, self.run_id, agent, agent, flag, now),
-                )
+            canonical = {"run_id", "agent", "result_flag", "created_at"}
+            legacy = {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}
+            if not canonical.issubset(cols) and legacy.issubset(cols):
+                if "agent" not in cols:
+                    conn.execute("ALTER TABLE agent_results ADD COLUMN agent TEXT")
+                if "job" not in cols:
+                    conn.execute("ALTER TABLE agent_results ADD COLUMN job TEXT")
+                if "result_flag" not in cols:
+                    conn.execute("ALTER TABLE agent_results ADD COLUMN result_flag TEXT")
+                cols = set(self._table_columns(conn, "agent_results"))
+            if not canonical.issubset(cols):
+                raise RuntimeError("agent_results schema missing canonical columns: run_id, agent, result_flag, created_at")
+            conn.execute(
+                "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
+                (self.run_id, agent, job, flag, now),
+            )
             conn.commit()
 
     def _health_check_or_raise(self, server_name: str) -> None:
@@ -1106,6 +1043,9 @@ class ConductorPipeline:
     def _ensure_run_rows(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             run_cols = set(self._table_columns(conn, "pipeline_runs"))
+            if "finished_at" not in run_cols:
+                conn.execute("ALTER TABLE pipeline_runs ADD COLUMN finished_at TEXT")
+                run_cols = set(self._table_columns(conn, "pipeline_runs"))
             finished_col = "finished_at"
             seed_col = "seed_query" if "seed_query" in run_cols else None
             meta_col = "meta_json" if "meta_json" in run_cols else None
@@ -1113,9 +1053,8 @@ class ConductorPipeline:
 
             cols = ["run_id", "status", "started_at"]
             vals: list[object] = [self.run_id, "pending", self._now()]
-            if finished_col in run_cols:
-                cols.append(finished_col)
-                vals.append(None)
+            cols.append(finished_col)
+            vals.append(None)
             if seed_col is not None:
                 cols.append(seed_col)
                 vals.append(None)
