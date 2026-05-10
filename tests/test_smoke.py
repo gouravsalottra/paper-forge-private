@@ -78,6 +78,17 @@ def test_smoke_pipeline_mock_no_api(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         "_paper_is_publishable",
         lambda path=None: all(pipeline._phase_status(p) == "done" for p in pipeline.PHASE_ORDER),
     )
+    with sqlite3.connect(pipeline.db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO results_gate (run_id, p_value_passes, seed_consistent, codeaudit_clean, last_updated)
+            VALUES (?, 1, 1, 1, datetime('now'))
+            ON CONFLICT(run_id) DO UPDATE SET
+                p_value_passes=1, seed_consistent=1, codeaudit_clean=1, last_updated=datetime('now')
+            """,
+            (run_id,),
+        )
+        conn.commit()
 
     pipeline.run()
 

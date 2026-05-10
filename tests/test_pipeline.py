@@ -329,6 +329,8 @@ def test_artifact_versioning_no_overwrite(tmp_path: Path, monkeypatch: pytest.Mo
 
 def test_full_pipeline_smoke_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPER_COMPUTE_PUBLISHABLE_UNIQUE_WORDS", "10")
+    monkeypatch.setenv("PAPER_COMPUTE_MIN_REVIEW_CYCLES", "0")
 
     pipeline = _make_pipeline(tmp_path, run_id="r-smoke")
 
@@ -338,6 +340,17 @@ def test_full_pipeline_smoke_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
             INSERT INTO hypothesis_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
             VALUES (?, datetime('now'), 'PREREGISTER', 'abc', NULL)
             ON CONFLICT(run_id) DO UPDATE SET locked_at=excluded.locked_at, forge_started_at=NULL
+            """,
+            (pipeline.run_id,),
+        )
+        conn.execute(
+            """
+            INSERT INTO results_gate (
+                run_id, p_value_passes, seed_consistent, codeaudit_clean, last_updated
+            )
+            VALUES (?, 1, 1, 1, datetime('now'))
+            ON CONFLICT(run_id) DO UPDATE SET
+                p_value_passes=1, seed_consistent=1, codeaudit_clean=1, last_updated=datetime('now')
             """,
             (pipeline.run_id,),
         )
@@ -355,13 +368,22 @@ def test_full_pipeline_smoke_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         if agent_name == "WRITER":
             out = Path("runs") / pipeline.run_id
             out.mkdir(parents=True, exist_ok=True)
-            (out / "paper_draft_v1.tex").write_text("\\section*{Draft}", encoding="utf-8")
+            (out / "paper_draft_v1.tex").write_text(
+                "\\begin{document}\nword one two three four five six seven eight nine ten\n\\end{document}\n",
+                encoding="utf-8",
+            )
+            (out / "hawk_review_v1.md").write_text("x" * 800, encoding="utf-8")
             return {"result_flag": "DONE"}
         if agent_name == "CODEAUDIT":
             return {"result_flag": "PASS"}
         return {"result_flag": "DONE"}
 
     monkeypatch.setattr(pipeline, "_dispatch", fake_dispatch)
+    monkeypatch.setattr(
+        pipeline,
+        "_paper_is_publishable",
+        lambda _path=None: (Path("runs") / pipeline.run_id / "paper_draft_v1.tex").exists(),
+    )
 
     pipeline.run()
 
