@@ -551,6 +551,8 @@ class ConductorPipeline:
         """REVIEWER review loop with persisted cycle cap."""
         prior_cycles = self._get_checkpoint_count("REVIEWER", "hawk_fixer_cycles")
         if prior_cycles >= max_cycles:
+            if self._phase_status("REVIEWER") == "done":
+                return
             raise PipelineHaltError(
                 "REVIEWER/AUTOREPAIR cycle limit reached (3 cycles). "
                 "Pipeline halted. Review hawk_review_v3.md and fixer_report.md for diagnosis."
@@ -904,20 +906,7 @@ class ConductorPipeline:
 
     def _write_result_flag(self, agent: str, job: str | None, flag: str) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            cols = set(self._table_columns(conn, "agent_results"))
             now = self._now()
-            canonical = {"run_id", "agent", "result_flag", "created_at"}
-            legacy = {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}
-            if not canonical.issubset(cols) and legacy.issubset(cols):
-                if "agent" not in cols:
-                    conn.execute("ALTER TABLE agent_results ADD COLUMN agent TEXT")
-                if "job" not in cols:
-                    conn.execute("ALTER TABLE agent_results ADD COLUMN job TEXT")
-                if "result_flag" not in cols:
-                    conn.execute("ALTER TABLE agent_results ADD COLUMN result_flag TEXT")
-                cols = set(self._table_columns(conn, "agent_results"))
-            if not canonical.issubset(cols):
-                raise RuntimeError("agent_results schema missing canonical columns: run_id, agent, result_flag, created_at")
             conn.execute(
                 "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
                 (self.run_id, agent, job, flag, now),
@@ -980,29 +969,16 @@ class ConductorPipeline:
         latency_ms = (_time.perf_counter() - start) * 1000
 
         with sqlite3.connect(self.db_path) as conn:
-            cols = set(self._table_columns(conn, "server_health_log"))
             now = self._now()
             status_str = "OK" if healthy else "FAILED"
-            if {"run_id", "server_name", "status", "detail", "latency_ms", "created_at"}.issubset(cols):
-                conn.execute(
-                    """
-                    INSERT INTO server_health_log
-                    (run_id, server_name, status, detail, latency_ms, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (self.run_id, server_name, status_str, detail, latency_ms, now),
-                )
-            else:
-                checked_col = "checked_at" if "checked_at" in cols else "created_at"
-                if {"server_name", "status", checked_col, "latency_ms", "detail"}.issubset(cols):
-                    conn.execute(
-                        f"""
-                        INSERT INTO server_health_log
-                        (server_name, status, {checked_col}, latency_ms, detail)
-                        VALUES (?, ?, ?, ?, ?)
-                        """,
-                        (server_name, status_str, now, latency_ms, detail),
-                    )
+            conn.execute(
+                """
+                INSERT INTO server_health_log
+                (run_id, server_name, status, detail, latency_ms, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (self.run_id, server_name, status_str, detail, latency_ms, now),
+            )
             conn.commit()
 
         if not healthy:
@@ -1035,9 +1011,21 @@ class ConductorPipeline:
         sql = schema_path.read_text(encoding="utf-8")
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(sql)
-            cols = self._table_columns(conn, "agent_results")
+            cols = set(self._table_columns(conn, "agent_results"))
             if "prompt_sha256" not in cols:
                 conn.execute("ALTER TABLE agent_results ADD COLUMN prompt_sha256 TEXT")
+            for col, ddl in (
+                ("agent", "ALTER TABLE agent_results ADD COLUMN agent TEXT"),
+                ("job", "ALTER TABLE agent_results ADD COLUMN job TEXT"),
+                ("result_flag", "ALTER TABLE agent_results ADD COLUMN result_flag TEXT"),
+            ):
+                if col not in cols:
+                    conn.execute(ddl)
+            health_cols = set(self._table_columns(conn, "server_health_log"))
+            if "run_id" not in health_cols:
+                conn.execute("ALTER TABLE server_health_log ADD COLUMN run_id TEXT")
+            if "created_at" not in health_cols:
+                conn.execute("ALTER TABLE server_health_log ADD COLUMN created_at TEXT")
             conn.commit()
 
     def _ensure_run_rows(self) -> None:
@@ -1046,24 +1034,20 @@ class ConductorPipeline:
             if "finished_at" not in run_cols:
                 conn.execute("ALTER TABLE pipeline_runs ADD COLUMN finished_at TEXT")
                 run_cols = set(self._table_columns(conn, "pipeline_runs"))
+            if "seed_query" not in run_cols:
+                conn.execute("ALTER TABLE pipeline_runs ADD COLUMN seed_query TEXT")
+            if "meta_json" not in run_cols:
+                conn.execute("ALTER TABLE pipeline_runs ADD COLUMN meta_json TEXT")
+            if "paper_md_path" not in run_cols:
+                conn.execute("ALTER TABLE pipeline_runs ADD COLUMN paper_md_path TEXT")
             finished_col = "finished_at"
-            seed_col = "seed_query" if "seed_query" in run_cols else None
-            meta_col = "meta_json" if "meta_json" in run_cols else None
-            paper_col = "paper_md_path" if "paper_md_path" in run_cols else None
 
             cols = ["run_id", "status", "started_at"]
             vals: list[object] = [self.run_id, "pending", self._now()]
             cols.append(finished_col)
             vals.append(None)
-            if seed_col is not None:
-                cols.append(seed_col)
-                vals.append(None)
-            if meta_col is not None:
-                cols.append(meta_col)
-                vals.append(None)
-            if paper_col is not None:
-                cols.append(paper_col)
-                vals.append(self.paper_md_path)
+            cols.extend(["seed_query", "meta_json", "paper_md_path"])
+            vals.extend([None, None, self.paper_md_path])
 
             conn.execute(
                 f"""
