@@ -264,6 +264,15 @@ python intake.py
 python run_pipeline.py
 ```
 
+## Dependency Canon
+- Source of truth for dependency edits: `requirements.in`
+- Locked install artifact: `requirements.lock`
+- `requirements.txt` is a legacy forwarder to `requirements.lock`
+
+## Compatibility Shims
+Paper-Forge keeps a few intentional backward-compat import shims (for example root `aria/` + `conductor/` and select flat files in `agents/`).
+See [`SHIM_PATTERN.md`](SHIM_PATTERN.md) for the canonical policy.
+
 **Dev mode (no institutional data):**
 ```bash
 export PAPER_FORGE_MINER_SOURCE=yfinance

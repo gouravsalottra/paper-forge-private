@@ -1,1 +1,3 @@
-from conductor.validate_paper import *
+# Root compatibility shim.
+# Canonical implementation: agents/conductor/validate_paper.py
+from conductor.validate_paper import *  # noqa: F401,F403
