@@ -16,7 +16,7 @@
 <br/>
 
 [![CI](https://github.com/gouravsalottra/paper-forge-private/actions/workflows/ci.yml/badge.svg)](https://github.com/gouravsalottra/paper-forge-private/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-129%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-159%20passing-brightgreen?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.13+-blue?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![Model](https://img.shields.io/badge/model-gpt--5.4-8b5cf6?style=flat-square)
