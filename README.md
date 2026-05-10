@@ -272,6 +272,13 @@ python run_pipeline.py
 ## Compatibility Shims
 Paper-Forge keeps a few intentional backward-compat import shims (for example root `aria/` + `conductor/` and select flat files in `agents/`).
 See [`SHIM_PATTERN.md`](SHIM_PATTERN.md) for the canonical policy.
+The root `aria/` and `conductor/` directories are **shim-only compatibility layers**; canonical implementations live under `agents/aria/` and `agents/conductor/`.
+
+## Planned Agent Modules
+The following modules are present for roadmap continuity and internal experimentation; they are not part of the default production pipeline contract:
+- `agents/analyst/` — `STATUS: planned`
+- `agents/vizier/` — `STATUS: planned`
+- `agents/assembler/` — `STATUS: planned`
 
 **Dev mode (no institutional data):**
 ```bash
