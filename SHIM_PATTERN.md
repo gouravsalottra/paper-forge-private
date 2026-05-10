@@ -14,7 +14,6 @@ Paper-Forge intentionally keeps a small set of compatibility shims so old import
 ## Current shim families
 - Root compatibility packages: `aria/`, `conductor/` (thin imports to canonical modules).
 - Flat agent shims: `agents/hawk.py`, `agents/miner.py`, `agents/quill.py`, `agents/scout.py`.
-- Audit pass shims: `agents/codeaudit_pass1.py`, `agents/specaudit_pass2.py`.
 
 ## Dependency files
 - Canonical source: `requirements.in`
