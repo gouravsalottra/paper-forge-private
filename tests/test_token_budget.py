@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.codec_pass1 import CodecPass1
+from agents.codeaudit_pass1 import CodeAuditPass1
 from agents.aria.exceptions import TokenBudgetExceededError
 from agents.llm_client import track_usage
 from init_db import init_db
@@ -151,8 +151,8 @@ def test_real_agent_result_has_prompt_hash_and_usage_row(tmp_path: Path, monkeyp
 
         chat = _Chat()
 
-    monkeypatch.setattr("agents.codec_pass1.get_client", lambda _agent: (_FakeClient(), "gpt-4o-mini"))
-    agent = CodecPass1(run_id="r-usage", db_path=str(db), output_dir=str(tmp_path / "runs"))
+    monkeypatch.setattr("agents.codeaudit_pass1.get_client", lambda _agent: (_FakeClient(), "gpt-4o-mini"))
+    agent = CodeAuditPass1(run_id="r-usage", db_path=str(db), output_dir=str(tmp_path / "runs"))
     result = agent.run()
     assert result["result_flag"] == "DONE"
 

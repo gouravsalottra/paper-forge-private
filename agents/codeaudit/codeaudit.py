@@ -202,13 +202,13 @@ class CodeAuditAgent:
                 "pass": "PASS2",
                 "instructions": (
                     "You have not seen the codebase. You have not seen any prior analysis.\n"
-                    "You are CODEAUDIT Pass 2. Read ONLY PAPER.md content. Reimplement the methodology from spec alone, "
+                    "You are SPECAUDIT Pass 2. Read ONLY PROTOCOL/PAPER content. Reimplement the methodology from spec alone, "
                     "flag underspecified details, and rate reproducibility 1-5."
                 ),
                 "context": {"methods_text": paper},
             }
             llm_out = self._call_llm(prompt)
-            out = self.output_dir / self.run_id / "codec_pass2.md"
+            out = self.output_dir / self.run_id / "specaudit_report.md"
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(str(llm_out), encoding="utf-8")
             return str(llm_out)
@@ -221,7 +221,7 @@ class CodeAuditAgent:
             [
                 sys.executable,
                 "-m",
-                "agents.codec_pass2",
+                "agents.specaudit_pass2",
                 "--run-id",
                 self.run_id,
                 "--db-path",
@@ -244,7 +244,7 @@ class CodeAuditAgent:
                 f"CODEAUDIT Pass 2 subprocess failed (returncode={result.returncode}):\n"
                 f"stdout: {result.stdout[:2000]}\nstderr: {result.stderr[:2000]}"
             )
-        out_path = self.output_dir / self.run_id / "codec_pass2.md"
+        out_path = self.output_dir / self.run_id / "specaudit_report.md"
         if out_path.exists():
             return out_path.read_text(encoding="utf-8")
         return result.stdout.strip()
