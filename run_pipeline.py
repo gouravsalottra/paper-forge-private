@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import hashlib
 import os
 import sqlite3
@@ -63,7 +64,13 @@ def _reset_from_phase(run_id: str, from_phase: str) -> None:
             (run_id,),
         ).fetchone()
         stored_hash = (lock_row[0] if lock_row else None) or ""
-        override = os.getenv("PAPERCOMPUTE_OVERRIDE_PAP_TAMPER", "0") == "1"
+        override = (
+            os.getenv("PAPERFORGE_OVERRIDE_PAP_TAMPER", os.getenv("PAPERCOMPUTE_OVERRIDE_PAP_TAMPER", "0")) == "1"
+        )
+        env_mode = os.getenv("PAPERFORGE_ENV", "prod").strip().lower()
+        allowed_users_raw = os.getenv("PAPERFORGE_OVERRIDE_ALLOW_USERS", "")
+        allowed_users = {u.strip() for u in allowed_users_raw.split(",") if u.strip()}
+        current_user = getpass.getuser()
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
         if stored_hash and stored_hash != current_hash:
@@ -74,10 +81,22 @@ def _reset_from_phase(run_id: str, from_phase: str) -> None:
                 "Resume is blocked to preserve pre-registration integrity.\n"
                 "To start fresh: python run_pipeline.py (new run)\n"
                 "To acknowledge and override (expert use only): set env var\n"
-                "PAPERCOMPUTE_OVERRIDE_PAP_TAMPER=1"
+                "PAPERFORGE_OVERRIDE_PAP_TAMPER=1 (or legacy PAPERCOMPUTE_OVERRIDE_PAP_TAMPER=1)"
             )
             if not override:
                 raise PAPTamperError(msg)
+            if env_mode != "dev":
+                raise PAPTamperError(
+                    msg
+                    + "\nOverride forbidden outside dev mode. "
+                    "Set PAPERFORGE_ENV=dev to use local override controls."
+                )
+            if allowed_users and current_user not in allowed_users:
+                raise PAPTamperError(
+                    msg
+                    + f"\nOverride denied for user '{current_user}'. "
+                    "Add user to PAPERFORGE_OVERRIDE_ALLOW_USERS to permit override."
+                )
 
             conn.execute(
                 """
@@ -93,14 +112,14 @@ def _reset_from_phase(run_id: str, from_phase: str) -> None:
                     (
                         "PAPER.md has been modified since PAP was locked. "
                         f"Locked hash: {stored_hash}; Current hash: {current_hash}; "
-                        f"Override accepted at {now}."
+                        f"Override accepted at {now}; env={env_mode}; user={current_user}."
                     ),
                     0.0,
                     now,
                 ),
             )
             print(
-                "CRITICAL: PAPERCOMPUTE_OVERRIDE_PAP_TAMPER=1 set; "
+                "CRITICAL: PAP tamper override enabled; "
                 f"proceeding despite tamper (locked={stored_hash}, current={current_hash})."
             )
 

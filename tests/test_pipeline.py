@@ -440,7 +440,10 @@ def test_resume_allows_tamper_with_override_env(tmp_path: Path, monkeypatch: pyt
     import hashlib
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("PAPERCOMPUTE_OVERRIDE_PAP_TAMPER", "1")
+    monkeypatch.setenv("PAPERFORGE_OVERRIDE_PAP_TAMPER", "1")
+    monkeypatch.setenv("PAPERFORGE_ENV", "dev")
+    monkeypatch.setenv("PAPERFORGE_OVERRIDE_ALLOW_USERS", "testuser")
+    monkeypatch.setattr("run_pipeline.getpass.getuser", lambda: "testuser")
 
     paper = Path("PAPER.md")
     paper.write_text("initial protocol\n", encoding="utf-8")
@@ -476,3 +479,66 @@ def test_resume_allows_tamper_with_override_env(tmp_path: Path, monkeypatch: pyt
     assert row is not None
     assert row[0] == "CRITICAL"
     assert "PAPER.md has been modified since PAP was locked" in row[1]
+
+
+def test_resume_override_blocked_outside_dev(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from agents.aria.exceptions import PAPTamperError
+    import hashlib
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPERFORGE_OVERRIDE_PAP_TAMPER", "1")
+    monkeypatch.setenv("PAPERFORGE_ENV", "prod")
+    monkeypatch.setattr("run_pipeline.getpass.getuser", lambda: "testuser")
+
+    paper = Path("PAPER.md")
+    paper.write_text("initial protocol\n", encoding="utf-8")
+    pipeline = ConductorPipeline(db_path="pipeline.db", run_id="r-tamper-prod-block", paper_md_path="PAPER.md")
+    locked_hash = hashlib.sha256(paper.read_bytes()).hexdigest()
+
+    with sqlite3.connect("pipeline.db") as conn:
+        conn.execute(
+            """
+            INSERT INTO hypothesis_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
+            VALUES (?, datetime('now'), 'PREREGISTER', ?, NULL)
+            ON CONFLICT(run_id) DO UPDATE SET pap_sha256=excluded.pap_sha256
+            """,
+            (pipeline.run_id, locked_hash),
+        )
+        conn.commit()
+
+    paper.write_text("tampered protocol\n", encoding="utf-8")
+    with pytest.raises(PAPTamperError) as exc:
+        _reset_from_phase(pipeline.run_id, "COMPUTE")
+    assert "outside dev mode" in str(exc.value)
+
+
+def test_resume_override_blocked_for_unlisted_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from agents.aria.exceptions import PAPTamperError
+    import hashlib
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPERFORGE_OVERRIDE_PAP_TAMPER", "1")
+    monkeypatch.setenv("PAPERFORGE_ENV", "dev")
+    monkeypatch.setenv("PAPERFORGE_OVERRIDE_ALLOW_USERS", "alice,bob")
+    monkeypatch.setattr("run_pipeline.getpass.getuser", lambda: "charlie")
+
+    paper = Path("PAPER.md")
+    paper.write_text("initial protocol\n", encoding="utf-8")
+    pipeline = ConductorPipeline(db_path="pipeline.db", run_id="r-tamper-user-block", paper_md_path="PAPER.md")
+    locked_hash = hashlib.sha256(paper.read_bytes()).hexdigest()
+
+    with sqlite3.connect("pipeline.db") as conn:
+        conn.execute(
+            """
+            INSERT INTO hypothesis_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
+            VALUES (?, datetime('now'), 'PREREGISTER', ?, NULL)
+            ON CONFLICT(run_id) DO UPDATE SET pap_sha256=excluded.pap_sha256
+            """,
+            (pipeline.run_id, locked_hash),
+        )
+        conn.commit()
+
+    paper.write_text("tampered protocol\n", encoding="utf-8")
+    with pytest.raises(PAPTamperError) as exc:
+        _reset_from_phase(pipeline.run_id, "COMPUTE")
+    assert "Override denied for user" in str(exc.value)
