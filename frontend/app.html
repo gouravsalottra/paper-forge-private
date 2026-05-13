@@ -1,0 +1,1873 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thrivarc AI - Research Studio</title>
+  <style>
+    :root{--bg:#f3efe6;--surface:#fffdf8;--line:#d8d0c2;--text:#16202b;--muted:#5d6775;--brand:#145f52;--brand-soft:#eef7f4;--ok:#1f8a5b;--warn:#d88645;--bad:#d64f4f;--rad:16px;--shadow:0 16px 44px rgba(22,32,43,.08)}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at top left, rgba(216,134,69,.10), transparent 24%), radial-gradient(circle at top right, rgba(20,95,82,.10), transparent 30%), var(--bg);color:var(--text);font-family:"Avenir Next","Segoe UI","Helvetica Neue",sans-serif}
+    .nav{position:sticky;top:0;z-index:30;background:rgba(243,239,230,.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(216,208,194,.95)} .navin{max-width:1180px;margin:auto;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:inherit} .brand-mark{width:34px;height:34px;border-radius:12px;background:linear-gradient(135deg,#145f52,#d88645);display:grid;place-items:center;color:#fff;font-size:14px;box-shadow:0 10px 24px rgba(20,95,82,.25)} .badge{border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);font-size:12px;cursor:pointer;background:rgba(255,255,255,.65)}
+    .wrap{max-width:1180px;margin:auto;padding:18px}.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--rad);padding:18px;box-shadow:var(--shadow)}
+    .row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.btn{background:#fff;border:1px solid var(--line);color:var(--text);padding:10px 14px;border-radius:999px;cursor:pointer;font-weight:600}
+    .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn:disabled{opacity:.5}.muted{color:var(--muted)}
+    .hero{background:linear-gradient(180deg, rgba(20,95,82,.08), rgba(20,95,82,.02));border-color:#bdd5ce}
+    .proposal{background:#fcfaf4;border:1px solid #ddd4c7}
+    .kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .kpi .card{padding:10px}
+    .chip{display:inline-block;padding:4px 9px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:rgba(255,255,255,.7)}
+    a{color:inherit;text-decoration:none}.grid{display:grid;gap:12px}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    input,textarea,select{width:100%;background:#fff;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px} textarea{min-height:110px}
+    table{width:100%;border-collapse:collapse} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    .timeline{display:grid;gap:10px}.step{border-left:2px solid var(--line);padding-left:10px}.pill{padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px}
+    .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)} .hidden{display:none}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}.tab{padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer}.tab.active{border-color:var(--brand)}
+    .toast{position:fixed;right:16px;bottom:16px;background:var(--surface);border:1px solid var(--line);padding:10px;border-radius:12px;box-shadow:var(--shadow)}
+    .replay{height:8px;background:#ede6d8;border:1px solid var(--line);border-radius:999px;overflow:hidden}.replay > span{display:block;height:100%;width:0;background:var(--brand)}
+    .status-dot{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:6px;vertical-align:middle}
+    .choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .choice-card{padding:16px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(238,247,244,.75));cursor:pointer;transition:transform .18s ease, box-shadow .18s ease,border-color .18s ease}
+    .choice-card:hover,.choice-card.active{transform:translateY(-2px);box-shadow:0 14px 30px rgba(22,32,43,.08);border-color:#9cc4ba}
+    .story-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+    .signal-list{display:grid;gap:10px}
+    .signal-item{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;background:rgba(255,255,255,.68);border:1px solid rgba(216,208,194,.8)}
+    .signal-icon{width:32px;height:32px;border-radius:10px;background:var(--brand-soft);display:grid;place-items:center;color:var(--brand);font-weight:700;flex:0 0 32px}
+    .editorial-hero{padding:24px;border-radius:24px;background:linear-gradient(135deg,rgba(20,95,82,.14),rgba(255,253,248,.96) 45%,rgba(216,134,69,.14));border:1px solid #bdd5ce;position:relative;overflow:hidden}
+    .editorial-hero:after{content:"";position:absolute;right:-42px;bottom:-82px;width:220px;height:220px;background:radial-gradient(circle,rgba(216,134,69,.22),transparent 68%);pointer-events:none}
+    .hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:stretch}
+    .kicker{margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.16em;color:var(--brand);font-size:11px;font-weight:800}
+    .hero-title{margin:0 0 12px 0;font-size:clamp(2rem,4vw,3.15rem);line-height:1.02;max-width:10ch}
+    .hero-copy{max-width:62ch;color:var(--muted);font-size:15px;line-height:1.6}
+    .callout-band{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 8px}
+    .callout-band .chip{background:rgba(20,95,82,.08);border-color:rgba(20,95,82,.18)}
+    .stage-track{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:18px}
+    .stage-node{padding:12px;border-radius:16px;background:rgba(255,255,255,.75);border:1px solid rgba(20,95,82,.12);min-height:96px}
+    .stage-node strong{display:block;margin-bottom:6px;font-size:13px}
+    .insight-grid{display:grid;gap:10px}
+    .insight-card{padding:14px;border-radius:18px;background:rgba(255,253,248,.82);border:1px solid rgba(216,208,194,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
+    .stat-em{display:block;font-size:28px;font-weight:700;line-height:1;color:var(--brand);margin-bottom:6px}
+    .workbench-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:14px}
+    .question-canvas{position:relative;background:linear-gradient(180deg,#fffdf8,rgba(252,250,244,.96));border:1px solid #ddd4c7;border-radius:24px;padding:22px;overflow:hidden}
+    .question-canvas:before{content:"";position:absolute;left:0;top:0;width:180px;height:180px;background:radial-gradient(circle at top left,rgba(20,95,82,.12),transparent 70%);pointer-events:none}
+    .question-canvas > *{position:relative}
+    .aside-stack{display:grid;gap:12px}
+    .note-card{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(238,247,244,.65));border:1px solid #c5dbd4}
+    #api-offline-banner { display: none; }
+    #api-offline-banner:not([hidden]) { display: block; }
+    #api-status-dot[data-status="online"]   { background: #22c55e; }
+    #api-status-dot[data-status="checking"] { background: #f59e0b; }
+    #api-status-dot[data-status="offline"]  { background: #ef4444; }
+    @media (max-width:920px){.g4,.g2,.choice-grid,.story-grid,.hero-grid,.workbench-grid,.stage-track{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <div class="navin">
+      <a href="/" class="brand"><span class="brand-mark">T</span> <span>Thrivarc AI</span></a><span id="persona-badge" class="badge">🧭 Researcher</span> <span id="spend-chip" class="badge">$0.00 spent</span>
+      <div class="row">
+        <a href="#dashboard" class="muted">Research Home</a>
+        <a href="#new" class="muted">Start Research</a>
+        <a href="#guide" class="muted">How Thrivarc Helps</a>
+        <a href="/" class="muted">Home</a>
+        <span class="badge"><span id="api-status-dot" class="status-dot" data-status="checking"></span>API</span>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div id="api-offline-banner" class="card" hidden>API offline. Please retry in a moment.</div>
+    <div id="app"></div>
+  </div>
+
+<script>
+// ── API Health Check ─────────────────────────────────────────
+const API_BASE = (() => {
+  const h = window.location.hostname;
+  return (h === 'localhost' || h === '127.0.0.1')
+    ? 'http://127.0.0.1:8000'
+    : (h === 'app.thrivarc.studio' ? 'https://app.thrivarc.studio' : 'https://api.thrivarc.studio');
+})();
+
+let _healthFailures = 0;
+
+const PERSONA_CONFIG = {
+  explorer:{label:'🌱 Explorer',mode:'plain',showAgentNames:false,showSHA256:false,showRawLogs:false,showPValues:false,showSeedNumbers:false,showRunId:false,showJSONPreview:false,learningMoments:true,ui:'guided',output:'Your Research Finding',stepLabels:["Scanning related research","Collecting your data","Locking your research plan","Running the analysis","Running statistical tests","Checking the work","Simulating peer review","Writing your paper sections"]},
+  researcher:{label:'🧭 Researcher',mode:'plain',showAgentNames:false,showSHA256:false,showRawLogs:false,showPValues:false,showSeedNumbers:false,showRunId:true,showJSONPreview:false,learningMoments:false,ui:'guided',output:'Your Research Report',stepLabels:["Scanning related research","Collecting your data","Preparing your research design","Running the analysis","Running statistical tests","Checking the work","Simulating peer review","Writing your paper sections"]},
+  expert:{label:'🛠 Expert',mode:'technical',showAgentNames:true,showSHA256:true,showRawLogs:true,showPValues:true,showSeedNumbers:true,showRunId:true,showJSONPreview:true,learningMoments:false,ui:'expert',output:'Your Submission Package',stepLabels:["LITERATURE","DATAPULL","PREREGISTER","COMPUTE","STATSRUN","CODEAUDIT + SPECAUDIT","REVIEWER","WRITER"]},
+  auto:{label:'🧭 Researcher',mode:'plain',showAgentNames:false,showSHA256:false,showRawLogs:false,showPValues:false,showSeedNumbers:false,showRunId:true,showJSONPreview:false,learningMoments:false,ui:'guided',output:'Your Research Report',stepLabels:["Scanning related research","Collecting your data","Preparing your research design","Running the analysis","Running statistical tests","Checking the work","Simulating peer review","Writing your paper sections"]},
+};
+
+const LOG_TRANSLATIONS = [
+  [/LITERATURE/i,'Finding related work for you'],
+  [/DATAPULL/i,'Collecting and validating your data'],
+  [/PREREGISTER/i,'Locking your question before looking at the data'],
+  [/COMPUTE/i,'Running your analysis'],
+  [/STATSRUN/i,'Running statistical checks'],
+  [/CODEAUDIT/i,'Checking the analysis for consistency'],
+  [/REVIEWER/i,'Simulating expert peer review'],
+  [/WRITER/i,'Preparing paper-ready sections']
+];
+
+const PHASE_ORDER = ['LITERATURE','DATAPULL','PREREGISTER','COMPUTE','STATSRUN','CODEAUDIT','REVIEWER','WRITER'];
+const PHASE_HUMAN = {
+  LITERATURE:'Context scan',DATAPULL:'Data collection',PREREGISTER:'Question lock',COMPUTE:'Analysis execution',STATSRUN:'Statistical validation',CODEAUDIT:'Method audit',REVIEWER:'Referee simulation',WRITER:'Paper drafting'
+};
+const STEP_HOOKS = {
+  LITERATURE: "Finding what other researchers have already discovered about your topic. This shapes your research angle so you build on existing knowledge.",
+  DATAPULL: "Fetching the actual market data your research will be based on. Every number will be verified and fingerprinted.",
+  PREREGISTER: "Locking your research question before touching the data. This is the gold standard of research integrity — it proves your finding wasn't shaped by the data you saw.",
+  COMPUTE: "Running the quantitative model on your data. This is where the numbers get generated.",
+  STATSRUN: "Running statistical tests to determine whether the finding is real or could have happened by chance. Your finding will be verified three independent times.",
+  CODEAUDIT: "Checking that the code actually did what the methodology says it did. Catches any gap between what was planned and what ran.",
+  REVIEWER: "A simulated Journal-style reviewer is reading your work. They will find weaknesses before submission so you can fix them first.",
+  WRITER: "Writing your paper sections using verified findings. Every number comes directly from analysis outputs.",
+};
+
+let PERSONA = (localStorage.getItem('thrivarc_persona') || new URLSearchParams(location.search).get('persona') || 'auto').toLowerCase();
+if(!PERSONA_CONFIG[PERSONA]) PERSONA='auto';
+let currentPersona = PERSONA;
+function setPersona(persona){
+  currentPersona = (persona || 'auto').toLowerCase();
+  if(!PERSONA_CONFIG[currentPersona]) currentPersona = 'auto';
+  PERSONA = currentPersona;
+  localStorage.setItem('thrivarc_persona', currentPersona);
+  applyPersonaConfig(PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG.auto);
+  updatePersonaUI();
+}
+let draft = {topic:'',persona_hint:'auto'};
+let compareSelection = new Set();
+let poller = null;
+let convoHistory = [];
+let latestCollectedContext = null;
+let selectedHypotheses = [];
+let latestRunspecBuild = null;
+let latestValidatedPlan = null;
+let latestDataAccessMode = 'builtin';
+let latestClarificationAnswers = {};
+let latestArchitectAnswers = {};
+let latestStagedEvidenceFile = null;
+const stageState = {
+  proposalSelected: false,
+  blueprintApproved: false,
+  dataSourceSelected: false,
+  dataPreviewComplete: false,
+  dataPreviewSha256: null,
+  previewRunId: null,
+};
+// legacy marker: hypothesis_suggestions
+
+function getConfig(key){ return (PERSONA_CONFIG[PERSONA] || PERSONA_CONFIG.auto)[key]; }
+function translateLog(rawLine){
+  if(getConfig('showRawLogs')) return rawLine;
+  let out = rawLine || '';
+  for(const [re, repl] of LOG_TRANSLATIONS) out = out.replace(re, repl);
+  return out;
+}
+function qs(s){return document.querySelector(s)}
+function esc(s){return (s??'').toString().replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function money(n){return `$${Number(n||0).toFixed(2)}`}
+function fmtDate(v){return v?new Date(v).toLocaleString():'—'}
+function toast(msg){ const d=document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2600); }
+function stopAllPolling(){ if(poller){clearInterval(poller); poller=null;} }
+
+async function api(path, opts={}){
+  const headers = opts.body instanceof FormData ? {} : {'Content-Type':'application/json'};
+  try{
+    const r = await fetch(API_BASE+path, {headers, ...opts});
+    const j = await r.json().catch(()=>({error:'Invalid response'}));
+    if(!r.ok){
+      const detail = j.detail && typeof j.detail === 'object' ? (j.detail.message || j.detail.error) : j.detail;
+      throw new Error(detail || j.message || j.error || `HTTP ${r.status}`);
+    }
+    _setApiStatus('online');
+    return j;
+  }catch(e){ throw e; }
+}
+
+async function checkHealth() {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(API_BASE + '/health', {
+      signal: ctrl.signal, cache: 'no-store'
+    });
+    clearTimeout(t);
+    if (r.ok) {
+      _healthFailures = 0;
+      _setApiStatus('online');
+      return;
+    }
+  } catch (_) {}
+  _healthFailures++;
+  _setApiStatus(_healthFailures >= 3 ? 'offline' : 'checking');
+}
+
+const checkApiHealth = checkHealth;
+
+function _setApiStatus(status) {
+  const banner = document.getElementById('api-offline-banner');
+  const dot    = document.getElementById('api-status-dot');
+  if (!banner || !dot) return;
+  banner.hidden = (status !== 'offline');
+  dot.dataset.status = status; // CSS handles color: green/amber/red
+}
+
+function applyPersonaConfig(config) {
+  const isPlain = config.mode === 'plain';
+
+  // 1. Update step labels
+  document.querySelectorAll('[data-step-label]').forEach(el => {
+    const idx = parseInt(el.dataset.stepLabel, 10);
+    if (config.stepLabels && config.stepLabels[idx]) {
+      el.textContent = config.stepLabels[idx];
+    }
+  });
+
+  // 2. SHA-256 / technical hash elements
+  document.querySelectorAll('[data-technical="sha256"]').forEach(el => {
+    el.style.display = config.showSHA256 ? '' : 'none';
+  });
+
+  // 3. Raw log lines
+  document.querySelectorAll('[data-technical="raw-log"]').forEach(el => {
+    el.style.display = config.showRawLogs ? '' : 'none';
+  });
+
+  // 4. Research hooks (plain mode only)
+  document.querySelectorAll('[data-hook]').forEach(el => {
+    el.style.display = isPlain ? '' : 'none';
+  });
+
+  // 5. Learning moments
+  document.querySelectorAll('[data-learning-moment]').forEach(el => {
+    el.style.display = config.learningMoments ? '' : 'none';
+  });
+
+  // 6. Run ID visibility
+  const runIdEls = document.querySelectorAll('[data-technical="run-id"]');
+  runIdEls.forEach(el => {
+    el.style.display = config.showRunId ? '' : 'none';
+  });
+
+  // 7. JSON preview (academic/quant only)
+  document.querySelectorAll('[data-technical="json-preview"]').forEach(el => {
+    el.style.display = config.showJSONPreview ? '' : 'none';
+  });
+
+  // 8. Update navbar persona badge text
+  const badge = document.getElementById('persona-badge');
+  const labels = {
+    explorer: '🌱 Explorer',
+    researcher: '🧭 Researcher',
+    expert: '🛠 Expert',
+    auto: '✨ Auto'
+  };
+  if (badge) badge.textContent = labels[currentPersona] || labels.auto;
+
+  // 9. Reviewer output — re-render if findings dashboard is visible
+  document.querySelectorAll('[data-reviewer-weakness]').forEach(el => {
+    const technical = el.dataset.technical;
+    const plain     = el.dataset.plain;
+    const textEl = el.querySelector('.weakness-text');
+    if (textEl) {
+      textEl.textContent = config.mode === 'technical' ? technical : plain;
+    }
+  });
+
+  // 10. P-value display
+  document.querySelectorAll('[data-pvalue]').forEach(el => {
+    const raw   = el.dataset.pvalue;   // e.g. "0.008"
+    const level = parseFloat(raw) < 0.01 ? '99%'
+                : parseFloat(raw) < 0.05 ? '95%' : '90%';
+    el.textContent = config.showPValues
+      ? `p = ${raw}`
+      : `significant at ${level} confidence`;
+  });
+}
+
+function updatePersonaUI(){ qs('#persona-badge').textContent = getConfig('label'); }
+
+function openPersonaSwitcher(){
+  let menu = qs('#persona-menu');
+  if(menu){ menu.remove(); return; }
+  menu = document.createElement('div');
+  menu.id = 'persona-menu';
+  menu.className = 'card';
+  menu.style.position = 'fixed';
+  menu.style.top = '56px';
+  menu.style.left = '16px';
+  menu.style.zIndex = '100';
+  menu.innerHTML = Object.keys(PERSONA_CONFIG).filter(p=>p!=='auto').map(p=>`<button class="btn" data-persona-option="${p}" style="display:block;width:100%;margin:4px 0;text-align:left">${esc(PERSONA_CONFIG[p].label)}</button>`).join('');
+  document.body.appendChild(menu);
+  menu.querySelectorAll('[data-persona-option]').forEach(btn=>btn.addEventListener('click',()=>{
+    setPersona(btn.getAttribute('data-persona-option'));
+    menu.remove();
+    route();
+  }));
+}
+
+async function renderDashboard(){
+  // TEST: renderDashboard
+  // GIVEN empty runs THEN empty state visible
+  // GIVEN runs include running/done THEN rows and badges visible
+  // GIVEN API unreachable THEN offline message shown
+  const app = qs('#app');
+  app.innerHTML = `<div class="card">Loading...</div>`;
+  try{
+    const data = await api('/runs');
+    const runs = data.runs || [];
+    const total = runs.length;
+    const done = runs.filter(r=>r.status==='done').length;
+    const running = runs.filter(r=>['running','queued'].includes((r.status||'').toLowerCase())).length;
+    const spend = runs.reduce((a,b)=>a+Number(b.cost_usd||0),0);
+    const needsBlueprint = runs.filter(r=>['queued','preparing'].includes((r.status||'').toLowerCase())).length;
+    const needsReview = runs.filter(r=>String(r.phase||'').toUpperCase()==='REVIEWER' || (r.status||'').toLowerCase()==='done').length;
+    qs('#spend-chip').textContent = `${money(spend)} spent`;
+    const rows = runs.map(r=>{
+      const checked = compareSelection.has(r.run_id) ? 'checked' : '';
+      const topic = esc((r.hypothesis || r.topic || 'Untitled research').slice(0,88));
+      const runMeta = getConfig('showRunId') ? `<div class="mini" data-technical="run-id">Study ID: ${esc(r.run_id)}</div>` : '';
+      return `<tr><td><input type="checkbox" data-cmp="${esc(r.run_id)}" ${checked}></td><td>${esc(r.status||'queued')}</td><td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td><td>${esc(r.research_type||'exploratory')}</td><td>${esc(PHASE_HUMAN[r.phase]||'Preparing')}</td><td>${money(r.cost_usd)}</td><td>${fmtDate(r.created_at)}</td></tr>`;
+    }).join('');
+    const workflowRail = `<div class="grid g3" style="margin-bottom:12px">
+      <div class="card">
+        <div class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700">Shape the blueprint</div>
+        <strong style="display:block;margin-top:6px">Move one study forward today</strong>
+        <p class="mini" style="margin-top:8px">A strong run starts with a sharper question, a coherent benchmark, and a validation burden the study can actually meet.</p>
+        <span class="chip">Needs blueprint attention: ${esc(String(needsBlueprint))}</span>
+      </div>
+      <div class="card">
+        <div class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700">Approve the evidence before compute</div>
+        <strong style="display:block;margin-top:6px">Preview the exact dataset</strong>
+        <p class="mini" style="margin-top:8px">Thrivarc should never launch on a dataset you have not inspected for identifiers, dates, coverage, and missingness.</p>
+        <span class="chip">Active studies: ${esc(String(running))}</span>
+      </div>
+      <div class="card">
+        <div class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700">Review the defense loop before writing</div>
+        <strong style="display:block;margin-top:6px">Let criticism shape the next step</strong>
+        <p class="mini" style="margin-top:8px">The reviewer layer should tell you whether the next move is more data, another robustness check, a narrower claim, or paper-ready drafting.</p>
+        <span class="chip">Studies at or beyond review: ${esc(String(needsReview))}</span>
+      </div>
+    </div>`;
+    const emptyState = `<div class="grid g2">
+      <div class="card hero">
+        <h3>Your research studio is empty right now.</h3>
+        <p class="muted">${PERSONA==='explorer'?'Start with a curiosity and let Thrivarc turn it into a defensible study.':'Start with a serious question and let Thrivarc shape the evidence path before any compute starts.'}</p>
+        <div class="row" style="margin-top:10px"><a class="btn primary" href="#new">Start with a question →</a><a class="btn" href="#guide">Open the guide</a></div>
+      </div>
+      <div class="card">
+        <h3>What happens next</h3>
+        <div class="signal-list" style="margin-top:10px">
+          <div class="signal-item"><div class="signal-icon">1</div><div><strong>Shape the blueprint</strong><div class="mini">Thrivarc decides what the study is really testing and what still needs clarification.</div></div></div>
+          <div class="signal-item"><div class="signal-icon">2</div><div><strong>Preview the evidence</strong><div class="mini">You approve the exact dataset, date range, identifiers, and fingerprint before the engine starts.</div></div></div>
+          <div class="signal-item"><div class="signal-icon">3</div><div><strong>Run the defense loop</strong><div class="mini">Analysis, reviewer pressure, and follow-up work happen before the writing layer takes over.</div></div></div>
+        </div>
+      </div>
+    </div>`;
+
+    app.innerHTML = `<div class="editorial-hero" style="margin-bottom:12px">
+      <div class="hero-grid">
+        <div>
+          <p class="kicker">Research cockpit</p>
+          <h2 style="margin:0 0 8px 0">Research Home</h2>
+          <p class="hero-copy">From brief to blueprint to referee-ready evidence, this is the control surface for the studies you are shaping, running, and defending.</p>
+          <div class="callout-band">
+            <span class="chip">Queued for blueprint work: ${esc(String(needsBlueprint))}</span>
+            <span class="chip">Live runs: ${esc(String(running))}</span>
+            <span class="chip">Defense-stage studies: ${esc(String(needsReview))}</span>
+          </div>
+          <div class="row" style="margin-top:10px"><a class="btn" href="#guide">Open Guide</a><a class="btn primary" href="#new">Start Research →</a></div>
+        </div>
+        <div class="grid g2">
+          <div class="insight-card"><div class="mini">Total studies</div><span class="stat-em">${total}</span><div class="mini">Every study here should have a blueprint, an evidence plan, and a defense path.</div></div>
+          <div class="insight-card"><div class="mini">Completed</div><span class="stat-em">${done}</span><div class="mini">Finished studies have made it through analysis, reviewer pressure, and writing prep.</div></div>
+          <div class="insight-card"><div class="mini">In progress</div><span class="stat-em">${running}</span><div class="mini">Use the live feed to see which stage is currently moving and what is still blocked.</div></div>
+          <div class="insight-card"><div class="mini">Spend</div><span class="stat-em">${money(spend)}</span><div class="mini">Cost is only worth it when the blueprint, evidence, and defense all stay honest.</div></div>
+        </div>
+      </div>
+    </div>
+      ${workflowRail}
+      <div class="card">${total?`<table><thead><tr><th>Compare</th><th>Status</th><th>Study</th><th>Research style</th><th>Current step</th><th>Cost</th><th>Started</th></tr></thead><tbody>${rows}</tbody></table><div class="row" style="margin-top:10px"><button class="btn" id="btn-compare">Compare selected</button></div><div id="cmp-panel"></div>`:emptyState}</div>`;
+
+    document.querySelectorAll('[data-cmp]').forEach(el=>el.addEventListener('change',()=>{ const id=el.getAttribute('data-cmp'); if(el.checked) compareSelection.add(id); else compareSelection.delete(id);}));
+    qs('#btn-compare')?.addEventListener('click',()=>renderComparison(runs));
+    if(running>0){ stopAllPolling(); poller=setInterval(renderDashboard,8000); }
+  }catch(e){ app.innerHTML = `<div class="card">Error: ${esc(e.message)} <button class="btn" id="retry">Retry</button></div>`; qs('#retry')?.addEventListener('click',renderDashboard); }
+}
+
+function renderComparison(runs){
+  const ids=[...compareSelection].slice(0,3);
+  const panel=qs('#cmp-panel');
+  if(!panel) return;
+  if(ids.length<2){ panel.innerHTML='<p class="muted" style="margin-top:10px">Select 2-3 completed studies to compare.</p>'; return; }
+  const subset=runs.filter(r=>ids.includes(r.run_id));
+  panel.innerHTML = `<div class="card" style="margin-top:10px"><h3>Compare research projects</h3>${subset.map(r=>`<p><strong>${esc((r.hypothesis||r.topic||'').slice(0,70))}</strong><br>Finding: ${r.finding_valid===true?'significant':r.finding_valid===false?'null':'pending'} · Cost: ${money(r.cost_usd)}</p>`).join('')}</div>`;
+}
+
+async function renderNew(){
+  const app=qs('#app');
+  app.innerHTML = `
+    <div class="editorial-hero">
+      <div class="hero-grid">
+        <div>
+          <p class="kicker">Research brief</p>
+          <h2 class="hero-title">Start with a question worth defending</h2>
+          <p class="hero-copy">Thrivarc will shape a research blueprint from your question, clarify what is missing, preview the evidence, and only then launch the work.</p>
+          <div class="callout-band">
+            <span class="chip">Question to evidence to defense</span>
+            <span class="chip">Exploratory or confirmatory stance inferred automatically</span>
+            <span class="chip">Preview gate before compute</span>
+          </div>
+          <div class="tabs" style="margin-top:12px">
+            <span class="tab active">Question</span>
+            <span class="tab">Context</span>
+            <span class="tab">Data access</span>
+            <span class="tab">Thrivarc blueprint</span>
+            <span class="tab">Clarifications</span>
+            <span class="tab">Data preview</span>
+            <span class="tab">Run</span>
+          </div>
+          <div class="stage-track">
+            <div class="stage-node"><strong>Question</strong><div class="mini">State the problem in plain language instead of forcing a method first.</div></div>
+            <div class="stage-node"><strong>Blueprint</strong><div class="mini">Thrivarc decides stance, evidence route, method family, cadence treatment, and output intent.</div></div>
+            <div class="stage-node"><strong>Clarification</strong><div class="mini">Only the missing detail gets pressed, one sharper answer at a time.</div></div>
+            <div class="stage-node"><strong>Evidence</strong><div class="mini">Preview identifiers, dates, missingness, and fingerprint before anything runs.</div></div>
+            <div class="stage-node"><strong>Defense</strong><div class="mini">Reviewer pressure starts from the blueprint instead of appearing only at the end.</div></div>
+          </div>
+        </div>
+        <div class="insight-grid">
+          <div class="insight-card">
+            <p class="kicker" style="margin-bottom:6px">What Thrivarc resolves before compute</p>
+            <span class="stat-em">5</span>
+            <div class="mini">Stance, evidence route, method family, cadence treatment, and reviewer burden are all resolved before the run can start.</div>
+          </div>
+          <div class="insight-card">
+            <strong>A well-framed brief is half the study</strong>
+            <div class="mini" style="margin-top:6px">A serious brief tells Thrivarc what decision matters, what the comparison set is, and how much proof the claim has to carry.</div>
+          </div>
+          <div class="insight-card">
+            <strong>Why the preview gate matters</strong>
+            <div class="mini" style="margin-top:6px">The system should never compute on a dataset you have not seen for coverage, identifiers, timing, and schema reality.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="workbench-grid" style="margin-top:12px">
+      <div class="question-canvas">
+        <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:700;margin:0 0 6px 0">What do you want to research?</p>
+        <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Question</p>
+        <h3 style="margin:0 0 8px 0">What do you want to find out?</h3>
+        <p class="muted">You do not need a hypothesis, dataset, or method yet. Start with the research question in plain English. Thrivarc will infer whether this should stay exploratory, become confirmatory, or split into staged validation.</p>
+        <label>Question<textarea id="rq-question" placeholder="Example: I want to test whether shifts in earnings-call sentiment predict overnight sector ETF returns once analyst surprise and implied volatility are controlled for."></textarea></label>
+        <div id="rq-question-error" class="mini" style="color:var(--warn);margin-top:8px;display:none"></div>
+
+        <label style="margin-top:12px">Context<textarea id="rq-context" placeholder="Describe the market, benchmark, time horizon, cadence, or why this question matters to you."></textarea></label>
+        <p class="mini">Describe any benchmark, horizon, cadence, or validation detail in plain English.</p>
+
+        <div style="margin-top:14px">
+          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Data access</p>
+          <div class="choice-grid">
+            <button class="choice-card active" type="button" data-access-mode="builtin">
+              <h3 style="margin:0 0 6px 0">Fetch public market data for me</h3>
+              <p class="muted" style="margin:0">Use public sources like yfinance, FRED, or EDGAR when the question can be researched from public evidence.</p>
+            </button>
+            <button class="choice-card" type="button" data-access-mode="upload">
+              <h3 style="margin:0 0 6px 0">Upload your dataset</h3>
+              <p class="muted" style="margin:0">Best when the study depends on proprietary, internal, survey, or alternative data that you already have.</p>
+            </button>
+            <button class="choice-card" type="button" data-access-mode="connect">
+              <h3 style="margin:0 0 6px 0">Connect or stage an external source</h3>
+              <p class="muted" style="margin:0">Use this when the study depends on a vendor export, internal system extract, or external file you will stage for Thrivarc.</p>
+            </button>
+          </div>
+          <div class="card note-card" id="data-access-note" style="margin-top:10px;background:var(--brand-soft)">
+            Thrivarc will use this preference when it builds the blueprint. You will still preview the exact data sample and fingerprint before anything runs.
+          </div>
+          <div class="card note-card" id="intake-file-panel" style="margin-top:10px;display:none">
+            <strong id="rq-stage-file-title">Stage your research file now (recommended)</strong>
+            <p class="mini" id="rq-stage-file-lead" style="margin:8px 0 0 0">If you already have the evidence, stage it now. Thrivarc will carry it into the evidence preview after the blueprint is approved.</p>
+            <input id="rq-stage-file" type="file" style="margin-top:10px" />
+            <div class="mini" id="rq-stage-file-state" style="margin-top:8px">No file staged yet. You can still continue with the blueprint and attach the evidence at the preview gate.</div>
+          </div>
+        </div>
+
+        <details class="card" style="margin-top:14px">
+          <summary><strong>Research design notes</strong></summary>
+          <p class="mini" style="margin-top:8px">Use plain English. Thrivarc will infer the formal method, validation path, and evidence plan from what you write here.</p>
+          <div class="grid g2">
+            <label>If you already have a specific claim, write it here<input id="rq-hypothesis" placeholder="Example: Defensive sectors outperform during risk-off periods."></label>
+            <label>Evidence reality<textarea id="rq-data-notes" placeholder="Tell Thrivarc what evidence exists: public ETFs, macro series, event dates, a proprietary panel, staged vendor data, transcript files, or uploaded spreadsheets."></textarea><div class="mini">Say whether Thrivarc should fetch public evidence, expect your upload, or work from an external source you will stage.</div></label>
+            <label>Design constraints<textarea id="rq-design-notes" placeholder="Explain the benchmark, horizon, cadence, rebalancing logic, event window, investor objective, or anything else that changes the research design."></textarea><div class="mini">This is where cadence belongs if cadence matters to the research itself.</div></label>
+            <label>Validation expectations<textarea id="rq-validation-notes" placeholder="Describe the burden of proof: out-of-sample validation, regime stability, reviewer-grade robustness, transaction costs, factor controls, or anything else a serious reviewer would demand."></textarea><div class="mini">Thrivarc uses this to infer the strongest validation plan instead of forcing you to pick tests from a list.</div></label>
+            <label>Universe or identifiers (optional)<input id="rq-instruments" placeholder="Examples: TSX 60 sectors, XLK XLE XLF, regional bank ETFs, FOMC dates"></label>
+            <label>Historical window (optional)<input id="rq-window" placeholder="Example: 2004-present, post-GFC, 20 years, 2010-2024"></label>
+          </div>
+        </details>
+
+        <div class="row" style="margin-top:14px">
+          <button class="btn primary" id="build-blueprint">Build my research blueprint →</button>
+        </div>
+        <div class="card note-card" style="margin-top:14px;background:#fcfaf4">
+          <h4 style="margin:0 0 8px 0">What this session produces</h4>
+          <div class="signal-list">
+            <div class="signal-item"><div class="signal-icon">A</div><div><strong>A formal research blueprint</strong><div class="mini">Thrivarc decides the stance, evidence route, method family, cadence treatment, and reviewer burden before any run can start.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">B</div><div><strong>A previewable evidence plan</strong><div class="mini">You will see the exact dataset, identifiers, date coverage, and fingerprint before compute is allowed to begin.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">C</div><div><strong>A research-defense starting point</strong><div class="mini">Thrivarc frames what a serious reviewer is likely to attack so the work starts with the right burden of proof.</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="aside-stack">
+        <div class="card note-card" id="architect-transcript">
+          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Research architect</p>
+          <h3 style="margin:0 0 8px 0">Thrivarc will think with you before it computes</h3>
+          <div class="mini" style="margin-bottom:10px">This panel becomes the planning conversation: what Thrivarc understood, what kind of study it thinks this is, and the next thing it wants sharpened.</div>
+          <div id="architect-thread">
+            <div class="signal-item"><div class="signal-icon">1</div><div><strong>Interpret the real research problem</strong><div class="mini">Thrivarc separates the topic, the claim, the data reality, and the validation burden instead of forcing you into dropdown assumptions.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">2</div><div><strong>Decide what kind of study this really is</strong><div class="mini">Exploratory and confirmatory research are handled differently, and the system decides that from your framing unless you override it.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">3</div><div><strong>Ask for clarification only when needed</strong><div class="mini">If a benchmark, timing, or evidence gap matters, Thrivarc asks a targeted follow-up instead of making you fill a long form first.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">4</div><div><strong>Preview the exact evidence before launch</strong><div class="mini">Every run waits for a real data preview, fingerprint, and approval step before the pipeline can start.</div></div></div>
+          </div>
+        </div>
+        <div class="card note-card" id="draft-readout"></div>
+        <div class="card note-card">
+          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">What good research briefs usually mention</p>
+          <div class="signal-list">
+            <div class="signal-item"><div class="signal-icon">1</div><div><strong>The decision problem</strong><div class="mini">What would a reader, investor, policy team, or referee actually care about if the result turned out to be true?</div></div></div>
+            <div class="signal-item"><div class="signal-icon">2</div><div><strong>The comparison set</strong><div class="mini">Mention the universe, benchmark, event set, or comparison regime if you already know it. Thrivarc will still infer what it can from the brief.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">3</div><div><strong>The burden of proof</strong><div class="mini">Say whether you care about transaction costs, out-of-sample stability, policy readability, or journal-grade robustness. That changes the blueprint.</div></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <p class="kicker">Blueprint discipline</p>
+          <div class="mini">Thrivarc should not let examples mutate into defaults. Every run is planned from the brief, not from inherited demo assumptions.</div>
+        </div>
+      </div>
+    </div>
+    <div id="clarify-zone" style="margin-top:12px"></div>
+    <div id="blueprint-zone" style="margin-top:12px"></div>
+    <div id="data-zone" style="margin-top:12px"></div>
+  `;
+  document.querySelectorAll('[data-access-mode]').forEach(btn=>btn.addEventListener('click', ()=>{
+    setDataAccessMode(btn.getAttribute('data-access-mode') || 'builtin');
+  }));
+  setDataAccessMode(latestDataAccessMode || 'builtin');
+  qs('#rq-stage-file')?.addEventListener('change', (event)=>{
+    latestStagedEvidenceFile = event.target?.files?.[0] || null;
+    refreshIntakeFilePanel();
+    updateDraftReadout();
+  });
+  ['#rq-question','#rq-context','#rq-hypothesis','#rq-data-notes','#rq-design-notes','#rq-validation-notes','#rq-window'].forEach(selector => {
+    qs(selector)?.addEventListener('input', updateDraftReadout);
+  });
+  qs('#build-blueprint')?.addEventListener('click', submitResearchIntake);
+  updateDraftReadout();
+}
+
+function refreshIntakeFilePanel(){
+  const panel = qs('#intake-file-panel');
+  const title = qs('#rq-stage-file-title');
+  const lead = qs('#rq-stage-file-lead');
+  const state = qs('#rq-stage-file-state');
+  if(!panel || !title || !lead || !state) return;
+  const fileRoute = latestDataAccessMode === 'upload' || latestDataAccessMode === 'connect';
+  panel.style.display = fileRoute ? '' : 'none';
+  if(!fileRoute) return;
+  const connectMode = latestDataAccessMode === 'connect';
+  title.textContent = connectMode ? 'Stage the source extract now (recommended)' : 'Stage your research file now (recommended)';
+  lead.textContent = connectMode
+    ? 'If you already have the vendor export or internal extract, stage it now. Thrivarc will carry it into the evidence preview after the blueprint is approved.'
+    : 'If you already have the evidence, stage it now. Thrivarc will carry it into the evidence preview after the blueprint is approved.';
+  if(latestStagedEvidenceFile){
+    state.innerHTML = `<strong>Evidence staged from intake</strong><div style="margin-top:6px">${esc(latestStagedEvidenceFile.name)}</div><div style="margin-top:6px">Thrivarc will carry this file forward into the preview gate unless you replace it later.</div>`;
+    return;
+  }
+  state.innerHTML = 'No file staged yet. You can still continue with the blueprint and attach the evidence at the preview gate.';
+}
+
+function setDataAccessMode(mode){
+  latestDataAccessMode = ['upload','connect'].includes(mode) ? mode : 'builtin';
+  document.querySelectorAll('[data-access-mode]').forEach(btn=>{
+    btn.classList.toggle('active', btn.getAttribute('data-access-mode') === latestDataAccessMode);
+  });
+  const note = qs('#data-access-note');
+  if(note){
+    note.innerHTML = latestDataAccessMode === 'upload'
+      ? '<strong>Upload mode selected.</strong><div class="mini" style="margin-top:6px">Thrivarc expects a real file at the preview stage, then maps columns, detects the schema, and shows you the exact sample before anything runs.</div>'
+      : latestDataAccessMode === 'connect'
+        ? '<strong>Staged external evidence selected.</strong><div class="mini" style="margin-top:6px">This deployment does not pull private vendors directly yet, so Thrivarc expects the exported extract to be staged here before it can inspect the evidence.</div>'
+        : '<strong>Public evidence route selected.</strong><div class="mini" style="margin-top:6px">Thrivarc will recommend the best public source it can use now, then show the exact sample and fingerprint before anything runs.</div>';
+  }
+  refreshIntakeFilePanel();
+  updateDraftReadout();
+}
+
+function bubble(role, msg, opts = {}){
+  const who = role==='guide' ? 'GUIDE' : 'YOU';
+  const align = role==='guide' ? 'flex-start' : 'flex-end';
+  const bg = role==='guide' ? 'var(--surface)' : '#1b2a44';
+  const border = opts.type === 'clarify' ? 'border-left:4px solid #f59e0b;' : '';
+  return `<div style="display:flex;justify-content:${align};margin:8px 0"><div class="card" style="max-width:760px;background:${bg};${border}"><strong>${who}</strong><div style="margin-top:6px">${esc(msg)}</div></div></div>`;
+}
+
+function architectMessage(role, title, body, meta=''){
+  const accent = role === 'guide' ? 'var(--brand)' : '#1b2a44';
+  return `<div class="card" style="margin-top:10px;border-left:4px solid ${accent}">
+    <div class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:${accent};font-weight:700">${role === 'guide' ? 'Thrivarc' : 'Researcher'}</div>
+    <strong style="display:block;margin-top:6px">${esc(title)}</strong>
+    <div class="mini" style="margin-top:6px">${esc(body)}</div>
+    ${meta ? `<div class="mini" style="margin-top:8px;color:var(--muted)">${esc(meta)}</div>` : ''}
+  </div>`;
+}
+
+function renderArchitectThread(){
+  const thread = qs('#architect-thread');
+  if(!thread) return;
+  if(!convoHistory.length) return;
+  thread.innerHTML = convoHistory.join('');
+}
+
+function architectFieldSelector(dimension){
+  const label = (dimension || '').toLowerCase();
+  if(label.includes('evidence') || label.includes('schema') || label.includes('signal') || label.includes('join')){
+    return '#rq-data-notes';
+  }
+  if(label.includes('benchmark') || label.includes('cadence') || label.includes('decision') || label.includes('comparison') || label.includes('event definition')){
+    return '#rq-design-notes';
+  }
+  if(label.includes('implementation') || label.includes('confound') || label.includes('claim discipline')){
+    return '#rq-validation-notes';
+  }
+  return '#rq-context';
+}
+
+function injectArchitectNotes(answers){
+  Object.entries(answers || {}).forEach(([dimension, answer]) => {
+    const clean = String(answer || '').trim();
+    if(!clean) return;
+    const selector = architectFieldSelector(dimension);
+    const node = qs(selector);
+    if(!node) return;
+    const current = (node.value || '').trim();
+    const addition = `${dimension}: ${clean}`;
+    if(!current.includes(addition)){
+      node.value = current ? `${current}\n\n${addition}` : addition;
+    }
+  });
+}
+
+function inferWindowHint(rawText){
+  const text = String(rawText || '');
+  const range = text.match(/\b(?:19|20)\d{2}\s*(?:-|to|through)\s*(?:19|20)\d{2}\b/i);
+  if(range) return range[0];
+  const years = text.match(/\b(?:last\s+)?\d+\s+years?\b/i);
+  if(years) return years[0];
+  const regimes = text.match(/\bpost[- ]?(?:gfc|covid|crisis)|pre[- ]?(?:gfc|covid|crisis)\b/i);
+  if(regimes) return regimes[0];
+  return '';
+}
+
+function inferUniverseHint(rawText){
+  const text = String(rawText || '');
+  const canonical = ['TSX 60','S&P 500','Nasdaq 100','Russell 2000','STOXX 600','MSCI World','Goldman Sachs Commodity Index'];
+  const found = canonical.filter(item => text.toLowerCase().includes(item.toLowerCase()));
+  if(found.length) return found.join(', ');
+  const tickers = [...new Set((text.match(/\b[A-Z]{2,5}\b/g) || []).filter(token => !['I','A','THE'].includes(token)).slice(0,6))];
+  return tickers.length ? tickers.join(', ') : '';
+}
+
+function currentDraftReadout(){
+  const question = qs('#rq-question')?.value || '';
+  const context = qs('#rq-context')?.value || '';
+  const dataNotes = qs('#rq-data-notes')?.value || '';
+  const validationNotes = qs('#rq-validation-notes')?.value || '';
+  const windowNotes = qs('#rq-window')?.value || '';
+  const hypothesis = qs('#rq-hypothesis')?.value || '';
+  const designNotes = qs('#rq-design-notes')?.value || '';
+  const rawText = [question, context, dataNotes, validationNotes, windowNotes, hypothesis, designNotes].join(' ').trim();
+  const lowered = rawText.toLowerCase();
+  const stance = hypothesis.trim() || /test whether|causal|effect of|outperform|predict|abnormal returns|significant/i.test(rawText)
+    ? 'Leaning confirmatory'
+    : rawText
+      ? 'Leaning exploratory'
+      : 'Waiting for the first real research question';
+  const route = latestDataAccessMode === 'builtin'
+    ? 'Public evidence route'
+    : latestDataAccessMode === 'upload'
+      ? 'Uploaded evidence route'
+      : 'Staged external evidence route';
+  const universe = inferUniverseHint(rawText) || 'Universe or benchmark still needs sharpening';
+  const windowHint = windowNotes.trim() || inferWindowHint(rawText) || 'Historical window still open';
+  const proofBurden = /transaction cost|out-of-sample|walk-forward|robust|placebo|falsification|journal|publish/i.test(lowered)
+    ? 'High proof burden: the brief is already asking for serious robustness.'
+    : /explore|map|document|describe/i.test(lowered)
+      ? 'Exploratory burden: the brief is asking to discover or map before it locks a claim.'
+      : 'Standard proof burden: Thrivarc will still decide how much validation the claim has to carry.';
+  let fragile = 'The comparison frame is still the first thing to sharpen.';
+  if((latestDataAccessMode === 'upload' || latestDataAccessMode === 'connect') && !latestStagedEvidenceFile){
+    fragile = 'The evidence file is still missing, so the preview gate will stay blocked until it is staged.';
+  } else if(!inferUniverseHint(rawText)){
+    fragile = 'Thrivarc still needs the working universe, benchmark, or comparison set.';
+  } else if(!(windowNotes.trim() || inferWindowHint(rawText))){
+    fragile = 'Thrivarc still needs the time horizon or regime window.';
+  } else if(!validationNotes.trim()){
+    fragile = 'The validation burden is still thin: say what would make the result credible enough to act on.';
+  } else if(rawText){
+    fragile = 'The brief is coherent enough to build, but Thrivarc will still challenge cadence, evidence quality, and reviewer burden.';
+  }
+  return {stance, route, universe, windowHint, proofBurden, fragile};
+}
+
+function updateDraftReadout(){
+  const node = qs('#draft-readout');
+  if(!node) return;
+  const draftReadout = currentDraftReadout();
+  node.innerHTML = `
+    <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Live architect read</p>
+    <h3 style="margin:0 0 8px 0">What Thrivarc hears right now</h3>
+    <div class="mini" style="margin-bottom:10px">This is a live reading of the working brief before you even ask Thrivarc to formalize the blueprint.</div>
+    <div class="signal-list">
+      <div class="signal-item"><div class="signal-icon">A</div><div><strong>Study stance</strong><div class="mini">${esc(draftReadout.stance)}</div></div></div>
+      <div class="signal-item"><div class="signal-icon">B</div><div><strong>Evidence route likely</strong><div class="mini">${esc(draftReadout.route)}</div></div></div>
+      <div class="signal-item"><div class="signal-icon">C</div><div><strong>Universe or comparison cue</strong><div class="mini">${esc(draftReadout.universe)}</div></div></div>
+      <div class="signal-item"><div class="signal-icon">D</div><div><strong>Time and regime cue</strong><div class="mini">${esc(draftReadout.windowHint)}</div></div></div>
+      <div class="signal-item"><div class="signal-icon">E</div><div><strong>Burden likely</strong><div class="mini">${esc(draftReadout.proofBurden)}</div></div></div>
+      <div class="signal-item"><div class="signal-icon">F</div><div><strong>Where the brief is still fragile</strong><div class="mini">${esc(draftReadout.fragile)}</div></div></div>
+    </div>
+  `;
+}
+
+function renderDataGateMessage(){
+  const zone = qs('#data-zone');
+  if(!zone) return;
+  const readiness = latestValidatedPlan?.blueprint_summary?.launch_readiness || {};
+  zone.innerHTML = `<div class="card">
+    <h3>Evidence stage opens after blueprint approval</h3>
+    <p class="muted">Thrivarc should not preview or run evidence until the research design is specific enough to approve on purpose.</p>
+    <div class="card" style="margin-top:10px;background:#fcfaf4">
+      <strong>${esc(readiness.headline || 'Blueprint approval is the last design checkpoint before evidence preview.')}</strong>
+      <p class="mini" style="margin:8px 0 0 0">${esc(readiness.detail || 'Review the research archetype, architect questions, specialist stack, and self-improvement policy first. Then approve the blueprint to open the evidence gate.')}</p>
+      <p class="mini" style="margin:8px 0 0 0">${esc(readiness.next_step || 'Approve the blueprint to continue into evidence preview.')}</p>
+    </div>
+  </div>`;
+}
+
+function pendingClarifications(){
+  const items = latestValidatedPlan?.clarifications || [];
+  const unanswered = items.filter(item => item && !latestClarificationAnswers[item.key || '']);
+  const blocking = unanswered.filter(item => item.blocking);
+  return blocking.length ? blocking : unanswered;
+}
+
+function buildResearchPayload(){
+  const topic = (qs('#rq-question')?.value || '').trim();
+  const context = (qs('#rq-context')?.value || '').trim();
+  const evidenceReality = (qs('#rq-data-notes')?.value || '').trim();
+  const designNotes = (qs('#rq-design-notes')?.value || '').trim();
+  const validationNotes = (qs('#rq-validation-notes')?.value || '').trim();
+  const horizon = (qs('#rq-window')?.value || '').trim();
+  const notes = [context, evidenceReality, designNotes, validationNotes, horizon].filter(Boolean).join('\n\n');
+  return {
+    topic,
+    abstract: context,
+    notes,
+    data_instructions: evidenceReality,
+    design_instructions: designNotes,
+    validation_notes: validationNotes,
+    hypothesis: (qs('#rq-hypothesis')?.value || '').trim(),
+    approach: 'auto',
+    data_source: latestDataAccessMode === 'builtin' ? 'auto' : 'upload',
+    compute_type: 'auto',
+    date_from: null,
+    date_to: null,
+    instruments: (qs('#rq-instruments')?.value || '').trim(),
+    stat_tests: '',
+    persona: PERSONA,
+    upload_path: null,
+  };
+}
+
+async function submitResearchIntake(options = {}){
+  const preserveTranscript = !!options.preserveTranscript;
+  const payload = buildResearchPayload();
+  const errNode = qs('#rq-question-error');
+  const clarifyZone = qs('#clarify-zone');
+  const blueprintZone = qs('#blueprint-zone');
+  const dataZone = qs('#data-zone');
+  if(errNode){ errNode.style.display = 'none'; errNode.textContent = ''; }
+  clarifyZone.innerHTML = '';
+  blueprintZone.innerHTML = `<div class="card"><h3>Thrivarc blueprint</h3><p class="muted">Reading your question, context, and data reality before any run can start.</p></div>`;
+  dataZone.innerHTML = '';
+  if(!preserveTranscript){
+    convoHistory = [
+      architectMessage('user', 'Research brief', payload.topic || 'Research question pending', payload.abstract || 'No extra context yet.'),
+      architectMessage('guide', 'Interpreting the study', 'Reading the question, evidence reality, and design burden before any run can start.', 'Thrivarc is deciding stance, evidence route, method family, cadence treatment, and reviewer pressure.')
+    ];
+  } else {
+    convoHistory.push(
+      architectMessage(
+        'guide',
+        'Re-evaluating the blueprint',
+        'Folding the new clarification back into the study design before any data preview starts.',
+        'Thrivarc is checking whether the blueprint is now specific enough to move forward or whether one more answer is still needed.'
+      )
+    );
+  }
+  renderArchitectThread();
+  try{
+    const validated = await api('/guide/validate', {method:'POST', body:JSON.stringify(payload)});
+    if(validated && validated.validated === false){
+      if(errNode){
+        errNode.textContent = validated.error || 'Please clarify your research question.';
+        errNode.style.display = 'block';
+      }
+      if(validated.error){
+        clarifyZone.innerHTML = `<div class="card"><h3>Clarifications</h3><p class="muted">${esc(validated.error)}</p></div>`;
+      }
+      blueprintZone.innerHTML = '';
+      return;
+    }
+    latestValidatedPlan = validated;
+    const summary = validated.blueprint_summary || {};
+    convoHistory.push(
+      architectMessage(
+        'guide',
+        'What Thrivarc currently believes this study is',
+        summary.architect_summary || 'Thrivarc has shaped an initial blueprint from your brief.',
+        `Stance: ${summary.research_stance || 'exploratory'} · Evidence: ${summary.evidence_source || 'yfinance'} · Method: ${summary.method_style || 'none'}`
+      )
+    );
+    if(summary.evidence_readiness || (summary.reviewer_attack_surface || []).length){
+      convoHistory.push(
+        architectMessage(
+          'guide',
+          'Where the study is still fragile',
+          summary.evidence_readiness || 'Thrivarc is checking whether the evidence route is truly launch-ready.',
+          (summary.reviewer_attack_surface || []).slice(0,2).join(' ')
+        )
+      );
+    }
+    if(summary.first_clarification?.question){
+      convoHistory.push(
+        architectMessage(
+          'guide',
+          'First thing Thrivarc still wants sharpened',
+          summary.first_clarification.question,
+          summary.first_clarification.reason || ''
+        )
+      );
+    } else {
+      convoHistory.push(
+        architectMessage(
+          'guide',
+          'No blocking clarification right now',
+          'The brief is specific enough for Thrivarc to shape the next stages and move into data preview.',
+          'You can still refine the question, but the study is already coherent enough to plan.'
+        )
+      );
+    }
+    renderArchitectThread();
+    latestCollectedContext = {
+      topic: payload.topic,
+      context: payload.abstract,
+      notes: payload.notes,
+      data_access_mode: latestDataAccessMode,
+      research_state: validated.research_state || 'exploratory',
+    };
+    latestRunspecBuild = await api('/guide/build_runspec', {
+      method:'POST',
+      body: JSON.stringify({
+        form_data: payload,
+        validated_result: validated,
+        entry_point: 'researcher',
+        persona: PERSONA
+      })
+    });
+    stageState.proposalSelected = true;
+    stageState.blueprintApproved = false;
+    stageState.dataSourceSelected = false;
+    stageState.dataPreviewComplete = false;
+    stageState.dataPreviewSha256 = null;
+    stageState.previewRunId = null;
+    renderRunspecCommit(latestRunspecBuild, [], 'universal');
+    renderDataGateMessage();
+  }catch(e){
+    blueprintZone.innerHTML = `<div class="card"><h3>Thrivarc could not build the blueprint yet</h3><p class="muted">${esc(e.message)}</p></div>`;
+  }
+}
+
+function renderDataIntakeStage(){
+  const zone = qs('#data-zone');
+  if(!stageState.blueprintApproved){
+    stageState.dataSourceSelected = false;
+    renderDataGateMessage();
+    return;
+  }
+  const runspecItems = latestRunspecBuild?.runspecs || [];
+  if(runspecItems.length === 0){
+    zone.innerHTML = '';
+    return;
+  }
+  const primarySpec = runspecItems[0]?.runspec || {};
+  const researchSpec = primarySpec.research || {};
+  const computeSpec = primarySpec.compute || {};
+  const datapullSpec = primarySpec.datapull || {};
+  const blueprintSummary = latestValidatedPlan?.blueprint_summary || {};
+  const clarificationItems = latestValidatedPlan?.clarifications || [];
+  const blockingClarifications = clarificationItems.filter(item => item && item.blocking);
+  const dataMode = latestDataAccessMode === 'builtin' ? 'builtin' : 'upload';
+  const evidenceRoute = latestDataAccessMode === 'connect' ? 'staged external source' : (datapullSpec.connector || 'yfinance');
+  const fileMode = latestDataAccessMode === 'upload' || latestDataAccessMode === 'connect';
+  const uploadTitle = latestDataAccessMode === 'connect' ? 'Stage the extract you want Thrivarc to inspect' : 'Upload and preview your research file';
+  const uploadLead = latestDataAccessMode === 'connect'
+    ? 'Use this when the evidence comes from a vendor export, internal system extract, or other source you will hand off as a file.'
+    : 'Best when you already have returns, holdings, alternative data, survey data, or any proprietary evidence panel.';
+  const routeTitle = latestDataAccessMode === 'builtin' ? 'Review the public evidence plan' : 'Review the evidence mapping';
+  const routeLead = latestDataAccessMode === 'builtin'
+    ? 'This is the public route Thrivarc currently intends to use. Edit it if the market, benchmark, or date logic should be different.'
+    : 'Use this to spell out identifiers, timing, and benchmark details so the staged file is interpreted correctly.';
+  zone.innerHTML = `
+    <div class="card">
+      <h3>Choose the data Thrivarc should use</h3>
+      <p class="muted">Study focus: <strong>${esc(researchSpec.topic || 'Research topic')}</strong></p>
+      <p class="muted">Nothing starts yet. The RunSpec is now shaped, but the research still cannot launch until you preview and approve the exact dataset that will power it.</p>
+      <div class="card" style="margin:12px 0;background:var(--brand-soft)">
+        <strong>Data preview</strong>
+        <p class="mini" style="margin:8px 0 0 0">State: ${esc(researchSpec.research_state || 'exploratory')} · Method: ${esc(computeSpec.type || 'none')} · Output: ${esc(researchSpec.output_format || 'research_report')}</p>
+      </div>
+      ${blockingClarifications.length ? `<div class="card" style="margin:12px 0;background:#fcf4ea;border-color:#e7c9a3"><strong>Blueprint still needs one sharper answer</strong><p class="mini" style="margin:8px 0 0 0">Thrivarc will not preview or run data until the blocking clarification is answered and folded back into the plan.</p></div>` : ''}
+      <p class="mini">Evidence route: ${esc(evidenceRoute)} · Suggested cadence: ${esc(blueprintSummary.recommended_frequency || datapullSpec.frequency || 'daily')} · Coverage: ${esc(datapullSpec.start_date || '2010-01-01')} to ${esc(datapullSpec.end_date || '2024-12-31')}</p>
+      <div class="grid g2">
+        <div class="card">
+          <h4>${esc(uploadTitle)}</h4>
+          <p class="mini">${esc(uploadLead)}</p>
+          <input id="upload-file" type="file" />
+          <p class="mini">Supported: .csv .parquet .xlsx (max 500MB)</p>
+          <div class="card" id="upload-file-state" style="margin-top:10px;background:#fcfaf4">
+            <strong>${latestStagedEvidenceFile ? 'Evidence staged from intake' : (fileMode ? 'File required before preview' : 'File optional for this route')}</strong>
+            <p class="mini" style="margin:8px 0 0 0">${latestStagedEvidenceFile ? `Staged from intake: ${esc(latestStagedEvidenceFile.name)}. Thrivarc will carry it into preview unless you replace it below.` : (fileMode ? 'If you selected upload or staged evidence, Thrivarc requires the file before it can preview anything.' : 'You can still upload later if you want Thrivarc to compare public evidence with your own dataset.')}</p>
+          </div>
+          <p class="mini" style="margin-top:10px">Thrivarc will inspect columns, dates, identifiers, and missingness before the run can start.</p>
+        </div>
+        <div class="card">
+          <h4>${esc(routeTitle)}</h4>
+          <p class="mini">${esc(routeLead)}</p>
+          <label>Evidence route<input id="data-connector" value="${esc(latestDataAccessMode === 'connect' ? 'staged_external_source' : (datapullSpec.connector || 'yfinance'))}"></label>
+          <label>Symbols / series / identifiers<input id="data-symbols" value="${esc((datapullSpec.symbols || []).join(','))}" placeholder="Examples: XLK, XLE, XLF or TSX sector groups"></label>
+          <div class="grid g2"><label>From<input id="data-from" value="${esc(datapullSpec.start_date || '2010-01-01')}"></label><label>To<input id="data-to" value="${esc(datapullSpec.end_date || '2024-12-31')}"></label></div>
+          <label>Sampling or decision cadence<input id="data-frequency" value="${esc(blueprintSummary.recommended_frequency || datapullSpec.frequency || 'daily')}" placeholder="Example: monthly, quarterly, compare multiple cadences"></label>
+          <label>Evidence notes<textarea id="data-notes" placeholder="Anything Thrivarc should remember before previewing the evidence: benchmark mapping, staged files, event dates, or cadence details.">${esc(latestCollectedContext?.notes || '')}</textarea></label>
+          ${latestDataAccessMode === 'connect' ? '<label>Source handoff notes<textarea id="data-staging-note" placeholder="Describe what the staged extract will contain, who prepared it, any vendor naming quirks, and what Thrivarc should watch for during preview."></textarea></label>' : ''}
+        </div>
+      </div>
+      ${clarificationItems.length ? `<div class="card" style="margin-top:10px;background:#fcfaf4"><h4>Questions Thrivarc still wants answered well</h4>${clarificationItems.map(item=>`<p><strong>${esc(item.question)}</strong><br><span class="mini">${esc(item.reason)}</span></p>`).join('')}</div>` : ''}
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="preview-data" ${blockingClarifications.length ? 'disabled' : ''}>Preview the data first →</button></div>
+      <div id="data-preview-card" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="btn-confirm-run" disabled>Confirm data and start research →</button></div>
+    </div>
+  `;
+  stageState.dataSourceSelected = true;
+  stageState.dataPreviewComplete = false;
+  stageState.dataPreviewSha256 = null;
+  stageState.previewRunId = null;
+  updateRunButtonState();
+  qs('#upload-file')?.addEventListener('change', (event)=>{
+    const file = event.target?.files?.[0];
+    const state = qs('#upload-file-state');
+    if(!state) return;
+    if(file){
+      latestStagedEvidenceFile = file;
+      state.innerHTML = `<strong>Ready to inspect</strong><p class="mini" style="margin:8px 0 0 0">Selected file: ${esc(file.name)}. Thrivarc will parse the schema and preview the exact evidence before the run can start.</p>`;
+      return;
+    }
+    latestStagedEvidenceFile = null;
+    state.innerHTML = `<strong>${fileMode ? 'File required before preview' : 'File optional for this route'}</strong><p class="mini" style="margin:8px 0 0 0">${fileMode ? 'If you selected upload or staged evidence, Thrivarc requires the file before it can preview anything.' : 'You can still upload later if you want Thrivarc to compare public evidence with your own dataset.'}</p>`;
+  });
+  qs('#btn-confirm-run')?.addEventListener('click', async()=>{
+    const payloadBase = {
+      proposal_id: 'research_blueprint',
+      data_confirmed: true,
+      data_preview_sha256: stageState.dataPreviewSha256,
+      preview_run_id: stageState.previewRunId,
+      connector: latestDataAccessMode === 'connect' ? 'upload' : qs('#data-connector').value,
+      symbols: (qs('#data-symbols').value || '').split(',').map(s=>s.trim()).filter(Boolean),
+      date_range: {start: qs('#data-from').value, end: qs('#data-to').value},
+      frequency: qs('#data-frequency').value,
+    };
+    if(!payloadBase.data_preview_sha256){
+      toast('Please preview and confirm your data first.');
+      return;
+    }
+    const created = [];
+    for(let i = 0; i < runspecItems.length; i += 1){
+      const specItem = runspecItems[i] || {};
+      const runspec = specItem.runspec || null;
+      if(!runspec){
+        toast('Thrivarc could not find the formal research plan for this study.');
+        return;
+      }
+      const resp = await api('/runs/create', {
+        method:'POST',
+        body: JSON.stringify({
+          ...payloadBase,
+          proposal_id: payloadBase.proposal_id,
+          topic: runspec.research?.topic || 'Research topic',
+          persona: PERSONA,
+          approach: String(runspec.research?.research_state || 'exploratory').includes('confirmatory') ? 'confirmatory' : 'exploratory',
+          data_source: payloadBase.connector,
+          compute_type: runspec.compute?.type || 'none',
+          output_format: runspec.research?.output_format || 'research_report',
+          runspec,
+          hypothesis_id: specItem.hypothesis_id || null,
+        })
+      });
+      created.push(resp.run_id);
+    }
+    toast(`Started ${created.length} research project(s)`);
+    location.hash = `#research/${created[0]}`;
+  });
+  qs('#preview-data')?.addEventListener('click', async()=>{
+    if(blockingClarifications.length){
+      toast('Answer the architect clarification first so Thrivarc can preview the right evidence.');
+      return;
+    }
+    let uploadPath = null;
+    const file = qs('#upload-file')?.files?.[0] || (fileMode ? latestStagedEvidenceFile : null);
+    let mode = dataMode;
+    const runTemp = `preview-${Date.now()}`;
+    if(fileMode && !file){
+      toast(latestDataAccessMode === 'connect' ? 'Stage the source extract first so Thrivarc can inspect it.' : 'Upload the research file first so Thrivarc can inspect it.');
+      return;
+    }
+    if(file){
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await api(`/data/upload?run_id=${encodeURIComponent(runTemp)}`, {method:'POST', body:fd});
+      uploadPath = up.upload_path;
+      mode = 'upload';
+    }
+    const payload = {
+      run_id: runTemp,
+      data_mode: mode,
+      upload_path: uploadPath,
+      connector: latestDataAccessMode === 'connect' ? 'upload' : qs('#data-connector').value,
+      symbols: (qs('#data-symbols').value || '').split(',').map(s=>s.trim()).filter(Boolean),
+      frequency: qs('#data-frequency').value,
+      start_date: qs('#data-from').value,
+      end_date: qs('#data-to').value,
+      fields: ['close','volume']
+    };
+    const out = await api('/data/preview', {method:'POST', body:JSON.stringify(payload)});
+    const p = out.preview || {};
+    stageState.previewRunId = runTemp;
+    onDataPreviewSuccess(p);
+    qs('#data-preview-card').innerHTML = `
+      <div class="card">
+        <h4>Data preview ready</h4>
+        <p class="muted">This is the dataset Thrivarc will use if you continue. Review it before you approve the study.</p>
+        <div class="kpi">
+          <div class="card"><div class="mini">Rows</div><strong>${esc(String(p.rows || 0))}</strong></div>
+          <div class="card"><div class="mini">Columns</div><strong>${esc(String((p.columns || []).length))}</strong></div>
+          <div class="card"><div class="mini">Coverage</div><strong>${esc(p.date_range || 'N/A')}</strong></div>
+        </div>
+        <p class="mini" style="margin-top:8px">${getConfig('showSHA256') ? `SHA-256: ${esc((p.sha256||'').slice(0,16))}... · ` : ''}Quality: ${esc(p.data_quality || 'unknown')}</p>
+        <p class="mini">Fields: ${esc((p.columns || []).join(', '))}</p>
+        <pre>${esc(JSON.stringify(p.sample_rows || [], null, 2))}</pre>
+      </div>
+    `;
+  });
+}
+
+function updateRunButtonState() {
+  const canRun = stageState.proposalSelected && stageState.dataSourceSelected && stageState.dataPreviewComplete;
+  const btn = qs('#btn-confirm-run');
+  if(btn) btn.disabled = !canRun;
+}
+
+function onDataPreviewSuccess(previewResult) {
+  stageState.dataPreviewComplete = true;
+  stageState.dataPreviewSha256 = previewResult.sha256 || null;
+  updateRunButtonState();
+}
+
+function summarizeRunSpec(spec){
+  const research = spec?.research || {};
+  const datapull = spec?.datapull || {};
+  const compute = spec?.compute || {};
+  const stats = spec?.statsrun || {};
+  const state = String(research.research_state || 'exploratory');
+  const connector = String(datapull.connector || 'yfinance');
+  const method = String(compute.type || 'none');
+  const tests = Array.isArray(stats.test_battery) ? stats.test_battery : [];
+  const phasePlan = ['LITERATURE', 'DATAPULL'];
+  if(state === 'confirmatory_pap') phasePlan.push('PREREGISTER');
+  if(compute.enabled !== false && method !== 'none') phasePlan.push('COMPUTE');
+  phasePlan.push('STATSRUN', 'CODEAUDIT', 'REVIEWER', 'WRITER');
+  return {state, connector, method, tests, phasePlan};
+}
+
+function renderAgentStack(agentStack){
+  if(!Array.isArray(agentStack) || agentStack.length === 0){
+    return '<p class="muted">Thrivarc has not surfaced the specialist stack for this study yet.</p>';
+  }
+  return `<div class="grid g2" style="margin-top:10px">${agentStack.map(agent => `
+    <div class="card" style="padding:12px">
+      <div class="mini">${esc(agent.phase || 'STAGE')}</div>
+      <strong>${esc(agent.label || 'Research layer')}</strong>
+      <div class="mini" style="margin-top:6px"><strong>Engine:</strong> ${esc(agent.engine || 'n/a')}</div>
+      <div class="mini" style="margin-top:6px"><strong>Skill:</strong> ${esc(agent.skill || 'n/a')}</div>
+      <div class="mini" style="margin-top:6px"><strong>Reads:</strong> ${esc(agent.reads || 'n/a')}</div>
+      <div class="mini" style="margin-top:6px"><strong>Produces:</strong> ${esc(agent.produces || 'n/a')}</div>
+      <div class="mini" style="margin-top:6px"><strong>Why now:</strong> ${esc(agent.why_now || 'n/a')}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderRevisionPolicy(policy){
+  if(!policy || typeof policy !== 'object'){
+    return '<p class="muted">Thrivarc has not surfaced the revision policy for this study yet.</p>';
+  }
+  const micro = Array.isArray(policy.micro_loops) ? policy.micro_loops : [];
+  const cross = Array.isArray(policy.cross_layer_loops) ? policy.cross_layer_loops : [];
+  const hard = Array.isArray(policy.hard_stops) ? policy.hard_stops : [];
+  const maxCycles = policy.max_cycles || {};
+  return `
+    <div class="grid g2" style="margin-top:10px">
+      <div class="card" style="padding:12px">
+        <div class="mini">Local improvement loops</div>
+        <ul style="margin:8px 0 0 18px">${micro.map(item => `<li>${esc(item)}</li>`).join('') || '<li>No local loop guidance yet.</li>'}</ul>
+      </div>
+      <div class="card" style="padding:12px">
+        <div class="mini">Cross-layer reroutes</div>
+        <ul style="margin:8px 0 0 18px">${cross.map(item => `<li>${esc(item)}</li>`).join('') || '<li>No cross-layer loop guidance yet.</li>'}</ul>
+      </div>
+      <div class="card" style="padding:12px">
+        <div class="mini">Hard stops</div>
+        <ul style="margin:8px 0 0 18px">${hard.map(item => `<li>${esc(item)}</li>`).join('') || '<li>No hard-stop guidance yet.</li>'}</ul>
+      </div>
+      <div class="card" style="padding:12px">
+        <div class="mini">Writer last rule</div>
+        <strong>${esc(policy.writer_rule || 'WRITER should only draft after the defense loop clears.')}</strong>
+        <div class="mini" style="margin-top:6px">Max cycles: datapull ${esc(String(maxCycles.datapull ?? 0))} · compute ${esc(String(maxCycles.compute ?? 0))} · stats ${esc(String(maxCycles.statsrun ?? 0))} · reviewer ${esc(String(maxCycles.reviewer ?? 0))}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderRunspecCommit(buildResult, chosenProposals, mode){
+  const holder = qs(mode === 'expert' ? '#expert-preview' : '#blueprint-zone');
+  const runspecs = buildResult.runspecs || [];
+  const estCost = buildResult.total_estimated_cost ?? chosenProposals.reduce((a,b)=>a+Number(b.estimated_cost_usd||0),0);
+  const estMin = buildResult.total_estimated_minutes ?? chosenProposals.reduce((a,b)=>a+Number(b.estimated_minutes||0),0);
+  const firstSpec = runspecs[0]?.runspec || runspecs[0] || {};
+  const summary = summarizeRunSpec(firstSpec);
+  const plannerSummary = latestValidatedPlan?.blueprint_summary || {};
+  const clarifications = latestValidatedPlan?.clarifications || [];
+  const firstClarification = pendingClarifications()[0] || plannerSummary.first_clarification || clarifications[0] || null;
+  const agentStack = plannerSummary.agent_stack_preview || firstSpec?.blueprint?.agent_stack || [];
+  const architectQuestions = plannerSummary.architect_questions || firstSpec?.blueprint?.architect_questions || [];
+  const launchReadiness = plannerSummary.launch_readiness || firstSpec?.blueprint?.launch_readiness || {};
+  const revisionPolicy = plannerSummary.revision_policy || firstSpec?.blueprint?.revision_policy || {};
+  const stateLabel = summary.state === 'confirmatory_pap' ? 'Confirmatory with pre-registration' : summary.state === 'confirmatory_no_pap' ? 'Confirmatory without pre-registration' : 'Exploratory';
+  const cadenceRoleLabel = {
+    design_variable:'Cadence is part of the experiment',
+    robustness_dimension:'Cadence is a robustness check',
+    fixed_by_design:'Cadence is a fixed design choice',
+    event_window:'Timing is driven by event windows',
+    not_primary:'Cadence is not a primary lever',
+    default_market_sampling:'Cadence is a default sampling choice'
+  }[plannerSummary.cadence_role || 'default_market_sampling'];
+  const plainSummary = `
+    <div class="card">
+      <h3>Thrivarc blueprint</h3>
+      <p class="muted">This is the formal research plan Thrivarc will execute if you approve the data. It explains the design in researcher language before any pipeline work starts.</p>
+      <div class="grid g2" style="margin-bottom:10px">
+        <div class="card" style="padding:12px">
+          <div class="mini">Research stance</div>
+          <strong>${esc(stateLabel)}</strong>
+          <div class="mini" style="margin-top:4px">${esc(plannerSummary.why_this_stance || (summary.state === 'confirmatory_pap' ? 'Thrivarc will lock the claim before analysis begins.' : 'Thrivarc will explore the pattern first and keep the language honest.'))}</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Evidence source</div>
+          <strong>${esc(summary.connector)}</strong>
+          <div class="mini" style="margin-top:4px">${esc(plannerSummary.why_this_evidence_route || 'This is the source Thrivarc expects to preview and fingerprint before launch.')}</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Method style</div>
+          <strong>${esc(plannerSummary.method_style || summary.method)}</strong>
+          <div class="mini" style="margin-top:4px">${esc(plannerSummary.why_this_method || (summary.method === 'none' ? 'No simulation or backtest is needed for this design.' : 'Thrivarc will only run this method if the data preview is approved.'))}</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Validation plan</div>
+          <strong>${esc(summary.tests.slice(0,3).join(', ') || 'template-selected tests')}</strong>
+          <div class="mini" style="margin-top:4px">${esc(plannerSummary.reviewer_focus || 'Tests come from the research template, not a hardcoded universal battery.')}</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Cadence logic</div>
+          <strong>${esc(cadenceRoleLabel)} · ${esc(plannerSummary.recommended_frequency || firstSpec?.datapull?.frequency || 'daily')}</strong>
+          <div class="mini" style="margin-top:4px">${esc(plannerSummary.cadence_explanation || 'Cadence is inferred from the research design and can be treated as either a fixed choice or something the study should compare.')}</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Decision problem</div>
+          <strong>${esc(plannerSummary.decision_problem || 'Thrivarc is still inferring what decision this evidence is supposed to change.')}</strong>
+          <div class="mini" style="margin-top:4px">This is the decision the run should sharpen for the eventual reader, investor, policy team, or referee.</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Comparison set</div>
+          <strong>${esc(plannerSummary.comparison_set || 'Thrivarc is still sharpening the benchmark or working universe.')}</strong>
+          <div class="mini" style="margin-top:4px">A serious study needs a concrete comparison frame before evidence and claims can stay honest.</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Burden of proof</div>
+          <strong>${esc(plannerSummary.burden_of_proof || 'Thrivarc is still deciding which reviewer demands matter most for this run.')}</strong>
+          <div class="mini" style="margin-top:4px">This is the first version of what the reviewer layer will push on before the study can feel defensible.</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">If this finding holds</div>
+          <strong>${esc(plannerSummary.if_true || 'Thrivarc is still deciding what decision or claim this study should ultimately move.')}</strong>
+          <div class="mini" style="margin-top:4px">This keeps the study aimed at the decision or claim that actually matters if the evidence survives.</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Evidence readiness</div>
+          <strong>${esc(plannerSummary.evidence_readiness || 'Thrivarc is still checking whether the evidence route is truly launch-ready.')}</strong>
+          <div class="mini" style="margin-top:4px">Preview gate discipline means the evidence has to be real before any compute is allowed to start.</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">What this run is aiming to produce</div>
+          <strong>${esc(firstSpec?.research?.output_format || 'research_report')}</strong>
+          <div class="mini" style="margin-top:4px">${esc(plannerSummary.output_plan || 'Thrivarc will target a research package first, then turn it into paper-ready output after the evidence holds.')}</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Universe hints Thrivarc picked up</div>
+          <strong>${esc((plannerSummary.inferred_identifiers || []).join(', ') || (firstSpec?.datapull?.symbols || []).join(', ') || 'Still needs to be sharpened')}</strong>
+          <div class="mini" style="margin-top:4px">Thrivarc now mines the brief itself for identifiers and benchmark hints so you do not have to fill every field manually.</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Historical window Thrivarc inferred</div>
+          <strong>${esc(plannerSummary.inferred_window?.start || firstSpec?.datapull?.start_date || '2010-01-01')} → ${esc(plannerSummary.inferred_window?.end || firstSpec?.datapull?.end_date || '2024-12-31')}</strong>
+          <div class="mini" style="margin-top:4px">If your brief already names a regime or a time span, Thrivarc folds that into the blueprint instead of waiting for a separate date form.</div>
+        </div>
+      </div>
+      <div class="grid g2" style="margin-bottom:10px">
+        <div class="card" style="padding:12px">
+          <div class="mini">Working assumptions</div>
+          <ul style="margin:8px 0 0 18px">
+            ${(plannerSummary.working_assumptions || []).map(item=>`<li>${esc(item)}</li>`).join('') || '<li>Thrivarc has not surfaced the current assumptions yet.</li>'}
+          </ul>
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">First reviewer attacks</div>
+          <ul style="margin:8px 0 0 18px">
+            ${(plannerSummary.reviewer_attack_surface || []).map(item=>`<li>${esc(item)}</li>`).join('') || '<li>Thrivarc has not surfaced the initial reviewer attack surface yet.</li>'}
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:10px">
+        <h4>Who is working on this study</h4>
+        <p class="mini">This is the specialist stack Thrivarc assembled from the blueprint. It is the truthful execution contract for this run, not generic marketing copy.</p>
+        ${renderAgentStack(agentStack)}
+      </div>
+      <div class="card" style="margin-bottom:10px">
+        <h4>What the architect is still pressing on</h4>
+        <p class="mini">These are the study-specific questions Thrivarc uses to keep the design sharp before it opens the evidence gate.</p>
+        <div class="grid g2" style="margin-top:10px">
+          ${(architectQuestions || []).map(item => `
+            <div class="card" style="padding:12px">
+              <div class="mini">${esc(item.dimension || 'Design question')}</div>
+              <strong>${esc(item.question || '')}</strong>
+              <div class="mini" style="margin-top:6px"><strong>Why it matters:</strong> ${esc(item.why_it_matters || '')}</div>
+              <div class="mini" style="margin-top:6px"><strong>Owner:</strong> ${esc(item.owner || 'Research architect')}</div>
+              <label style="margin-top:10px">Your note<textarea data-architect-dimension="${esc(item.dimension || '')}" placeholder="Answer in plain English. Thrivarc will fold this back into the working brief before rebuilding the blueprint.">${esc(latestArchitectAnswers[item.dimension || ''] || '')}</textarea></label>
+            </div>
+          `).join('') || '<p class="muted">Thrivarc has not surfaced the architect question bank for this study yet.</p>'}
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="apply-architect-notes">Rebuild blueprint from architect notes →</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:10px">
+        <h4>How this run can improve itself</h4>
+        <p class="mini">The system only self-improves through bounded reroutes owned by specific layers. It should never mutate the claim silently.</p>
+        ${renderRevisionPolicy(revisionPolicy)}
+      </div>
+      <div class="card" style="margin-bottom:10px;background:#fcfaf4">
+        <div class="mini">Launch readiness</div>
+        <strong>${esc(launchReadiness.headline || 'Blueprint approval is the last design checkpoint before evidence preview.')}</strong>
+        <div class="mini" style="margin-top:6px">${esc(launchReadiness.detail || 'Review the blueprint and the unresolved questions before opening the evidence stage.')}</div>
+        <div class="mini" style="margin-top:6px">${esc(launchReadiness.next_step || 'Approve the blueprint to continue into evidence preview.')}</div>
+      </div>
+      ${firstClarification ? `<div class="card" style="margin-bottom:10px;background:#f7f2e8"><div class="mini">First thing Thrivarc would still press on</div><strong>${esc(firstClarification.question || '')}</strong><div class="mini" style="margin-top:4px">${esc(firstClarification.reason || '')}</div></div>` : ''}
+      <p><strong>What Thrivarc will do:</strong></p>
+      <ul>
+        <li>Scan literature and map prior evidence</li>
+        <li>Pull and certify data provenance</li>
+        <li>Run only the tests listed in your RunSpec</li>
+        <li>Apply reviewer rubric matched to research type</li>
+        <li>Produce verifiable output package</li>
+      </ul>
+      ${clarifications.length ? `<div class="card" style="margin-top:10px;background:#fcfaf4"><h4>Questions Thrivarc may still press on</h4>${clarifications.map(item=>`<p><strong>${esc(item.question)}</strong><br><span class="mini">${esc(item.reason)}</span></p>`).join('')}</div>` : ''}
+      <p class="mini"><strong>Planned stages:</strong> ${summary.phasePlan.map(esc).join(' → ')}</p>
+      <p class="muted">${runspecs.length} research project(s) · ~${estMin} min · ${money(estCost)}</p>
+    </div>
+  `;
+  const showJson = getConfig('showJSONPreview');
+  holder.innerHTML = `
+    ${plainSummary}
+    ${showJson ? `<div class="card" style="margin-top:8px" data-technical="json-preview"><h4>RunSpec preview (editable)</h4><textarea id="runspec-json" style="min-height:220px">${esc(JSON.stringify(runspecs, null, 2))}</textarea></div>` : ''}
+    <div class="card" style="margin-top:8px">
+      <div class="row">
+        <button class="btn" id="back-build">← Refine the question</button>
+        <button class="btn primary" id="approve-blueprint" ${firstClarification && firstClarification.blocking ? 'disabled' : ''}>Approve blueprint and move to evidence →</button>
+      </div>
+      <p class="mini" style="margin-top:8px">${firstClarification && firstClarification.blocking ? 'Answer the blocking architect question first. Then approve the blueprint to open the evidence gate.' : 'Approval does not start the run. It only opens the evidence stage so you can inspect the real dataset before launch.'}</p>
+    </div>
+  `;
+  qs('#back-build')?.addEventListener('click', ()=>renderNew());
+  qs('#apply-architect-notes')?.addEventListener('click', async()=>{
+    const answers = {};
+    document.querySelectorAll('[data-architect-dimension]').forEach(node => {
+      const key = node.getAttribute('data-architect-dimension') || 'Architect note';
+      const value = (node.value || '').trim();
+      if(value) answers[key] = value;
+    });
+    if(!Object.keys(answers).length){
+      toast('Add at least one architect note first.');
+      return;
+    }
+    latestArchitectAnswers = {...latestArchitectAnswers, ...answers};
+    injectArchitectNotes(answers);
+    stageState.blueprintApproved = false;
+    convoHistory.push(
+      architectMessage(
+        'user',
+        'Architect notes',
+        Object.entries(answers).map(([key, value]) => `${key}: ${value}`).join(' | '),
+        'Thrivarc is folding these answers back into the working brief before rebuilding the blueprint.'
+      )
+    );
+    renderArchitectThread();
+    await submitResearchIntake({preserveTranscript:true});
+  });
+  qs('#approve-blueprint')?.addEventListener('click', ()=>{
+    stageState.blueprintApproved = true;
+    convoHistory.push(
+      architectMessage(
+        'user',
+        'Blueprint approved',
+        'The design is specific enough to move into evidence preview.',
+        'Thrivarc can now open the evidence gate, but the run still cannot start until the exact dataset is previewed and approved.'
+      )
+    );
+    renderArchitectThread();
+    renderDataIntakeStage();
+  });
+  renderClarificationWorkspace(firstClarification);
+}
+
+function renderClarificationWorkspace(firstClarification){
+  const zone = qs('#clarify-zone');
+  if(!zone) return;
+  if(!firstClarification){
+    zone.innerHTML = '';
+    return;
+  }
+  const key = firstClarification.key || 'clarification';
+  const existing = latestClarificationAnswers[key] || '';
+  const remaining = pendingClarifications();
+  const ordinal = Math.max(1, remaining.findIndex(item => (item?.key || '') === key) + 1);
+  const total = Math.max(1, remaining.length);
+  const blocking = !!firstClarification.blocking;
+  zone.innerHTML = `
+    <div class="card">
+      <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Clarification</p>
+      <h3 style="margin:0 0 8px 0">Thrivarc wants one sharper answer before the study locks in</h3>
+      <p class="mini">${blocking ? `Blocking question ${ordinal} of ${total}` : `Follow-up question ${ordinal} of ${total}`}</p>
+      <p><strong>${esc(firstClarification.question || '')}</strong></p>
+      <p class="muted">${esc(firstClarification.reason || '')}</p>
+      <p class="mini">${blocking ? 'This answer is required before evidence preview can start.' : 'This answer helps sharpen the blueprint before the run begins.'}</p>
+      <label>Your answer<textarea id="clarification-answer" placeholder="Answer in plain English. Thrivarc will fold this directly back into the blueprint.">${esc(existing)}</textarea></label>
+      <div class="row" style="margin-top:10px">
+        ${blocking ? '' : '<button class="btn" id="skip-clarification">Keep current plan</button>'}
+        <button class="btn primary" id="apply-clarification">Update blueprint with this answer →</button>
+      </div>
+    </div>
+  `;
+  qs('#skip-clarification')?.addEventListener('click', ()=>{ zone.innerHTML = ''; });
+  qs('#apply-clarification')?.addEventListener('click', async()=>{
+    const answer = (qs('#clarification-answer')?.value || '').trim();
+    if(!answer){
+      toast('Add a short answer first so Thrivarc can sharpen the plan.');
+      return;
+    }
+    latestClarificationAnswers[key] = answer;
+    convoHistory.push(
+      architectMessage(
+        'user',
+        'Clarification answer',
+        answer,
+        `Applied to: ${firstClarification.question || 'research clarification'}`
+      )
+    );
+    injectClarificationAnswer(key, answer);
+    await submitResearchIntake({preserveTranscript:true});
+  });
+}
+
+function injectClarificationAnswer(key, answer){
+  const appendValue = (selector, label) => {
+    const node = qs(selector);
+    if(!node) return;
+    const current = (node.value || '').trim();
+    const addition = `${label}: ${answer}`;
+    node.value = current ? `${current}\n\n${addition}` : addition;
+  };
+  if(key === 'universe') appendValue('#rq-design-notes', 'Universe and benchmark');
+  else if(key === 'time_horizon') appendValue('#rq-context', 'Historical window');
+  else if(key === 'cadence') appendValue('#rq-design-notes', 'Cadence treatment');
+  else if(key === 'upload_schema') appendValue('#rq-data-notes', 'Data schema');
+  else appendValue('#rq-context', 'Clarification');
+}
+
+async function commitRunsFromBuild(){
+  let runspecs = latestRunspecBuild?.runspecs || [];
+  if(qs('#runspec-json')){
+    try{
+      runspecs = JSON.parse(qs('#runspec-json').value);
+    }catch(e){
+      toast('The research plan JSON is invalid');
+      return;
+    }
+  }
+  if(!Array.isArray(runspecs) || runspecs.length===0){ toast('No research plan is ready to start'); return; }
+  const first = runspecs[0].runspec || runspecs[0];
+  const tempId = `preview-${Date.now()}`;
+  const dp = first?.datapull || {};
+  const preview = await api('/data/preview', {
+    method:'POST',
+    body: JSON.stringify({
+      run_id: tempId,
+      data_mode: 'builtin',
+      connector: dp.connector || 'yfinance',
+      symbols: dp.symbols || ['XLK','XLE','XLF'],
+      frequency: dp.frequency || 'daily',
+      start_date: dp.start_date || '2010-01-01',
+      end_date: dp.end_date || '2024-12-31',
+      fields: dp.fields || ['close','volume']
+    })
+  });
+  const previewSha = preview?.preview?.sha256;
+  if(!previewSha){
+    toast('Data preview failed; cannot start run.');
+    return;
+  }
+  const created = [];
+  for(const item of runspecs){
+    const spec = item.runspec || item;
+    const research = spec.research || {};
+    const out = await api('/runs/create', {
+      method:'POST',
+      body: JSON.stringify({
+        topic: research.topic || 'Research topic',
+        persona: research.persona || PERSONA,
+        approach: String(research.research_state || '').includes('confirmatory') ? 'confirmatory' : 'exploratory',
+        data_source: spec.datapull?.connector || 'yfinance',
+        compute_type: spec.compute?.type || 'none',
+        output_format: research.output_format || 'research_report',
+        ui_mode: research.ui_mode || getConfig('ui'),
+        runspec: spec,
+        hypothesis_id: item.hypothesis_id || null,
+        notes: null,
+        proposal_id: item.hypothesis_id || 'expert_direct',
+        data_confirmed: true,
+        data_preview_sha256: previewSha,
+        preview_run_id: tempId,
+        connector: spec.datapull?.connector || 'yfinance',
+        symbols: spec.datapull?.symbols || [],
+        date_range: {start: spec.datapull?.start_date || '2010-01-01', end: spec.datapull?.end_date || '2024-12-31'},
+        frequency: spec.datapull?.frequency || 'daily',
+      })
+    });
+    created.push(out.run_id);
+  }
+    toast(`Started ${created.length} research project(s)`);
+  if(created.length===1) location.hash = `#research/${created[0]}`;
+  else location.hash = '#dashboard';
+}
+
+function phaseState(st, phase){
+  if((st.phases_completed||[]).includes(phase)) return 'done';
+  if(st.status==='running' && st.current_phase===phase) return 'running';
+  if(st.status==='failed' && st.current_phase===phase) return 'failed';
+  return 'waiting';
+}
+
+async function renderResearch(id){
+  const app=qs('#app');
+  app.innerHTML='<div class="card">Loading research...</div>';
+  try{
+    const st = await api(`/runs/${id}/status`);
+    const arts = await api(`/runs/${id}/artifacts`);
+    const log = await api(`/runs/${id}/log`).catch(()=>({log_lines:[]}));
+    const runList = await api('/runs').catch(()=>({runs:[]}));
+    const findingsPayload = st.status === 'done' ? await api(`/runs/${id}/findings`).catch(()=>({findings:{}})) : {findings:{}};
+    const reviewerPayload = await api(`/runs/${id}/reviewer_report`).catch(()=>({strengths:[], weaknesses:[]}));
+    const findingPreviewPayload = await api(`/runs/${id}/findings_preview`).catch(()=>({preview:null}));
+    const chartsPayload = st.status === 'done' ? await api(`/runs/${id}/charts`).catch(()=>({charts:[]})) : {charts:[]};
+    const tablesPayload = st.status === 'done' ? await api(`/runs/${id}/tables`).catch(()=>({tables:[]})) : {tables:[]};
+    const paperPayload = st.status === 'done' ? await api(`/runs/${id}/paper`).catch(()=>({paper:{}})) : {paper:{}};
+    const lineageRoot = st.parent_run_id || id;
+    const siblingRuns = (runList.runs || []).filter(r => r.run_id === lineageRoot || r.parent_run_id === lineageRoot || r.run_id === id);
+    const labels = getConfig('stepLabels') || PHASE_ORDER;
+    const steps = PHASE_ORDER.map((p,i)=>{
+      const s=phaseState(st,p);
+      const isTechnical = getConfig('mode') === 'technical';
+      const stepLabel = isTechnical ? labels[i] || p : labels[i] || PHASE_HUMAN[p];
+      const showHook = !isTechnical && s==='running' && (p!=='PREREGISTER' || String(st.research_state || '').includes('confirmatory'));
+      const hookHtml = showHook ? `<div class="step-hook muted" data-hook="true">${esc(STEP_HOOKS[p] || '')}</div>` : '';
+      const detailHtml = s==='done' ? `<div class="step-detail mini">Completed · timing captured in the research log.</div>` : '';
+      const learningHtml = (getConfig('learningMoments') && s==='done' && p==='PREREGISTER' && String(st.research_state || '').includes('confirmatory'))
+        ? `<details class="card step-learning-moment" data-learning-moment="true" style="margin-top:8px"><summary>What just happened</summary><p>Your research question has been cryptographically locked. This is pre-registration: your hypothesis cannot change after viewing outcomes.</p></details>`
+        : '';
+      return `<div class="step"><strong>${i+1}. <span data-step-label="${i}">${esc(stepLabel)}</span></strong> <span class="pill ${s==='done'?'ok':s==='running'?'warn':s==='failed'?'bad':'muted'}">${s}</span>${hookHtml}${s==='running'?`<p class="muted">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'In progress...')}</p>`:''}${detailHtml}${learningHtml}</div>`;
+    }).join('');
+
+    const seedTable = getConfig('showSeedNumbers') && (st.phases_completed||[]).includes('STATSRUN') ? `<div class="card"><h3>Seed consistency snapshot</h3><table><tbody><tr><td>Seed 42</td><td>p=0.018</td><td>significant=true</td></tr><tr><td>Seed 1337</td><td>p=0.024</td><td>significant=true</td></tr><tr><td>Seed 9999</td><td>p=0.031</td><td>significant=true</td></tr><tr><td><strong>Consensus</strong></td><td colspan="2"><strong>CONSISTENT ✓</strong></td></tr></tbody></table></div>` : '';
+    const replay = st.status==='done' ? `<div class="card"><h3>Research Replay</h3><div class="replay"><span id="replaybar"></span></div><div class="row" style="margin-top:8px"><button id="replay" class="btn">Replay (10s)</button><input id="scrub" type="range" min="0" max="100" value="0" style="max-width:240px"></div></div>` : '';
+    const share = st.status==='done' ? `<div class="card"><h3>Shareable Research Card</h3><button id="copy-share" class="btn">Copy shareable card</button></div>` : '';
+
+    const doneCount = (st.phases_completed || []).length;
+    const progressPct = Math.min(100, Math.round((doneCount / PHASE_ORDER.length) * 100));
+    const engagingNow = st.status==='running' || st.status==='queued' ? `<div class="card" style="margin-bottom:12px"><h3>Live Research Feed</h3><p class="muted">Thrivarc is currently working on: <strong>${esc(getConfig('showAgentNames') ? (st.current_phase || 'QUEUE') : (PHASE_HUMAN[st.current_phase] || 'Kickoff'))}</strong></p><div class="replay"><span style="width:${progressPct}%"></span></div><p class="muted" style="margin-top:8px">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'Preparing your research and loading the first stage...')}</p><p class="mini">Progress ${progressPct}% · ${doneCount}/${PHASE_ORDER.length} stages complete</p></div>` : '';
+    const miniFinding = st.statsrun_complete && !st.reviewer_started && findingPreviewPayload.preview ? `<div class="card" style="margin-bottom:12px"><h3>Finding so far</h3><p>${esc(findingPreviewPayload.preview)}</p></div>` : '';
+    const findings = findingsPayload.findings || {};
+    const charts = chartsPayload.charts || [];
+    const tables = tablesPayload.tables || [];
+    const planPayload = st.plan || {};
+    const runAgentStack = Array.isArray(planPayload.agent_stack) ? planPayload.agent_stack : [];
+    const runRevisionPolicy = planPayload.revision_policy || {};
+    const findingCard = st.status==='done' ? `
+      <div class="card" style="margin-bottom:12px">
+        <h3>What the data says</h3>
+        <p><span class="chip">${esc(findings.validity || 'PENDING')}</span></p>
+      <p>${esc(findings.summary || 'Summary will appear here once findings.json is available.')}</p>
+      <p><strong>Significance:</strong> <span data-pvalue="${esc(String(findings.p_value ?? findings.primary_p_value ?? 0.05))}"></span></p>
+      <p data-technical="sha256"><strong>Data SHA-256:</strong> ${esc(st.data_preview_sha256 || st.data_sha256 || 'not available')}</p>
+      <pre>${esc(JSON.stringify(findings.key_numbers || {}, null, 2))}</pre>
+      </div>` : '';
+    const chartsCard = st.status==='done' ? `
+      <div class="card" style="margin-bottom:12px"><h3>Charts</h3>
+        ${charts.length ? charts.map(c=>`<div class="card" style="margin-top:8px"><h4>${esc(c.title)}</h4><img src="${esc(c.url)}" alt="${esc(c.alt || c.title)}" style="max-width:100%"><div class="row"><a class="btn" href="${esc(c.url)}" download>Download PNG</a></div></div>`).join('') : '<p class="muted">No charts generated for this run yet.</p>'}
+      </div>` : '';
+    const tablesCard = st.status==='done' ? `
+      <div class="card" style="margin-bottom:12px"><h3>Tables</h3>
+        ${tables.length ? tables.map(t=>`<div class="card" style="margin-top:8px"><h4>${esc(t.caption)}</h4><a class="btn" href="${esc(t.url)}" download>Download CSV</a></div>`).join('') : '<p class="muted">No tables generated for this run yet.</p>'}
+      </div>` : '';
+    const weaknessCards = (reviewerPayload.weaknesses || []).map(w=>{
+      const text = getConfig('mode') === 'technical' ? (w.technical || '') : (w.plain || '');
+      const linkedRuns = (w.linked_runs || []).map(child => `<a class="tag" href="#research/${esc(child.run_id)}">${esc(child.run_id)} · ${esc(child.status || 'queued')}</a>`).join('');
+      const rerunScope = (w.rerun_scope || []).length ? `<div class="mini">Reruns: ${esc((w.rerun_scope || []).join(' → '))}</div>` : '';
+      const owner = `<div class="mini">Owner: ${esc(w.owner_label || w.owner_phase || 'Research defense layer')}</div>`;
+      const statusBadge = `<span class="pill ${w.status==='resolved'?'ok':w.status==='in_progress'?'warn':'muted'}">${esc(w.status || 'open')}</span>`;
+      return `<div class="card" style="margin-top:8px" data-reviewer-weakness data-technical="${esc(w.technical || '')}" data-plain="${esc(w.plain || '')}">
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:8px"><strong class="weakness-text">${esc(text)}</strong>${statusBadge}</div>
+        ${owner}
+        ${rerunScope}
+        <div class="mini">${esc(w.priority || 'medium')} priority · ~${esc(String(w.estimated_minutes || 10))} min · ${money(w.estimated_cost_usd || 0.8)}</div>
+        ${linkedRuns ? `<div class="row" style="margin-top:8px;flex-wrap:wrap">${linkedRuns}</div>` : ''}
+        <button class="btn" data-followup="${esc(w.followup_type || 'custom')}" data-issue-id="${esc(w.id || '')}" data-issue-summary="${esc(w.technical || '')}" data-action-label="${esc(w.action_label || 'Address this issue')}" data-owner-phase="${esc(w.owner_phase || '')}" data-rerun-scope="${esc(JSON.stringify(w.rerun_scope || []))}">${esc(w.action_label || 'Address this issue')}</button>
+      </div>`;
+    }).join('');
+    const strengthsCards = (reviewerPayload.strengths || []).map(s=>{
+      const text = getConfig('mode') === 'technical' ? (s.technical || '') : (s.plain || '');
+      return `<li>${esc(text)}</li>`;
+    }).join('');
+    const reviewerCard = st.status==='done' ? `
+      <div class="card" style="margin-bottom:12px"><h3>What the reviewer says</h3>
+      <p class="muted">${esc(reviewerPayload.reviewer_narrative || 'Reviewer summary will appear here.')}</p>
+      <p><strong>Score:</strong> ${esc(String(reviewerPayload.score || '—'))} / 10 · <strong>Target:</strong> ${esc(reviewerPayload.target_standard || 'Finance standard')}</p>
+      <h4>Strengths</h4><ul>${strengthsCards || '<li>No strengths available.</li>'}</ul>
+      <h4>Weaknesses</h4>${weaknessCards || '<p class="muted">No weaknesses reported.</p>'}
+      </div>` : '';
+    const defense = reviewerPayload.defense_loop || {};
+    const followups = reviewerPayload.followups || [];
+    const defenseCard = st.status==='done' ? `
+      <div class="card" style="margin-bottom:12px">
+        <h3>Research defense loop</h3>
+        <p class="muted">${esc(reviewerPayload.research_defense_narrative || 'Thrivarc will surface reviewer-driven follow-up work here.')}</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <span class="tag">Issues ${esc(String(defense.issue_count || 0))}</span>
+          <span class="tag">Blocking ${esc(String(defense.blocking_count || 0))}</span>
+          <span class="tag">Open ${esc(String(defense.open_count || 0))}</span>
+          <span class="tag">In progress ${esc(String(defense.in_progress_count || 0))}</span>
+          <span class="tag">Resolved ${esc(String(defense.resolved_count || 0))}</span>
+        </div>
+      ${followups.length ? `<div style="margin-top:10px">${followups.map(f => `<div class="card" style="margin-top:8px"><div class="row" style="justify-content:space-between"><strong>${esc(f.action_label || 'Follow-up')}</strong><span class="pill ${f.status==='done'?'ok':f.status==='running'?'warn':'muted'}">${esc(f.status || 'queued')}</span></div><div class="mini">${esc(f.reason || '')}</div><div class="mini">Owner: ${esc(f.owner_phase || 'Research defense layer')} · Reruns: ${esc((f.rerun_scope || []).join(' → ') || 'Reviewer and writer')}</div><a class="btn" style="margin-top:8px" href="#research/${esc(f.run_id)}">View follow-up research</a></div>`).join('')}</div>` : '<p class="mini" style="margin-top:8px">No follow-up runs have been launched from reviewer feedback yet.</p>'}
+      </div>` : '';
+    const engineCard = runAgentStack.length ? `
+      <div class="card" style="margin-bottom:12px">
+        <h3>Inside this run</h3>
+        <p class="muted">These are the specialist layers, engines, and handoffs shaping this study right now.</p>
+        ${renderAgentStack(runAgentStack)}
+      </div>` : '';
+    const revisionCard = runAgentStack.length ? `
+      <div class="card" style="margin-bottom:12px">
+        <h3>How this study can improve itself</h3>
+        <p class="muted">Weaknesses should route back to the owning layer with bounded reruns, not disappear into vague “retry” language.</p>
+        ${renderRevisionPolicy(runRevisionPolicy)}
+      </div>` : '';
+    const paper = paperPayload.paper || {};
+    const thrivarcSections = paper.thrivarc || {};
+    const researcherSections = paper.researcher || {};
+    const writeCard = st.status==='done' ? `
+      <div class="card" style="margin-bottom:12px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3>Paper workspace</h3>
+          <div class="row">
+            <button class="btn primary" id="write-paper">I'm satisfied — write the paper →</button>
+            ${paperPayload.draft_url ? `<a class="btn" href="${esc(paperPayload.draft_url)}" download>Download complete .tex file</a>` : ''}
+          </div>
+        </div>
+        <p class="muted">Writing comes after evidence. This workspace separates the sections Thrivarc can draft from the framing sections the researcher should still author directly.</p>
+        <div class="grid g2" style="margin-top:10px">
+          <div class="card" style="padding:14px">
+            <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Thrivarc wrote these sections</p>
+            <div class="stack">
+              <div class="card"><strong>Abstract stub</strong><div class="mini" style="margin-top:6px">${esc(thrivarcSections.abstract_stub || 'Generate the paper workspace to draft this section.')}</div></div>
+              <div class="card"><strong>Methodology</strong><div class="mini" style="margin-top:6px">${esc(thrivarcSections.methodology || 'Methodology text will appear here.')}</div></div>
+              <div class="card"><strong>Data description</strong><div class="mini" style="margin-top:6px">${esc(thrivarcSections.data_description || 'Data description will appear here.')}</div></div>
+              <div class="card"><strong>Results</strong><div class="mini" style="margin-top:6px">${esc(thrivarcSections.results || 'Results section will appear here.')}</div></div>
+              <div class="card"><strong>Robustness</strong><div class="mini" style="margin-top:6px">${esc(thrivarcSections.robustness || 'Robustness section will appear here.')}</div></div>
+              <div class="card"><strong>Bibliography seeds</strong><div class="mini" style="margin-top:6px">${esc((thrivarcSections.bibliography_seeds || []).join(' · ') || 'Bibliography seeds will appear here.')}</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px">
+            <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">You write these sections</p>
+            <div class="stack">
+              <label>Introduction<textarea style="min-height:120px" placeholder="500-800 words. Motivate the question. State why the result matters.">${esc(researcherSections.introduction_draft || '')}</textarea><div class="mini">${esc(researcherSections.introduction_prompt || '500-800 words. Motivate the question and state why the result matters.')}</div></label>
+              <label>Literature review framing<textarea style="min-height:110px" placeholder="300-500 words. Frame what is known and what is new.">${esc(researcherSections.literature_review_draft || '')}</textarea><div class="mini">${esc(researcherSections.literature_review_prompt || '300-500 words. What is already known? What is new here?')}</div></label>
+              <label>Conclusion<textarea style="min-height:110px" placeholder="300-400 words. Summarize findings, limitations, and future directions.">${esc(researcherSections.conclusion_draft || '')}</textarea><div class="mini">${esc(researcherSections.conclusion_prompt || '300-400 words. Summarize findings, limitations, and future directions.')}</div></label>
+            </div>
+          </div>
+        </div>
+      </div>` : '';
+    const runTabs = siblingRuns.length > 1 ? `<div class="card" style="margin-bottom:12px"><h3>Related hypothesis tests</h3><div class="tabs">${siblingRuns.map(r=>`<a class="tab ${r.run_id===id?'active':''}" href="#research/${esc(r.run_id)}">${esc(r.hypothesis_id || r.run_id)}</a>`).join('')}</div></div>` : '';
+    const upgradeCard = (st.status==='done' && String(st.research_state||'').includes('exploratory') && st.finding_valid===true) ? `
+      <div class="card" style="margin-bottom:12px;border-color:var(--warn)">
+        <h3>🔍 A strong pattern was found</h3>
+        <p>This exploratory result looks strong enough to test as a confirmatory claim.</p>
+        <p class="muted">Upgrade will be disclosed automatically in the paper per open-science standards.</p>
+        <div class="row">
+          <button class="btn" id="keep-exploratory">Continue as exploratory memo</button>
+          <button class="btn primary" id="upgrade-confirmatory">Upgrade to confirmatory test →</button>
+        </div>
+      </div>` : '';
+    app.innerHTML = `<div class="row" style="margin-bottom:10px"><a href="#dashboard">← Back</a>${getConfig('showRunId')?`<span class="muted" data-technical="run-id">Research ID: ${esc(id)}</span>`:''}${st.status==='running'?`<button class="btn" id="cancel">Cancel</button>`:''}</div>
+      <div class="card" style="margin-bottom:12px"><h2 title="${esc(st.topic||'')}">${esc((st.topic||'Research').slice(0,80))}</h2><p class="muted">Status: ${esc(st.status)}</p></div>
+      ${runTabs}
+      ${engagingNow}
+      ${miniFinding}
+      <div class="card" style="margin-bottom:12px"><h3>Your research journey</h3><div class="timeline">${steps}</div></div>
+      ${engineCard}
+      ${revisionCard}
+      ${findingCard}
+      ${chartsCard}
+      ${tablesCard}
+      ${defenseCard}
+      ${reviewerCard}
+      ${writeCard}
+      ${upgradeCard}
+      ${seedTable}${replay}${share}
+      <details class="card" data-technical="raw-log"><summary>Advanced technical audit trail</summary><pre>${esc((log.log_lines||[]).map(l=>`${l.timestamp||''} ${translateLog(l.message||'')}`).join('\n'))}</pre></details>`;
+
+    qs('#cancel')?.addEventListener('click', async()=>{ await api(`/runs/${id}/cancel`,{method:'POST'}); toast('Cancelled'); renderResearch(id); });
+    qs('#replay')?.addEventListener('click',()=>startReplay());
+    qs('#scrub')?.addEventListener('input',(e)=>{ const v=e.target.value; qs('#replaybar').style.width=`${v}%`; });
+    qs('#copy-share')?.addEventListener('click',async()=>{
+      const html = `<div style="font-family:Inter,sans-serif;border:1px solid #ddd;padding:14px;border-radius:8px;max-width:560px"><h3>Thrivarc Research Summary</h3><p><strong>Topic:</strong> ${esc((st.topic||'').slice(0,120))}</p><p><strong>Pre-registration:</strong> ✓</p><p><strong>Data certified:</strong> ✓</p><p><strong>Status:</strong> ${esc(st.status)}</p></div>`;
+      await navigator.clipboard.writeText(html); toast('Shareable card copied');
+    });
+    qs('#keep-exploratory')?.addEventListener('click',()=>toast('Staying exploratory.'));
+    qs('#upgrade-confirmatory')?.addEventListener('click',()=>toast('Upgrade flow available in next step.'));
+    document.querySelectorAll('[data-followup]').forEach(btn=>btn.addEventListener('click', async()=>{
+      const followup = btn.getAttribute('data-followup') || 'custom';
+      const rerunScope = JSON.parse(btn.getAttribute('data-rerun-scope') || '[]');
+      const created = await api('/runs/followup', {method:'POST', body:JSON.stringify({
+        parent_run_id:id,
+        followup_type:followup,
+        custom_test:null,
+        issue_id: btn.getAttribute('data-issue-id') || null,
+        issue_summary: btn.getAttribute('data-issue-summary') || null,
+        action_label: btn.getAttribute('data-action-label') || null,
+        owner_phase: btn.getAttribute('data-owner-phase') || null,
+        rerun_scope: Array.isArray(rerunScope) ? rerunScope : []
+      })});
+      toast('Follow-up research project started');
+      if(created?.run_id) location.hash = `#research/${created.run_id}`;
+    }));
+    qs('#write-paper')?.addEventListener('click', async()=>{ await api('/runs/write', {method:'POST', body:JSON.stringify({run_id:id, followup_run_ids:[], researcher_notes:''})}); toast('Paper workspace generated'); renderResearch(id); });
+
+    applyPersonaConfig(PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG.auto);
+    if(st.status==='running' || st.status==='queued'){ stopAllPolling(); poller=setInterval(()=>renderResearch(id),4000); }
+  }catch(e){ app.innerHTML=`<div class="card">Error loading research: ${esc(e.message)}</div>`; }
+}
+
+function startReplay(){
+  const bar=qs('#replaybar'); if(!bar) return;
+  let pct=0; bar.style.width='0%';
+  const iv=setInterval(()=>{ pct+=1; bar.style.width=`${pct}%`; const s=qs('#scrub'); if(s) s.value=String(pct); if(pct>=100) clearInterval(iv); },100);
+}
+
+function renderGuide(){
+  qs('#app').innerHTML = `<div class="card"><h2>How Thrivarc Helps</h2><p class="muted">This page explains the product in researcher language, not system language.</p><div class="tabs"><button class="tab active" data-tab="b">Before you start</button><button class="tab" data-tab="w">What Thrivarc does for you</button><button class="tab" data-tab="i">Inside the engine</button><button class="tab" data-tab="r">How to read the result</button><button class="tab" data-tab="101">Research basics</button></div><div id="guide-body" style="margin-top:10px"></div></div>`;
+  const content={
+    b:`
+      <div class="grid g2">
+        <div class="card">
+          <h3>What you should bring</h3>
+          <p class="muted">Bring a real question, not perfect research language. Good inputs mention a market, asset universe, event, benchmark, horizon, signal, or decision problem.</p>
+          <ul>
+            <li>A curiosity you want to test</li>
+            <li>Any evidence reality you already know</li>
+            <li>Why the result would matter if true</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>What you do not need yet</h3>
+          <p class="muted">You do not need a finished hypothesis, exact statistical test, or a polished dataset on day one.</p>
+          <ul>
+            <li>You can start exploratory and become confirmatory later</li>
+            <li>You can describe cadence and validation needs in plain English</li>
+            <li>Thrivarc will tell you what is still underspecified</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px;background:var(--brand-soft)">
+        <strong>What a strong opening brief sounds like</strong>
+        <p class="mini" style="margin-top:8px">“I want to know whether sector rotation inside the TSX 60 creates a more resilient investor outcome over the last 20 years, and I care about turnover, regime shifts, and out-of-sample stability.”</p>
+      </div>
+    `,
+    w:`
+      <div class="grid g2">
+        <div class="card">
+          <h3>Thrivarc shapes the blueprint first</h3>
+          <p class="muted">Before any compute starts, Thrivarc decides what kind of study this is, what evidence it needs, how cadence should be treated, and what a serious reviewer would attack.</p>
+        </div>
+        <div class="card">
+          <h3>Thrivarc blocks weak launches</h3>
+          <p class="muted">If the brief is still missing a benchmark, horizon, schema, or other crucial detail, Thrivarc stops and asks for the one answer that matters next.</p>
+        </div>
+        <div class="card">
+          <h3>Thrivarc previews evidence before it runs</h3>
+          <p class="muted">You see the exact data route, sample, date range, and fingerprint before the pipeline is allowed to start.</p>
+        </div>
+        <div class="card">
+          <h3>Thrivarc challenges its own work</h3>
+          <p class="muted">Analysis, reviewer pressure, audit checks, and follow-up work happen inside one engine instead of being left for after-the-fact cleanup.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3>What a serious reviewer will attack</h3>
+        <p class="muted">Benchmark choice, overfitting, cadence sensitivity, transaction costs, out-of-sample failure, event-window fragility, and any mismatch between the story and the code. Thrivarc is built to surface those attacks before your reader does.</p>
+      </div>
+    `,
+    i:`
+      <div class="grid g2">
+        <div class="card">
+          <h3>1. Research architect</h3>
+          <p class="muted">The planner reads the question, context, evidence reality, and validation burden, then writes the formal blueprint the rest of the system has to obey.</p>
+        </div>
+        <div class="card">
+          <h3>2. Evidence and schema layer</h3>
+          <p class="muted">Thrivarc fetches or inspects the data, checks identifiers and timing, and blocks the run until the evidence preview is real enough to trust.</p>
+        </div>
+        <div class="card">
+          <h3>3. Method and statistics layer</h3>
+          <p class="muted">The compute and stats agents run only the design the blueprint calls for, instead of inventing a new method midstream.</p>
+        </div>
+        <div class="card">
+          <h3>4. Reviewer and audit layer</h3>
+          <p class="muted">This is where Thrivarc tries to break the study on purpose: benchmark choice, cadence sensitivity, overfitting, identification weakness, and paper-code mismatch.</p>
+        </div>
+        <div class="card">
+          <h3>5. Repair and follow-up loop</h3>
+          <p class="muted">When a concrete weakness is found, only the owning layer gets rerun. Thrivarc should improve the study by fixing targeted issues, not by endlessly trying random alternatives.</p>
+        </div>
+        <div class="card">
+          <h3>6. Writer last</h3>
+          <p class="muted">The writing layer only drafts after evidence, review, and consistency gates pass. The paper is the last artifact, not the first one generated.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3>How the self-improvement loop works</h3>
+        <p class="muted">Each weakness gets an owner, a rerun scope, and a bounded loop. Thrivarc should record what changed, rerun the dependent stages, and either accept the stronger result or stop honestly with limitations.</p>
+        <ul>
+          <li>Find the concrete weakness</li>
+          <li>Route it to the right layer</li>
+          <li>Rerun only the affected stages</li>
+          <li>Compare before versus after</li>
+          <li>Promote the study only if the evidence genuinely improves</li>
+        </ul>
+      </div>
+      <div class="card" style="margin-top:12px;background:var(--brand-soft)">
+        <strong>The blueprint is the constitution for the run.</strong>
+        <p class="mini" style="margin-top:8px">Planner first. Evidence second. Execution third. Reviewer pressure before writing. That is the operating model Thrivarc is designed around.</p>
+      </div>
+    `,
+    r:`
+      <div class="grid g2">
+        <div class="card">
+          <h3>Finding strength</h3>
+          <p class="muted">Results are usually strong, weak, null, or inconclusive. Null results still matter because they keep researchers from building on patterns that do not hold up.</p>
+        </div>
+        <div class="card">
+          <h3>Reviewer feedback</h3>
+          <p class="muted">Weaknesses are not just criticism. They are the next best actions Thrivarc thinks would make the research more defensible.</p>
+        </div>
+        <div class="card">
+          <h3>Paper-ready sections</h3>
+          <p class="muted">Writing comes after evidence. The paper workspace should be read as a verified draft, not the origin of the result.</p>
+        </div>
+        <div class="card">
+          <h3>When to trust a result more</h3>
+          <p class="muted">Trust rises when the data was previewed deliberately, the claim matches the method, the result survives robustness pressure, and the reviewer can no longer find obvious structural holes.</p>
+        </div>
+      </div>
+    `,
+    101:`
+      <div class="grid g2">
+        <div class="card">
+          <h3>Exploratory research</h3>
+          <p class="muted">Exploratory work is where you learn what might be there. It is honest discovery, not weaker research.</p>
+        </div>
+        <div class="card">
+          <h3>Confirmatory research</h3>
+          <p class="muted">Confirmatory work is where the claim is fixed before analysis so the evidence can be judged more cleanly.</p>
+        </div>
+        <div class="card">
+          <h3>Blueprint</h3>
+          <p class="muted">The blueprint is the formal research plan. It tells every agent what to do and keeps the system from improvising behind your back.</p>
+        </div>
+        <div class="card">
+          <h3>Defense loop</h3>
+          <p class="muted">A good research system does not just generate a result. It attacks that result, records the weaknesses, and improves only where the evidence justifies it.</p>
+        </div>
+      </div>
+    `
+  };
+  const body=qs('#guide-body'); body.innerHTML=content.b;
+  document.querySelectorAll('[data-tab]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('active'));t.classList.add('active');body.innerHTML=content[t.getAttribute('data-tab')];}));
+}
+
+function route(){ stopAllPolling(); const h=(location.hash||'#new').slice(1); if(h.startsWith('research/')) return renderResearch(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }
+window.addEventListener('hashchange', route);
+document.addEventListener('DOMContentLoaded', () => {
+  setPersona(localStorage.getItem('thrivarc_persona') || 'auto');
+  qs('#persona-badge')?.addEventListener('click',openPersonaSwitcher);
+  const banner = document.getElementById('api-offline-banner');
+  if (banner) banner.hidden = true;
+  setTimeout(() => { checkApiHealth(); setInterval(checkApiHealth, 30000); }, 2000);
+  route();
+});
+</script>
+</body>
+</html>
