@@ -1,2 +1,2 @@
-# Re-export shim for backward compatibility.
-from agents.codeaudit.codeaudit_pass1 import *  # noqa: F401,F403
+import sys
+from agents.codeaudit import codeaudit_pass1 as _implementation; sys.modules[__name__] = _implementation
