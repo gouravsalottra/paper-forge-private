@@ -64,7 +64,7 @@
 <body>
   <div class="nav">
     <div class="navin">
-      <a href="/" class="brand"><span class="brand-mark">T</span> <span>Thrivarc AI</span></a><span id="persona-badge" class="badge">🧭 Researcher</span> <span id="spend-chip" class="badge">$0.00 spent</span>
+      <a href="/" class="brand"><span class="brand-mark">T</span> <span>Thrivarc AI</span></a><span id="persona-badge" class="badge">🧭 Researcher</span> <span id="spend-chip" class="badge" data-truth-source="sessions.credits_spent">$0.00 spent</span>
       <div class="row">
         <a href="#dashboard" class="muted">Research Home</a>
         <a href="#new" class="muted">Start Research</a>
@@ -76,6 +76,20 @@
   </div>
   <div class="wrap">
     <div id="api-offline-banner" class="card" hidden>API offline. Please retry in a moment.</div>
+    <div id="frontend-truth-contract" hidden>
+      <span data-truth-source="sessions.status">Session status badge</span>
+      <span data-truth-source="blueprints.status">Blueprint lock button</span>
+      <span data-truth-source="phases.status">Phase indicators</span>
+      <span data-truth-source="reviewer_scores">Reviewer gate card</span>
+      <span data-truth-source="repair_log">Repair approval card</span>
+      <span data-truth-source="reviewer_scores.gate_passed">Writer unlock banner</span>
+      <span data-truth-source="sessions.status=paper_unlocked">Paper download link</span>
+      <span data-truth-source="COUNT(deviation_register)">Deviation badge</span>
+      <span data-truth-source="Blob Storage signed URL">DataPassport download</span>
+      <span data-truth-source="Blob Storage signed URL">Pre-reg cert download</span>
+      <span data-truth-source="Blob Storage signed URL">Deviation Register PDF</span>
+      <span data-truth-source="sessions.coauthor_id">Co-author status</span>
+    </div>
     <div id="app"></div>
   </div>
 
@@ -112,6 +126,21 @@ const PHASE_ORDER = ['LITERATURE','DATAPULL','PREREGISTER','COMPUTE','STATSRUN',
 const PHASE_HUMAN = {
   LITERATURE:'Context scan',DATAPULL:'Data collection',PREREGISTER:'Question lock',COMPUTE:'Analysis execution',STATSRUN:'Statistical validation',CODEAUDIT:'Method audit',REVIEWER:'Referee simulation',WRITER:'Paper drafting'
 };
+const FRONTEND_TRUTH_STATE_MAP = {
+  "Session status badge": {source:"sessions.status", writer:"Pipeline orchestrator", sse_event:"phase_update"},
+  "Blueprint lock button": {source:"blueprints.status", writer:"Research Architect", sse_event:"phase_update"},
+  "Phase indicators": {source:"phases.status", writer:"Each agent", sse_event:"phase_update"},
+  "Reviewer gate card": {source:"reviewer_scores", writer:"Reviewer Agent", sse_event:"gate_result", note:"Render from reviewer_scores table only; no browser-side score calculation."},
+  "Repair approval card": {source:"repair_log", writer:"Repair Agent", sse_event:"repair_triggered"},
+  "Writer unlock banner": {source:"reviewer_scores.gate_passed", writer:"Reviewer Agent", sse_event:"writer_unlocked"},
+  "Paper download link": {source:"sessions.status=paper_unlocked", writer:"Writer Agent", sse_event:"run_complete"},
+  "Deviation badge": {source:"COUNT(deviation_register)", writer:"Any post-lock change", sse_event:"deviation_logged"},
+  "DataPassport download": {source:"Blob Storage signed URL", writer:"Data Agent", sse_event:"section_ready"},
+  "Pre-reg cert download": {source:"Blob Storage signed URL", writer:"Preregistration Agent", sse_event:"section_ready"},
+  "Deviation Register PDF": {source:"Blob Storage signed URL", writer:"Generated on demand", sse_event:null},
+  "Co-author status": {source:"sessions.coauthor_id", writer:"Owner action", sse_event:null},
+  "Credits spent": {source:"sessions.credits_spent", writer:"Billing service", sse_event:null}
+};
 const STEP_HOOKS = {
   LITERATURE: "Finding what other researchers have already discovered about your topic. This shapes your research angle so you build on existing knowledge.",
   DATAPULL: "Fetching the actual market data your research will be based on. Every number will be verified and fingerprinted.",
@@ -137,6 +166,7 @@ function setPersona(persona){
 let draft = {topic:'',persona_hint:'auto'};
 let compareSelection = new Set();
 let poller = null;
+let sessionStreams = {};
 let convoHistory = [];
 let latestCollectedContext = null;
 let selectedHypotheses = [];
@@ -169,6 +199,57 @@ function money(n){return `$${Number(n||0).toFixed(2)}`}
 function fmtDate(v){return v?new Date(v).toLocaleString():'—'}
 function toast(msg){ const d=document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2600); }
 function stopAllPolling(){ if(poller){clearInterval(poller); poller=null;} }
+
+function blueprintLockDisabled(sessionState){
+  return sessionState?.blueprint_status !== 'draft';
+}
+
+function writerButtonDisabled(sessionState){
+  return sessionState?.reviewer_gate?.passed !== true;
+}
+
+function paperDownloadAllowed(sessionState){
+  return sessionState?.status === 'paper_unlocked';
+}
+
+function applyFrontendTruthState(sessionState = {}){
+  const lock = qs('#approve-blueprint');
+  if(lock) lock.disabled = blueprintLockDisabled(sessionState);
+  const writer = qs('#write-paper');
+  if(writer) writer.disabled = writerButtonDisabled(sessionState);
+  const spend = qs('#spend-chip');
+  if(spend && sessionState.credits_spent !== undefined) spend.textContent = `${money(sessionState.credits_spent)} spent`;
+}
+
+function handleSessionEvent(sessionId, event){
+  if(!event?.data) return;
+  let payload = {};
+  try{ payload = JSON.parse(event.data); }catch(_){ return; }
+  if(['phase_update','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','section_ready'].includes(payload.type || event.type)){
+    applyFrontendTruthState(payload.session || payload);
+  }
+  if(['phase_update','gate_result','repair_triggered','writer_unlocked','run_complete','run_failed'].includes(payload.type || event.type)){
+    renderResearch(sessionId).catch(()=>{});
+  }
+}
+
+function connectSessionStream(sessionId, onEvent){
+  if(!window.EventSource || !sessionId) return null;
+  if(sessionStreams[sessionId]) return sessionStreams[sessionId];
+  const source = new EventSource(`${API_BASE}/api/sessions/${sessionId}/stream`);
+  ['phase_update','section_ready','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged'].forEach(type=>{
+    source.addEventListener(type, event => {
+      handleSessionEvent(sessionId, event);
+      if(onEvent) onEvent(event);
+    });
+  });
+  source.onerror = () => {
+    source.close();
+    delete sessionStreams[sessionId];
+  };
+  sessionStreams[sessionId] = source;
+  return source;
+}
 
 async function api(path, opts={}){
   const headers = opts.body instanceof FormData ? {} : {'Content-Type':'application/json'};
@@ -1485,7 +1566,7 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
     <div class="card" style="margin-top:8px">
       <div class="row">
         <button class="btn" id="back-build">← Refine the question</button>
-        <button class="btn primary" id="approve-blueprint" ${firstClarification && firstClarification.blocking ? 'disabled' : ''}>Approve blueprint and move to evidence →</button>
+        <button class="btn primary" id="approve-blueprint" data-truth-source="blueprints.status" data-state-rule="disabled when blueprints.status != draft" ${firstClarification && firstClarification.blocking ? 'disabled' : ''}>Approve blueprint and move to evidence →</button>
       </div>
       <p class="mini" style="margin-top:8px">${firstClarification && firstClarification.blocking ? 'Answer the blocking architect question first. Then approve the blueprint to open the evidence gate.' : 'Approval does not start the run. It only opens the evidence stage so you can inspect the real dataset before launch.'}</p>
     </div>
@@ -1682,7 +1763,7 @@ async function renderResearch(id){
     const findingPreviewPayload = await api(`/runs/${id}/findings_preview`).catch(()=>({preview:null}));
     const chartsPayload = st.status === 'done' ? await api(`/runs/${id}/charts`).catch(()=>({charts:[]})) : {charts:[]};
     const tablesPayload = st.status === 'done' ? await api(`/runs/${id}/tables`).catch(()=>({tables:[]})) : {tables:[]};
-    const paperPayload = st.status === 'done' ? await api(`/runs/${id}/paper`).catch(()=>({paper:{}})) : {paper:{}};
+    const paperPayload = paperDownloadAllowed(st) ? await api(`/runs/${id}/paper`).catch(()=>({paper:{}})) : {paper:{}};
     const lineageRoot = st.parent_run_id || id;
     const siblingRuns = (runList.runs || []).filter(r => r.run_id === lineageRoot || r.parent_run_id === lineageRoot || r.run_id === id);
     const labels = getConfig('stepLabels') || PHASE_ORDER;
@@ -1696,7 +1777,7 @@ async function renderResearch(id){
       const learningHtml = (getConfig('learningMoments') && s==='done' && p==='PREREGISTER' && String(st.research_state || '').includes('confirmatory'))
         ? `<details class="card step-learning-moment" data-learning-moment="true" style="margin-top:8px"><summary>What just happened</summary><p>Your research question has been cryptographically locked. This is pre-registration: your hypothesis cannot change after viewing outcomes.</p></details>`
         : '';
-      return `<div class="step"><strong>${i+1}. <span data-step-label="${i}">${esc(stepLabel)}</span></strong> <span class="pill ${s==='done'?'ok':s==='running'?'warn':s==='failed'?'bad':'muted'}">${s}</span>${hookHtml}${s==='running'?`<p class="muted">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'In progress...')}</p>`:''}${detailHtml}${learningHtml}</div>`;
+      return `<div class="step" data-truth-source="phases.status"><strong>${i+1}. <span data-step-label="${i}">${esc(stepLabel)}</span></strong> <span class="pill ${s==='done'?'ok':s==='running'?'warn':s==='failed'?'bad':'muted'}">${s}</span>${hookHtml}${s==='running'?`<p class="muted">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'In progress...')}</p>`:''}${detailHtml}${learningHtml}</div>`;
     }).join('');
 
     const seedTable = getConfig('showSeedNumbers') && (st.phases_completed||[]).includes('STATSRUN') ? `<div class="card"><h3>Seed consistency snapshot</h3><table><tbody><tr><td>Seed 42</td><td>p=0.018</td><td>significant=true</td></tr><tr><td>Seed 1337</td><td>p=0.024</td><td>significant=true</td></tr><tr><td>Seed 9999</td><td>p=0.031</td><td>significant=true</td></tr><tr><td><strong>Consensus</strong></td><td colspan="2"><strong>CONSISTENT ✓</strong></td></tr></tbody></table></div>` : '';
@@ -1750,7 +1831,7 @@ async function renderResearch(id){
       return `<li>${esc(text)}</li>`;
     }).join('');
     const reviewerCard = st.status==='done' ? `
-      <div class="card" style="margin-bottom:12px"><h3>What the reviewer says</h3>
+      <div class="card" style="margin-bottom:12px" data-truth-source="reviewer_scores"><h3>What the reviewer says</h3>
       <p class="muted">${esc(reviewerPayload.reviewer_narrative || 'Reviewer summary will appear here.')}</p>
       <p><strong>Score:</strong> ${esc(String(reviewerPayload.score || '—'))} / 10 · <strong>Target:</strong> ${esc(reviewerPayload.target_standard || 'Finance standard')}</p>
       <h4>Strengths</h4><ul>${strengthsCards || '<li>No strengths available.</li>'}</ul>
@@ -1786,13 +1867,13 @@ async function renderResearch(id){
     const paper = paperPayload.paper || {};
     const thrivarcSections = paper.thrivarc || {};
     const researcherSections = paper.researcher || {};
-    const writeCard = st.status==='done' ? `
-      <div class="card" style="margin-bottom:12px">
+    const writeCard = paperDownloadAllowed(st) ? `
+      <div class="card" style="margin-bottom:12px" data-truth-source="sessions.status=paper_unlocked">
         <div class="row" style="justify-content:space-between;align-items:center">
           <h3>Paper workspace</h3>
           <div class="row">
-            <button class="btn primary" id="write-paper">I'm satisfied — write the paper →</button>
-            ${paperPayload.draft_url ? `<a class="btn" href="${esc(paperPayload.draft_url)}" download>Download complete .tex file</a>` : ''}
+            <button class="btn primary" id="write-paper" data-truth-source="reviewer_scores.gate_passed">I'm satisfied — write the paper →</button>
+            ${paperPayload.draft_url ? `<a class="btn" data-truth-source="Blob Storage signed URL" href="${esc(paperPayload.draft_url)}" download>Download complete .tex file</a>` : ''}
           </div>
         </div>
         <p class="muted">Writing comes after evidence. This workspace separates the sections Thrivarc can draft from the framing sections the researcher should still author directly.</p>
@@ -1830,7 +1911,7 @@ async function renderResearch(id){
         </div>
       </div>` : '';
     app.innerHTML = `<div class="row" style="margin-bottom:10px"><a href="#dashboard">← Back</a>${getConfig('showRunId')?`<span class="muted" data-technical="run-id">Research ID: ${esc(id)}</span>`:''}${st.status==='running'?`<button class="btn" id="cancel">Cancel</button>`:''}</div>
-      <div class="card" style="margin-bottom:12px"><h2 title="${esc(st.topic||'')}">${esc((st.topic||'Research').slice(0,80))}</h2><p class="muted">Status: ${esc(st.status)}</p></div>
+      <div class="card" style="margin-bottom:12px" data-truth-source="sessions.status"><h2 title="${esc(st.topic||'')}">${esc((st.topic||'Research').slice(0,80))}</h2><p class="muted">Status: ${esc(st.status)}</p></div>
       ${runTabs}
       ${engagingNow}
       ${miniFinding}
@@ -1875,7 +1956,8 @@ async function renderResearch(id){
     qs('#write-paper')?.addEventListener('click', async()=>{ await api('/runs/write', {method:'POST', body:JSON.stringify({run_id:id, followup_run_ids:[], researcher_notes:''})}); toast('Paper workspace generated'); renderResearch(id); });
 
     applyPersonaConfig(PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG.auto);
-    if(st.status==='running' || st.status==='queued'){ stopAllPolling(); poller=setInterval(()=>renderResearch(id),4000); }
+    applyFrontendTruthState(st);
+    if(st.status==='running' || st.status==='queued'){ stopAllPolling(); connectSessionStream(id); }
   }catch(e){ app.innerHTML=`<div class="card">Error loading research: ${esc(e.message)}</div>`; }
 }
 
