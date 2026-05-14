@@ -51,7 +51,7 @@ STATE_MAP = {
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def _error(status_code: int, error_code: str, message: str, system_state: str, actions: list[str]) -> JSONResponse:
