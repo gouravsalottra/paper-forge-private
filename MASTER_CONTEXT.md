@@ -21,7 +21,8 @@ Concentration threshold: 30% (pre-registered, not chosen after data)
 - CODEAUDIT audit runs bidirectionally
 - Statistical battery runs (HAC, GARCH, Bonferroni, Fama-MacBeth, Markov, DCC-GARCH)
 - Modal authenticated (gouravsalottra workspace)
-- Azure OpenAI connected (gpt-4o, gpt-4o-mini)
+- MODEL: standardized to gpt-4o per STEP 0 audit
+- Azure OpenAI connected (gpt-4o)
 - 27 tests passing
 
 ## What is blocking publication

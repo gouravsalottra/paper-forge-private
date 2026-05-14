@@ -19,7 +19,8 @@
 ![Tests](https://img.shields.io/badge/tests-159%20passing-brightgreen?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.13+-blue?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![Model](https://img.shields.io/badge/model-gpt--5.4-8b5cf6?style=flat-square)
+<!-- MODEL: standardized to gpt-4o per STEP 0 audit -->
+![Model](https://img.shields.io/badge/model-gpt--4o-8b5cf6?style=flat-square)
 ![DB](https://img.shields.io/badge/state-SQLite%20WAL-f97316?style=flat-square)
 ![Integrity](https://img.shields.io/badge/integrity-cryptographically%20enforced-red?style=flat-square)
 

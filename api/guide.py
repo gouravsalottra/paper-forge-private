@@ -11,7 +11,8 @@ from openai import AzureOpenAI
 router = APIRouter()
 
 AZURE_ENDPOINT = "https://goura-mp4b98bg-eastus2.cognitiveservices.azure.com/"
-AZURE_DEPLOYMENT = "gpt-5.5"
+# MODEL: standardized to gpt-4o per STEP 0 audit
+AZURE_DEPLOYMENT = "gpt-4o"
 AZURE_API_VERSION = "2024-12-01-preview"
 
 

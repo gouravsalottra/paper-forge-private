@@ -151,7 +151,8 @@ def test_real_agent_result_has_prompt_hash_and_usage_row(tmp_path: Path, monkeyp
 
         chat = _Chat()
 
-    monkeypatch.setattr("agents.codeaudit_pass1.get_client", lambda _agent: (_FakeClient(), "gpt-4o-mini"))
+    # MODEL: standardized to gpt-4o per STEP 0 audit
+    monkeypatch.setattr("agents.codeaudit_pass1.get_client", lambda _agent: (_FakeClient(), "gpt-4o"))
     agent = CodeAuditPass1(run_id="r-usage", db_path=str(db), output_dir=str(tmp_path / "runs"))
     result = agent.run()
     assert result["result_flag"] == "DONE"

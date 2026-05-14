@@ -32,7 +32,7 @@ def get_client(agent_name: str):
     Returns (client, model_name) for the given agent.
     Reads from env vars: {AGENT}_LLM_PROVIDER, {AGENT}_MODEL
     Falls back to DEFAULT_LLM_PROVIDER, DEFAULT_MODEL
-    Final fallback: GitHub Models + gpt-4o-mini
+    Final fallback: GitHub Models + gpt-4o
     """
     from openai import OpenAI
 
@@ -44,9 +44,10 @@ def get_client(agent_name: str):
     )
 
     cfg = _load_model_config()
+    # MODEL: standardized to gpt-4o per STEP 0 audit
     model = os.getenv(
         f"{agent_upper}_MODEL",
-        os.getenv("DEFAULT_MODEL", cfg.get("primary_model_alias", "gpt-4o-mini")),
+        os.getenv("DEFAULT_MODEL", cfg.get("primary_model_alias", "gpt-4o")),
     )
 
     if provider == "github":
@@ -102,8 +103,6 @@ def track_usage(
 
     token_pricing = {
         "gpt-4o": {"input": 2.50, "output": 10.00},
-        "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-        "gpt-5.4": {"input": 15.00, "output": 60.00},
         "default": {"input": 5.00, "output": 15.00},
     }
     pricing = token_pricing.get(model, token_pricing["default"])
