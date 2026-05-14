@@ -254,13 +254,13 @@ def _infer_frequency(text: str) -> str:
 
 def _infer_method_style(text: str, confirmatory: bool) -> str:
     # Extended keyword rules — used only as fallback when LLM inference is unavailable
-    if any(term in text for term in ["simulation", "synthetic", "monte carlo", "simulated"]):
-        return "simulation"
     if any(term in text for term in ["agent-based", "agent based", "multi-agent", "multi agent", "agents interact", "emergent", "learned strategies"]):
         return "agent_based_model"
+    if any(term in text for term in ["simulation", "synthetic", "monte carlo", "simulated"]):
+        return "simulation"
     if any(term in text for term in ["network", "contagion", "interconnectedness", "systemic risk", "centrality", "graph"]):
         return "network_analysis"
-    if any(term in text for term in ["nlp", "sentiment", "text analysis", "earnings call", "transcript", "text corpus", "natural language"]):
+    if any(term in text for term in ["llm", "nlp", "sentiment", "text analysis", "earnings call", "transcript", "text corpus", "natural language", "filing", "filings", "embedding", "risk language"]):
         return "text_analysis"
     if any(term in text for term in ["diff-in-diff", "difference-in-difference", "regression discontinuity", "rdd", "instrumental variable", "natural experiment", "quasi-experiment"]):
         return "causal_identification"
@@ -275,6 +275,8 @@ def _infer_method_style(text: str, confirmatory: bool) -> str:
             "rebalance",
             "rebalancing",
             "rotation",
+            "momentum strategy",
+            "strategy allocation",
             "portfolio allocation",
             "trading strategy",
             "outperform benchmark",

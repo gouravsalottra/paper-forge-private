@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 
 from db.connection import get_db_connection
 from init_db import init_db
-from storage.blob import write_artifact
+from storage.blob import list_artifacts, write_artifact
 
 router = APIRouter()
 
@@ -46,6 +46,134 @@ CANONICAL_PHASES = [
     "WRITER",
 ]
 RUN_PROCESSES: dict[str, asyncio.subprocess.Process] = {}
+
+SESSION_PHASE_TO_LEGACY = {
+    "Literature Agent": "LITERATURE",
+    "Data Agent": "DATAPULL",
+    "Preregistration Agent": "PREREGISTER",
+    "Method / Compute Agent": "COMPUTE",
+    "Statistics Agent": "STATSRUN",
+    "Code Audit Agent": "CODEAUDIT",
+    "Spec Audit Agent": "CODEAUDIT",
+    "Reviewer Agent": "REVIEWER",
+    "Paper-Code Verifier": "REVIEWER",
+    "Writer Agent": "WRITER",
+}
+
+
+def _legacy_runs_enabled() -> bool:
+    return os.getenv("THRIVARC_ENABLE_LEGACY_RUNS", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _canonical_session_exists(run_id: str) -> bool:
+    from api import sessions
+
+    with sessions._with_conn() as conn:
+        return sessions._session_row(conn, run_id) is not None
+
+
+def _canonical_run_object(run_id: str) -> dict[str, Any] | None:
+    from api import sessions
+
+    with sessions._with_conn() as conn:
+        row = sessions._session_row(conn, run_id)
+        if not row:
+            return None
+        blueprint = sessions._blueprint_content(sessions._blueprint_row(conn, run_id))
+        phases = sessions._fetchall(
+            conn,
+            "SELECT agent_name, status FROM phases WHERE session_id=? ORDER BY started_at ASC",
+            (run_id,),
+        )
+        score = sessions._fetchone(
+            conn,
+            "SELECT average_score, gate_passed FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1",
+            (run_id,),
+        )
+    completed = [
+        SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
+        for phase in phases
+        if sessions._row_get(phase, "status") == "complete"
+    ]
+    completed = [phase for phase in completed if phase]
+    current = next(
+        (
+            SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
+            for phase in phases
+            if sessions._row_get(phase, "status") == "running"
+        ),
+        None,
+    )
+    status = sessions._row_get(row, "status")
+    gate_passed = bool(sessions._row_get(score, "gate_passed")) if score else False
+    return {
+        "run_id": run_id,
+        "topic": sessions._row_get(row, "topic"),
+        "hypothesis": blueprint.get("hypothesis") or sessions._row_get(row, "topic"),
+        "status": status,
+        "current_phase": current,
+        "phase": current,
+        "phases_completed": sorted(set(completed), key=CANONICAL_PHASES.index),
+        "cost_usd": float(sessions._row_get(row, "credits_spent", 0) or 0),
+        "created_at": sessions._row_get(row, "created_at"),
+        "research_type": sessions._row_get(row, "research_type") or "unknown",
+        "research_state": sessions._row_get(row, "research_type") or "unknown",
+        "finding_valid": gate_passed if score else None,
+        "data_preview_sha256": None,
+        "parent_run_id": sessions._row_get(row, "parent_run_id"),
+        "hypothesis_id": None,
+        "plan": blueprint,
+        "reviewer_gate": {"passed": gate_passed, "average_score": sessions._row_get(score, "average_score")},
+    }
+
+
+def _canonical_runs() -> list[dict[str, Any]]:
+    from api import sessions
+
+    with sessions._with_conn() as conn:
+        rows = sessions._fetchall(conn, "SELECT id FROM sessions ORDER BY updated_at DESC")
+    runs: list[dict[str, Any]] = []
+    for row in rows:
+        run = _canonical_run_object(sessions._row_get(row, "id"))
+        if run:
+            runs.append(run)
+    return runs
+
+
+def _create_canonical_run(payload: dict[str, Any]) -> dict[str, str]:
+    from api import sessions
+
+    session_id = str(uuid.uuid4())
+    topic = str(payload.get("topic") or payload.get("hypothesis") or "Thrivarc research run").strip()
+    research_state = str(payload.get("research_type") or payload.get("approach") or payload.get("research_state") or "unknown").lower()
+    research_type = "confirmatory" if "confirm" in research_state else "exploratory" if "explor" in research_state else "unknown"
+    now = sessions._now()
+    with sessions._with_conn() as conn:
+        sessions._execute(
+            conn,
+            "INSERT INTO sessions (id, topic, domain, research_type, status, created_at, updated_at, credits_spent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (session_id, topic, "finance_economics", research_type, "initializing", now, now, 0),
+        )
+        sessions._phase_status(conn, session_id, "Research Architect", "pending", "Waiting for scope.")
+        sessions._event(conn, session_id, "phase_update", {"summary": "Session initialized from website run request."}, "Research Architect", "pending")
+        sessions._commit(conn)
+    sessions._write_truth_contract(session_id, {})
+    scope_payload = {
+        "research_type": research_type,
+        "focus_question": topic,
+        "hypothesis": payload.get("hypothesis") or topic,
+        "constraints": {
+            "data_source": payload.get("data_source") or payload.get("connector"),
+            "compute_type": payload.get("compute_type"),
+            "data_preview_sha256": payload.get("data_preview_sha256"),
+            "runspec": payload.get("runspec"),
+        },
+        "target_outcome": payload.get("output_format") or "paper",
+    }
+    sessions.update_scope(session_id, scope_payload)
+    sessions.lock_blueprint(session_id, {"confirmation": "CONFIRM"})
+    sessions.run_session(session_id, {"approved": True})
+    return {"run_id": session_id}
 
 
 def _now() -> str:
@@ -254,6 +382,9 @@ async def _launch_pipeline(run_id: str) -> None:
 
 @router.post("/runs/create")
 async def create_run(payload: dict[str, Any]) -> dict[str, str]:
+    if not _legacy_runs_enabled():
+        return _create_canonical_run(payload)
+
     run_id = "pf-live-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
     topic = str(payload.get("topic") or payload.get("hypothesis") or "Thrivarc research run").strip()
     meta = {
@@ -283,6 +414,9 @@ async def create_run(payload: dict[str, Any]) -> dict[str, str]:
 
 @router.get("/runs")
 def list_runs() -> dict[str, list[dict[str, Any]]]:
+    if not _legacy_runs_enabled():
+        return {"runs": _canonical_runs()}
+
     with _connect() as conn:
         rows = conn.execute(
             "SELECT run_id, started_at, finished_at, status, seed_query, meta_json FROM pipeline_runs ORDER BY started_at DESC"
@@ -292,6 +426,10 @@ def list_runs() -> dict[str, list[dict[str, Any]]]:
 
 @router.get("/runs/{run_id}/status")
 def run_status(run_id: str) -> dict[str, Any]:
+    canonical = _canonical_run_object(run_id)
+    if canonical:
+        return canonical
+
     with _connect() as conn:
         row = conn.execute(
             "SELECT run_id, started_at, finished_at, status, seed_query, meta_json FROM pipeline_runs WHERE run_id=? LIMIT 1",
@@ -304,6 +442,17 @@ def run_status(run_id: str) -> dict[str, Any]:
 
 @router.get("/runs/{run_id}/truth_contract")
 def run_truth_contract(run_id: str) -> dict[str, Any]:
+    if _canonical_session_exists(run_id):
+        from api import sessions
+        from storage.blob import read_artifact
+
+        try:
+            return {"truth_contract": json.loads(read_artifact(run_id, "01_integrity/truth_contract.json").decode("utf-8"))}
+        except Exception:
+            with sessions._with_conn() as conn:
+                blueprint = sessions._blueprint_content(sessions._blueprint_row(conn, run_id))
+            return {"truth_contract": sessions._truth_contract(run_id, blueprint)}
+
     with _connect() as conn:
         row = conn.execute(
             "SELECT run_id, started_at, finished_at, status, seed_query, meta_json FROM pipeline_runs WHERE run_id=? LIMIT 1",
@@ -316,6 +465,25 @@ def run_truth_contract(run_id: str) -> dict[str, Any]:
 
 @router.get("/runs/{run_id}/log")
 def run_log(run_id: str) -> dict[str, list[dict[str, str | None]]]:
+    if _canonical_session_exists(run_id):
+        from api import sessions
+
+        with sessions._with_conn() as conn:
+            rows = sessions._fetchall(
+                conn,
+                "SELECT created_at, agent, event_type, status, payload FROM session_events WHERE session_id=? ORDER BY created_at ASC",
+                (run_id,),
+            )
+        return {
+            "log_lines": [
+                {
+                    "timestamp": sessions._row_get(row, "created_at"),
+                    "message": f"{sessions._row_get(row, 'agent') or 'Pipeline'} {sessions._row_get(row, 'event_type')}: {sessions._row_get(row, 'status') or ''}",
+                }
+                for row in rows[-500:]
+            ]
+        }
+
     run_dir = RUN_STORE / run_id
     if not run_dir.exists():
         run_dir = LEGACY_RUN_STORE / run_id
@@ -331,6 +499,13 @@ def run_log(run_id: str) -> dict[str, list[dict[str, str | None]]]:
             timestamp, message = None, line
         out.append({"timestamp": timestamp, "message": message})
     return {"log_lines": out}
+
+
+@router.get("/runs/{run_id}/artifacts")
+def run_artifacts(run_id: str) -> dict[str, Any]:
+    if _canonical_session_exists(run_id):
+        return {"artifacts": list_artifacts(run_id)}
+    return {"artifacts": _artifact_manifest(run_id)}
 
 
 async def _status_events(run_id: str) -> AsyncIterator[str]:
@@ -362,11 +537,26 @@ async def _status_events(run_id: str) -> AsyncIterator[str]:
 
 @router.get("/runs/{run_id}/stream")
 async def run_stream(run_id: str) -> StreamingResponse:
+    if _canonical_session_exists(run_id):
+        async def canonical_event() -> AsyncIterator[str]:
+            payload = json.dumps(_canonical_run_object(run_id), default=str)
+            yield f"event: status\ndata: {payload}\n\n"
+
+        return StreamingResponse(canonical_event(), media_type="text/event-stream")
     return StreamingResponse(_status_events(run_id), media_type="text/event-stream")
 
 
 @router.post("/runs/{run_id}/cancel")
 async def cancel_run(run_id: str) -> dict[str, Any]:
+    if _canonical_session_exists(run_id):
+        from api import sessions
+
+        with sessions._with_conn() as conn:
+            sessions._execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("cancelled", sessions._now(), run_id))
+            sessions._event(conn, run_id, "run_failed", {"summary": "Run cancelled by researcher."}, "Pipeline orchestrator", "cancelled")
+            sessions._commit(conn)
+        return {"cancelled": True, "run_id": run_id}
+
     process = RUN_PROCESSES.get(run_id)
     if process and process.returncode is None:
         process.kill()

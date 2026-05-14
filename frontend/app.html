@@ -846,7 +846,7 @@ async function renderDashboard(){
     const data = await api('/runs');
     const runs = data.runs || [];
     const total = runs.length;
-    const done = runs.filter(r=>r.status==='done').length;
+    const done = runs.filter(r=>r.status==='done' || r.status==='paper_unlocked').length;
     const running = runs.filter(r=>['running','queued'].includes((r.status||'').toLowerCase())).length;
     const spend = runs.reduce((a,b)=>a+Number(b.cost_usd||0),0);
     const needsBlueprint = runs.filter(r=>['queued','preparing'].includes((r.status||'').toLowerCase())).length;
@@ -2249,11 +2249,13 @@ async function renderResearch(id){
     const arts = await api(`/runs/${id}/artifacts`);
     const log = await api(`/runs/${id}/log`).catch(()=>({log_lines:[]}));
     const runList = await api('/runs').catch(()=>({runs:[]}));
-    const findingsPayload = st.status === 'done' ? await api(`/runs/${id}/findings`).catch(()=>({findings:{}})) : {findings:{}};
+    const researchDone = st.status==='done' || st.status==='paper_unlocked';
+    const researchActive = st.status==='running' || st.status==='queued';
+    const findingsPayload = researchDone ? await api(`/runs/${id}/findings`).catch(()=>({findings:{}})) : {findings:{}};
     const reviewerPayload = await api(`/runs/${id}/reviewer_report`).catch(()=>({strengths:[], weaknesses:[]}));
     const findingPreviewPayload = await api(`/runs/${id}/findings_preview`).catch(()=>({preview:null}));
-    const chartsPayload = st.status === 'done' ? await api(`/runs/${id}/charts`).catch(()=>({charts:[]})) : {charts:[]};
-    const tablesPayload = st.status === 'done' ? await api(`/runs/${id}/tables`).catch(()=>({tables:[]})) : {tables:[]};
+    const chartsPayload = researchDone ? await api(`/runs/${id}/charts`).catch(()=>({charts:[]})) : {charts:[]};
+    const tablesPayload = researchDone ? await api(`/runs/${id}/tables`).catch(()=>({tables:[]})) : {tables:[]};
     const paperPayload = paperDownloadAllowed(st) ? await api(`/runs/${id}/paper`).catch(()=>({paper:{}})) : {paper:{}};
     const lineageRoot = st.parent_run_id || id;
     const siblingRuns = (runList.runs || []).filter(r => r.run_id === lineageRoot || r.parent_run_id === lineageRoot || r.run_id === id);
@@ -2273,12 +2275,12 @@ async function renderResearch(id){
     }).join('');
 
     const seedTable = getConfig('showSeedNumbers') && (st.phases_completed||[]).includes('STATSRUN') ? `<div class="card"><h3>Seed consistency snapshot</h3><table><tbody><tr><td>Seed 42</td><td>p=0.018</td><td>significant=true</td></tr><tr><td>Seed 1337</td><td>p=0.024</td><td>significant=true</td></tr><tr><td>Seed 9999</td><td>p=0.031</td><td>significant=true</td></tr><tr><td><strong>Consensus</strong></td><td colspan="2"><strong>CONSISTENT ✓</strong></td></tr></tbody></table></div>` : '';
-    const replay = st.status==='done' ? `<div class="card"><h3>Research Replay</h3><div class="replay"><span id="replaybar"></span></div><div class="row" style="margin-top:8px"><button id="replay" class="btn">Replay (10s)</button><input id="scrub" type="range" min="0" max="100" value="0" style="max-width:240px"></div></div>` : '';
-    const share = st.status==='done' ? `<div class="card"><h3>Shareable Research Card</h3><button id="copy-share" class="btn">Copy shareable card</button></div>` : '';
+    const replay = researchDone ? `<div class="card"><h3>Research Replay</h3><div class="replay"><span id="replaybar"></span></div><div class="row" style="margin-top:8px"><button id="replay" class="btn">Replay (10s)</button><input id="scrub" type="range" min="0" max="100" value="0" style="max-width:240px"></div></div>` : '';
+    const share = researchDone ? `<div class="card"><h3>Shareable Research Card</h3><button id="copy-share" class="btn">Copy shareable card</button></div>` : '';
 
     const doneCount = (st.phases_completed || []).length;
     const progressPct = Math.min(100, Math.round((doneCount / PHASE_ORDER.length) * 100));
-    const engagingNow = st.status==='running' || st.status==='queued' ? `<div class="card" style="margin-bottom:12px"><h3>Live Research Feed</h3><p class="muted">Thrivarc is currently working on: <strong>${esc(getConfig('showAgentNames') ? (st.current_phase || 'QUEUE') : (PHASE_HUMAN[st.current_phase] || 'Kickoff'))}</strong></p><div class="replay"><span style="width:${progressPct}%"></span></div><p class="muted" style="margin-top:8px">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'Preparing your research and loading the first stage...')}</p><p class="mini">Progress ${progressPct}% · ${doneCount}/${PHASE_ORDER.length} stages complete</p></div>` : '';
+    const engagingNow = researchActive ? `<div class="card" style="margin-bottom:12px"><h3>Live Research Feed</h3><p class="muted">Thrivarc is currently working on: <strong>${esc(getConfig('showAgentNames') ? (st.current_phase || 'QUEUE') : (PHASE_HUMAN[st.current_phase] || 'Kickoff'))}</strong></p><div class="replay"><span style="width:${progressPct}%"></span></div><p class="muted" style="margin-top:8px">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'Preparing your research and loading the first stage...')}</p><p class="mini">Progress ${progressPct}% · ${doneCount}/${PHASE_ORDER.length} stages complete</p></div>` : '';
     const miniFinding = st.statsrun_complete && !st.reviewer_started && findingPreviewPayload.preview ? `<div class="card" style="margin-bottom:12px"><h3>Finding so far</h3><p>${esc(findingPreviewPayload.preview)}</p></div>` : '';
     const findings = findingsPayload.findings || {};
     const charts = chartsPayload.charts || [];
@@ -2286,7 +2288,7 @@ async function renderResearch(id){
     const planPayload = st.plan || {};
     const runAgentStack = Array.isArray(planPayload.agent_stack) ? planPayload.agent_stack : [];
     const runRevisionPolicy = planPayload.revision_policy || {};
-    const findingCard = st.status==='done' ? `
+    const findingCard = researchDone ? `
       <div class="card" style="margin-bottom:12px">
         <h3>What the data says</h3>
         <p><span class="chip">${esc(findings.validity || 'PENDING')}</span></p>
@@ -2295,11 +2297,11 @@ async function renderResearch(id){
       <p data-technical="sha256"><strong>Data SHA-256:</strong> ${esc(st.data_preview_sha256 || st.data_sha256 || 'not available')}</p>
       ${jsonToTable(findings.key_numbers || {})}
       </div>` : '';
-    const chartsCard = st.status==='done' ? `
+    const chartsCard = researchDone ? `
       <div class="card" style="margin-bottom:12px"><h3>Charts</h3>
         ${charts.length ? charts.map(c=>`<div class="card" style="margin-top:8px"><h4>${esc(c.title)}</h4><img src="${esc(c.url)}" alt="${esc(c.alt || c.title)}" style="max-width:100%"><div class="row"><a class="btn" href="${esc(c.url)}" download>Download PNG</a></div></div>`).join('') : '<p class="muted">No charts generated for this run yet.</p>'}
       </div>` : '';
-    const tablesCard = st.status==='done' ? `
+    const tablesCard = researchDone ? `
       <div class="card" style="margin-bottom:12px"><h3>Tables</h3>
         ${tables.length ? tables.map(t=>`<div class="card" style="margin-top:8px"><h4>${esc(t.caption)}</h4><a class="btn" href="${esc(t.url)}" download>Download CSV</a></div>`).join('') : '<p class="muted">No tables generated for this run yet.</p>'}
       </div>` : '';
@@ -2322,7 +2324,7 @@ async function renderResearch(id){
       const text = getConfig('mode') === 'technical' ? (s.technical || '') : (s.plain || '');
       return `<li>${esc(text)}</li>`;
     }).join('');
-    const reviewerCard = st.status==='done' ? `
+    const reviewerCard = researchDone ? `
       <div class="card" style="margin-bottom:12px" data-truth-source="reviewer_scores"><h3>What the reviewer says</h3>
       <p class="muted">${esc(reviewerPayload.reviewer_narrative || 'Reviewer summary will appear here.')}</p>
       <p><strong>Score:</strong> ${esc(String(reviewerPayload.score || '—'))} / 10 · <strong>Target:</strong> ${esc(reviewerPayload.target_standard || 'Finance standard')}</p>
@@ -2331,7 +2333,7 @@ async function renderResearch(id){
       </div>` : '';
     const defense = reviewerPayload.defense_loop || {};
     const followups = reviewerPayload.followups || [];
-    const defenseCard = st.status==='done' ? `
+    const defenseCard = researchDone ? `
       <div class="card" style="margin-bottom:12px">
         <h3>Research defense loop</h3>
         <p class="muted">${esc(reviewerPayload.research_defense_narrative || 'Thrivarc will surface reviewer-driven follow-up work here.')}</p>
@@ -2392,7 +2394,7 @@ async function renderResearch(id){
         </div>
       </div>` : '';
     const runTabs = siblingRuns.length > 1 ? `<div class="card" style="margin-bottom:12px"><h3>Related hypothesis tests</h3><div class="tabs">${siblingRuns.map(r=>`<a class="tab ${r.run_id===id?'active':''}" href="#research/${esc(r.run_id)}">${esc(r.hypothesis_id || r.run_id)}</a>`).join('')}</div></div>` : '';
-    const upgradeCard = (st.status==='done' && String(st.research_state||'').includes('exploratory') && st.finding_valid===true) ? `
+    const upgradeCard = (researchDone && String(st.research_state||'').includes('exploratory') && st.finding_valid===true) ? `
       <div class="card" style="margin-bottom:12px;border-color:var(--warn)">
         <h3>🔍 A strong pattern was found</h3>
         <p>This exploratory result looks strong enough to test as a confirmatory claim.</p>
@@ -2449,7 +2451,7 @@ async function renderResearch(id){
 
     applyPersonaConfig(PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG.auto);
     applyFrontendTruthState(st);
-    if(st.status==='running' || st.status==='queued'){ stopAllPolling(); connectSessionStream(id); }
+    if(researchActive){ stopAllPolling(); connectSessionStream(id); }
   }catch(e){ app.innerHTML=`<div class="card">Error loading research: ${esc(e.message)}</div>`; }
 }
 
