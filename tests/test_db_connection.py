@@ -96,6 +96,8 @@ def test_runtime_code_uses_db_connection_wrapper_instead_of_direct_sqlite_connec
     allowed_files = {Path("init_db.py")}
     offenders: list[str] = []
     for path in Path(".").rglob("*.py"):
+        if any(part in {".venv", "venv", "env", "node_modules", "__pycache__", ".git"} for part in path.parts):
+            continue
         if any(part in ignored for part in path.parts) or path in allowed_files:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")

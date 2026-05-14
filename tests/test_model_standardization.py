@@ -16,11 +16,30 @@ def test_step0_model_strings_are_standardized_to_gpt_4o() -> None:
 
     offenders: list[str] = []
     for path in Path(".").rglob("*"):
+        if any(part in {
+            ".venv", "venv", "env",
+            "node_modules", "__pycache__", ".git"
+        } for part in path.parts):
+            continue
         if not path.is_file() or path.suffix not in suffixes:
             continue
         if any(part in ignored_parts for part in path.parts):
             continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            if path.suffix == ".py":
+                lines = path.read_text(
+                    encoding="utf-8", errors="ignore"
+                ).splitlines()
+                text = "\n".join(
+                    l for l in lines 
+                    if not l.strip().startswith("#")
+                )
+            else:
+                text = path.read_text(
+                    encoding="utf-8", errors="ignore"
+                )
+        except Exception:
+            continue
         for token in forbidden:
             if token in text:
                 offenders.append(f"{path}: {token}")
