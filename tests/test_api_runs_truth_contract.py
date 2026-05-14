@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from api import runs
+from storage import blob
 
 
 def _meta() -> dict:
@@ -34,16 +34,13 @@ def test_truth_contract_exposes_run_integrity_layers() -> None:
     assert {item["phase"] for item in contract["failure_catalog"]} >= {"DATAPULL", "REVIEWER", "WRITER"}
 
 
-def test_write_contract_artifacts_creates_research_memory_structure(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(runs, "RUN_STORE", tmp_path)
+def test_write_contract_artifacts_creates_research_memory_structure(monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    blob.reset_mock_storage()
 
     runs._write_contract_artifacts("run-2", _meta())
 
-    truth_path = tmp_path / "run-2" / "01_integrity" / "truth_contract.json"
-    deviation_path = tmp_path / "run-2" / "01_integrity" / "deviation_register.json"
-    runspec_path = tmp_path / "run-2" / "00_runspec" / "runspec.json"
-    assert truth_path.exists()
-    assert deviation_path.exists()
-    assert runspec_path.exists()
-    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth = json.loads(blob.read_artifact("run-2", "01_integrity/truth_contract.json").decode("utf-8"))
+    assert blob.read_artifact("run-2", "01_integrity/deviation_register.json")
+    assert blob.read_artifact("run-2", "00_runspec/runspec.json")
     assert truth["integrity_artifacts"]["data_passport"]["visible_name"] == "DataPassport"

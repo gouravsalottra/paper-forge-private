@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from datetime import datetime, timedelta, timezone
+from typing import Any
+from urllib.parse import quote, urlencode
+
+CONTAINER_NAME = "research-artifacts"
+MOCK_ACCOUNT_URL = "https://mock.blob.local"
+
+_MOCK_BLOBS: dict[str, bytes] = {}
+
+
+class BlobStorageUnavailableError(RuntimeError):
+    """Structured storage failure that can be rendered by the API/UI."""
+
+    def __init__(self, message: str = "Artifact storage is unavailable.") -> None:
+        super().__init__(message)
+        self.error_code = "BLOB_UNAVAILABLE"
+        self.system_state = "blob_unavailable"
+        self.available_actions = ["retry", "check_storage_configuration"]
+
+
+def reset_mock_storage() -> None:
+    """Clear the in-memory blob store used by tests."""
+    _MOCK_BLOBS.clear()
+
+
+def _environment() -> str:
+    return os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).lower()
+
+
+def _is_mock_backend() -> bool:
+    return _environment() == "test" or os.getenv("THRIVARC_STORAGE_BACKEND", "").lower() == "mock"
+
+
+def _json_bytes(value: Any) -> bytes:
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, bytearray):
+        return bytes(value)
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return str(value).encode("utf-8")
+
+
+def _normalize_path(session_id: str, path: str, version: int | None = None) -> str:
+    clean_session = str(session_id).strip().strip("/")
+    clean_path = str(path).strip().strip("/")
+    if not clean_session:
+        raise BlobStorageUnavailableError("Session id is required for artifact storage.")
+    if not clean_path:
+        raise BlobStorageUnavailableError("Artifact path is required for artifact storage.")
+    if clean_path.startswith(f"sessions/{clean_session}/"):
+        return clean_path
+    parts = clean_path.split("/", 1)
+    if version is not None and len(parts) == 2 and not parts[1].startswith("v"):
+        clean_path = f"{parts[0]}/v{int(version)}/{parts[1]}"
+    return f"sessions/{clean_session}/{clean_path}"
+
+
+def _get_blob_service_client():
+    try:
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobServiceClient
+    except Exception as exc:  # pragma: no cover - depends on deployed image packages
+        raise BlobStorageUnavailableError("Azure Blob SDK is unavailable.") from exc
+
+    account_url = os.getenv("AZURE_STORAGE_ACCOUNT_URL")
+    account_name = os.getenv("AZURE_STORAGE_ACCOUNT", "paperforgeartifacts")
+    if not account_url:
+        account_url = f"https://{account_name}.blob.core.windows.net"
+    try:
+        return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())
+    except Exception as exc:  # pragma: no cover - Azure credential chain is environment specific
+        raise BlobStorageUnavailableError("Azure Blob client could not be created.") from exc
+
+
+def _upload_bytes(blob_path: str, data: bytes) -> None:
+    if _is_mock_backend():
+        _MOCK_BLOBS[blob_path] = data
+        return
+    client = _get_blob_service_client()
+    try:
+        client.get_blob_client(container=CONTAINER_NAME, blob=blob_path).upload_blob(data, overwrite=True)
+    except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
+        raise BlobStorageUnavailableError() from exc
+
+
+def _download_bytes(blob_path: str) -> bytes:
+    if _is_mock_backend():
+        try:
+            return _MOCK_BLOBS[blob_path]
+        except KeyError as exc:
+            raise BlobStorageUnavailableError("Artifact was not found in storage.") from exc
+    client = _get_blob_service_client()
+    try:
+        return client.get_blob_client(container=CONTAINER_NAME, blob=blob_path).download_blob().readall()
+    except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
+        raise BlobStorageUnavailableError("Artifact could not be read from storage.") from exc
+
+
+def write_artifact(session_id: str, path: str, content: Any, *, version: int | None = None) -> dict[str, Any]:
+    """Write an artifact under sessions/{session_id}/ and return its storage reference."""
+    blob_path = _normalize_path(session_id, path, version=version)
+    data = _json_bytes(content)
+    try:
+        _upload_bytes(blob_path, data)
+    except BlobStorageUnavailableError:
+        raise
+    except Exception as exc:
+        raise BlobStorageUnavailableError() from exc
+    return {
+        "backend": "mock" if _is_mock_backend() else "azure_blob",
+        "container": CONTAINER_NAME,
+        "blob_path": blob_path,
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
+def read_artifact(session_id: str, path: str, *, version: int | None = None) -> bytes:
+    """Read an artifact from Blob Storage as bytes."""
+    blob_path = _normalize_path(session_id, path, version=version)
+    try:
+        return _download_bytes(blob_path)
+    except BlobStorageUnavailableError:
+        raise
+    except Exception as exc:
+        raise BlobStorageUnavailableError() from exc
+
+
+def get_artifact_url(session_id: str, path: str, *, version: int | None = None, expires_in_seconds: int = 3600) -> str:
+    """Return a one-hour signed URL for an artifact."""
+    blob_path = _normalize_path(session_id, path, version=version)
+    expires = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
+    encoded = quote(blob_path)
+    if _is_mock_backend():
+        return f"{MOCK_ACCOUNT_URL}/{CONTAINER_NAME}/{encoded}?{urlencode({'se': expires.isoformat(), 'sig': 'mock'})}"
+
+    try:
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+    except Exception as exc:  # pragma: no cover - depends on deployed image packages
+        raise BlobStorageUnavailableError("Azure Blob SDK is unavailable.") from exc
+
+    account_name = os.getenv("AZURE_STORAGE_ACCOUNT", "paperforgeartifacts")
+    user_delegation_key = None
+    try:
+        client = _get_blob_service_client()
+        user_delegation_key = client.get_user_delegation_key(datetime.now(timezone.utc), expires)
+        sas = generate_blob_sas(
+            account_name=account_name,
+            container_name=CONTAINER_NAME,
+            blob_name=blob_path,
+            user_delegation_key=user_delegation_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=expires,
+        )
+    except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
+        raise BlobStorageUnavailableError("Signed artifact URL could not be created.") from exc
+    return f"https://{account_name}.blob.core.windows.net/{CONTAINER_NAME}/{encoded}?{sas}"

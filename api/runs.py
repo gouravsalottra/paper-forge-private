@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 
 from db.connection import get_db_connection
 from init_db import init_db
+from storage.blob import write_artifact
 
 router = APIRouter()
 
@@ -186,23 +187,18 @@ def _truth_contract(run_id: str, meta: dict[str, Any]) -> dict[str, Any]:
 
 
 def _write_contract_artifacts(run_id: str, meta: dict[str, Any]) -> None:
-    run_dir = RUN_STORE / run_id
-    runspec_dir = run_dir / "00_runspec"
-    integrity_dir = run_dir / "01_integrity"
-    for directory in [runspec_dir, integrity_dir]:
-        directory.mkdir(parents=True, exist_ok=True)
     plan = meta.get("plan") if isinstance(meta.get("plan"), dict) else {}
     files = {
-        runspec_dir / "runspec.json": meta.get("runspec") or {},
-        runspec_dir / "blueprint.json": plan,
-        integrity_dir / "truth_contract.json": _truth_contract(run_id, meta),
-        integrity_dir / "reviewer_gate.json": plan.get("reviewer_gate", {}),
-        integrity_dir / "repair_contract_template.json": plan.get("repair_contract_template", {}),
-        integrity_dir / "data_passport_preview.json": (plan.get("integrity_artifacts") or {}).get("data_passport", {}),
-        integrity_dir / "deviation_register.json": {"entries": [], "policy": (plan.get("integrity_artifacts") or {}).get("deviation_register", {})},
+        "00_runspec/runspec.json": meta.get("runspec") or {},
+        "00_runspec/blueprint.json": plan,
+        "01_integrity/truth_contract.json": _truth_contract(run_id, meta),
+        "01_integrity/reviewer_gate.json": plan.get("reviewer_gate", {}),
+        "01_integrity/repair_contract_template.json": plan.get("repair_contract_template", {}),
+        "01_integrity/data_passport_preview.json": (plan.get("integrity_artifacts") or {}).get("data_passport", {}),
+        "01_integrity/deviation_register.json": {"entries": [], "policy": (plan.get("integrity_artifacts") or {}).get("deviation_register", {})},
     }
     for path, payload in files.items():
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        write_artifact(run_id, path, payload)
 
 
 def _run_object(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
