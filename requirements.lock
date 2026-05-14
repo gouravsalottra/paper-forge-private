@@ -56,7 +56,9 @@ cffi==2.0.0
     #   cryptography
     #   curl-cffi
 charset-normalizer==3.4.7
-    # via requests
+    # via
+    #   reportlab
+    #   requests
 click==8.3.3
     # via
     #   modal
@@ -214,7 +216,9 @@ peewee==4.0.5
 pexpect==4.9.0
     # via ipython
 pillow==12.2.0
-    # via matplotlib
+    # via
+    #   matplotlib
+    #   reportlab
 platformdirs==4.9.6
     # via yfinance
 pluggy==1.6.0
@@ -276,6 +280,8 @@ pytz==2026.2
     #   yfinance
 regex==2026.5.9
     # via tiktoken
+reportlab==4.4.5
+    # via -r requirements.in
 requests==2.32.5
     # via
     #   arxiv
