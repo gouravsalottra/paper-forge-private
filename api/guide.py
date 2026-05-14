@@ -620,6 +620,31 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
     summary.setdefault("working_assumptions", ["The comparison frame will be finalized before data preview.", "The method must match the approved blueprint."])
     summary.setdefault("reviewer_attack_surface", ["Benchmark choice", "Data coverage", "Robustness", "Claim overreach"])
     summary.setdefault("reviewer_focus", "A hostile reviewer will attack identification, data quality, and interpretation.")
+
+    # Build canonical agent_stack_preview — always uses AZURE_DEPLOYMENT (gpt-4o).
+    # This prevents the LLM from hallucinating model names (e.g. gpt-5.5).
+    _LLM_AGENT_PHASES = {"LITERATURE", "CODEAUDIT", "REVIEWER"}
+    canonical_stack = [
+        {"phase": "LITERATURE", "label": "Context scan", "engine": AZURE_DEPLOYMENT, "skill": "Search and synthesize prior evidence", "reads": "research brief", "produces": "literature_map.md", "why_now": "Ground the study before execution."},
+        {"phase": "DATAPULL", "label": "Evidence pull", "engine": "Thrivarc evidence connector", "skill": "Fetch or ingest the dataset", "reads": "RunSpec.datapull", "produces": "data preview and certificate", "why_now": "Evidence must be inspected before compute."},
+        {"phase": "COMPUTE", "label": "Method engine", "engine": "Thrivarc compute adapter", "skill": f"Run {method}", "reads": "certified data", "produces": "method outputs", "why_now": "Execute the approved design."},
+        {"phase": "STATSRUN", "label": "Statistical battery", "engine": "existing stats agents", "skill": "Validate primary findings", "reads": "compute outputs", "produces": "test tables", "why_now": "Quantify evidence strength."},
+        {"phase": "CODEAUDIT", "label": "Code audit", "engine": AZURE_DEPLOYMENT, "skill": "Check code/spec alignment", "reads": "RunSpec and outputs", "produces": "audit report", "why_now": "Catch mismatches before review."},
+        {"phase": "REVIEWER", "label": "Hostile reviewer", "engine": AZURE_DEPLOYMENT, "skill": "Pressure-test the full study", "reads": "all phase outputs", "produces": "reviewer report", "why_now": "Force defensibility before writing."},
+        {"phase": "WRITER", "label": "Paper workspace", "engine": "existing writer", "skill": "Draft verified paper sections", "reads": "approved evidence", "produces": "paper draft", "why_now": "Write only after review passes."},
+    ]
+    if confirmatory:
+        canonical_stack.insert(2, {"phase": "PREREGISTER", "label": "Claim lock", "engine": "existing preregistration agent", "skill": "Lock hypothesis", "reads": "research claim", "produces": "PAP lock", "why_now": "Confirmatory claims must be locked before results."})
+    summary.setdefault("agent_stack_preview", canonical_stack)
+
+    # Sanitize: if the LLM returned agent_stack_preview with wrong engine names,
+    # force LLM-backed phases back to AZURE_DEPLOYMENT.
+    existing_stack = summary.get("agent_stack_preview")
+    if isinstance(existing_stack, list):
+        for agent_entry in existing_stack:
+            if isinstance(agent_entry, dict) and agent_entry.get("phase") in _LLM_AGENT_PHASES:
+                agent_entry["engine"] = AZURE_DEPLOYMENT
+
     if clarifications:
         summary["first_clarification"] = clarifications[0]
     if not summary.get("architect_questions"):
