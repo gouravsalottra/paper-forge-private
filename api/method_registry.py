@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from api.econometric_inventory import method_research_design
+
 
 def _entry(
     label: str,
@@ -394,7 +396,12 @@ def method_families() -> set[str]:
 
 
 def method_definition(method: str) -> dict[str, Any]:
-    return METHOD_FAMILY_REGISTRY.get(method, METHOD_FAMILY_REGISTRY["descriptive"])
+    base = dict(METHOD_FAMILY_REGISTRY.get(method, METHOD_FAMILY_REGISTRY["descriptive"]))
+    design = method_research_design(base["label"])
+    base.update(design)
+    base["registered_checks"] = list(base["tests"])
+    base["tests"] = list(dict.fromkeys(base["tests"] + design["statistical_tests"]))
+    return base
 
 
 def infer_method_family(text: str, confirmatory: bool = False) -> str:

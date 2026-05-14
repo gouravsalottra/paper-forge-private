@@ -673,58 +673,18 @@ def _leakage_policy(method: str) -> dict[str, Any]:
 
 def _statistical_battery(method: str) -> dict[str, Any]:
     spec = method_definition(method)
-    batteries = {
-        "backtest": ["net_return", "annualized_sharpe", "max_drawdown", "turnover_cost", "deflated_sharpe", "block_bootstrap"],
-        "event_study": ["CAR", "BHAR", "market_model_abnormal_return", "cross_sectional_CAR_regression", "bootstrap_inference"],
-        "regression": ["newey_west", "fama_macbeth", "factor_regression", "out_of_sample_r2", "multiple_testing_control"],
-        "descriptive": ["coverage_profile", "summary_statistics", "correlation_map", "sample_stability"],
-        "simulation": [
-            "frequency_distribution_comparison",
-            "severity_distribution_comparison",
-            "monte_carlo_bootstrap",
-            "regime_switching_detection",
-            "variance_ratio_test",
-            "tail_risk_comparison",
-        ],
-        "agent_based_model": [
-            "crash_frequency_comparison",
-            "crash_severity_distribution",
-            "correlation_structure_analysis",
-            "heterogeneity_index",
-            "market_impact_measurement",
-            "liquidity_stress_test",
-        ],
-        "network_analysis": [
-            "centrality_measures",
-            "contagion_simulation",
-            "interconnectedness_index",
-            "systemic_risk_contribution",
-            "network_stability_test",
-        ],
-        "text_analysis": [
-            "sentiment_score_distribution",
-            "topic_model_coherence",
-            "cross_sectional_sentiment_regression",
-            "tone_shift_detection",
-            "event_study_on_sentiment",
-        ],
-        "causal_identification": [
-            "first_stage_f_statistic",
-            "reduced_form_estimate",
-            "iv_2sls",
-            "parallel_trends_test",
-            "placebo_test",
-            "rdd_bandwidth_sensitivity",
-        ],
-        "meta_analysis": [
-            "effect_size_synthesis",
-            "publication_bias_test",
-            "heterogeneity_i_squared",
-            "funnel_plot",
-            "meta_regression",
-        ],
+    return {
+        "method": method,
+        "analytical_domain": spec["analytical_domain"],
+        "modeling_frameworks": spec["modeling_frameworks"],
+        "diagnostic_tests": spec["diagnostic_tests"],
+        "inference_tests": spec["inference_tests"],
+        "evaluation_tests": spec["evaluation_tests"],
+        "tests": spec["registered_checks"],
+        "statistical_tests": spec["statistical_tests"],
+        "registered_checks": spec["registered_checks"],
+        "models_vs_tests_rule": spec["models_vs_tests_rule"],
     }
-    return {"method": method, "tests": batteries.get(method, spec["tests"])}
 
 
 def _economic_significance(method: str) -> dict[str, str]:

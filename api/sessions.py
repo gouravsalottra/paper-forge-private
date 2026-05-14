@@ -617,7 +617,7 @@ def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
         spec = method_definition(method)
         primary_numbers = {
             "effect_size_estimate": 0.18,
-            "robustness_checks_passed": len(spec["tests"][:4]),
+            "robustness_checks_passed": len(spec["statistical_tests"][:4]),
             "economic_materiality_score": 7.4,
             "evidence_route": evidence,
         }
@@ -628,10 +628,16 @@ def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
             "result_schema": spec["result_schema"],
             "method_label": spec["label"],
             "primary_test": spec["primary_test"],
-            "test_battery": spec["tests"],
+            "modeling_frameworks": spec["modeling_frameworks"],
+            "diagnostic_tests": spec["diagnostic_tests"],
+            "inference_tests": spec["inference_tests"],
+            "evaluation_tests": spec["evaluation_tests"],
+            "statistical_tests": spec["statistical_tests"],
+            "test_battery": spec["statistical_tests"],
+            "registered_checks": spec["registered_checks"],
             "reviewer_focus": spec["reviewer_focus"],
             "primary_numbers": primary_numbers,
-            "robustness": [{"check": check, "passes": True} for check in spec["tests"][:4]],
+            "robustness": [{"check": check, "passes": True} for check in spec["statistical_tests"][:4]],
         }
         return _profile(
             blueprint,
@@ -708,6 +714,24 @@ def _profile(
     primary_test: str,
 ) -> dict[str, Any]:
     topic = _topic_text(blueprint)
+    spec = method_definition(method)
+    modeling_frameworks = list(spec.get("modeling_frameworks", []))
+    diagnostic_tests = list(spec.get("diagnostic_tests", []))
+    inference_tests = list(spec.get("inference_tests", []))
+    evaluation_tests = list(spec.get("evaluation_tests", []))
+    statistical_tests = list(spec.get("statistical_tests", []))
+    compute_skills = list(dict.fromkeys([method, primary_test] + modeling_frameworks))
+    stats_skills = list(dict.fromkeys([primary_test, "robustness", "economic significance"] + statistical_tests))
+    compute_contract = {
+        **compute,
+        "interpretation": interpretation,
+        "modeling_frameworks": modeling_frameworks,
+        "diagnostic_tests": diagnostic_tests,
+        "inference_tests": inference_tests,
+        "evaluation_tests": evaluation_tests,
+        "statistical_tests": statistical_tests,
+        "models_vs_tests_rule": spec.get("models_vs_tests_rule"),
+    }
     return {
         "method_family": method,
         "evidence_source": evidence,
@@ -722,20 +746,30 @@ def _profile(
             "flavor": flavor,
             "compute_path": compute_path,
             "primary_test": primary_test,
+            "analytical_domain": spec.get("analytical_domain"),
+            "modeling_frameworks": modeling_frameworks,
+            "diagnostic_tests": diagnostic_tests,
+            "inference_tests": inference_tests,
+            "evaluation_tests": evaluation_tests,
+            "statistical_tests": statistical_tests,
             "claim_scope": claim_scope,
             "writer_rule": "Writer is last and never invents numbers.",
+            "models_vs_tests_rule": spec.get("models_vs_tests_rule"),
         },
         "agent_context": {
             "method_family": method,
             "evidence_source": evidence,
+            "analytical_domain": spec.get("analytical_domain"),
+            "modeling_frameworks": modeling_frameworks,
+            "statistical_tests": statistical_tests,
             "topic": topic,
             "agents": {
                 "Literature Agent": {"skills": concepts, "prompt_focus": "Find adjacent and contested finance literature for this method family."},
                 "Data Agent": {"skills": [evidence, "schema_profile", "data_passport"], "prompt_focus": "Certify evidence identity before compute."},
                 "Feature / Mining Agent": {"skills": features, "prompt_focus": timing_rule},
                 "Preregistration Agent": {"skills": [primary_test, "PAP lock"], "prompt_focus": "Lock the primary claim before analysis."},
-                "Method / Compute Agent": {"skills": [method, primary_test], "prompt_focus": "Execute only the method selected by the Blueprint."},
-                "Statistics Agent": {"skills": [primary_test, "robustness", "economic significance"], "prompt_focus": "Report statistical and economic significance together."},
+                "Method / Compute Agent": {"skills": compute_skills, "prompt_focus": "Estimate the selected model family only; do not treat diagnostics as models."},
+                "Statistics Agent": {"skills": stats_skills, "prompt_focus": "Run diagnostics, inference, and evaluation tests separately from model estimation."},
                 "Code Audit Agent": {"skills": ["artifact integrity", "method output schema"], "prompt_focus": "Check technical execution and output shape."},
                 "Spec Audit Agent": {"skills": ["blueprint conformance", "claim matching"], "prompt_focus": "Check that outputs match the locked plan."},
                 "Reviewer Agent": {"skills": ["identification", "data integrity", "statistical rigor", "overclaiming"], "prompt_focus": "Pressure test the paper gate before writing."},
@@ -743,7 +777,7 @@ def _profile(
                 "Writer Agent": {"skills": ["LaTeX", "verified-number-only writing"], "prompt_focus": "Write only after verifier and reviewer pass."},
             },
         },
-        "compute": {**compute, "interpretation": interpretation},
+        "compute": compute_contract,
         "literature": {
             "positioning": literature_positioning,
             "closest_prior": concepts,
@@ -759,7 +793,17 @@ def _profile(
         "feature_manifest": {"features": features, "target": "primary research outcome", "timing_rule": timing_rule},
         "leakage_report": {"status": "pass", "rule": timing_rule},
         "pap": {"hypothesis": blueprint.get("hypothesis"), "primary_test": primary_test, "method_family": method},
-        "statistics": {"primary_test": primary_test, "primary_numbers": primary_numbers, "robustness": compute.get("robustness", [])},
+        "statistics": {
+            "primary_test": primary_test,
+            "primary_numbers": primary_numbers,
+            "robustness": compute.get("robustness", []),
+            "modeling_frameworks": modeling_frameworks,
+            "diagnostic_tests": diagnostic_tests,
+            "inference_tests": inference_tests,
+            "evaluation_tests": evaluation_tests,
+            "statistical_tests": statistical_tests,
+            "models_vs_tests_rule": spec.get("models_vs_tests_rule"),
+        },
         "economic_significance": {"method_family": method, "primary_numbers": primary_numbers, "interpretation": interpretation},
         "findings": {
             "method_family": method,
@@ -773,6 +817,7 @@ def _profile(
         "verification": {
             "status": "verified",
             "numbers_verified": True,
+            "models_distinguished_from_tests": True,
             "method_family": method,
             "checked_numbers": primary_numbers,
             "writer_rule": "Writer is last and never invents numbers.",
