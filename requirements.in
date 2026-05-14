@@ -1,4 +1,8 @@
 openai==2.7.2
+fastapi==0.124.0
+uvicorn==0.38.0
+python-multipart==0.0.20
+aiofiles==25.1.0
 # Note: pettingzoo and gymnasium are required only for the
 # GSCI momentum example in examples/gsci_momentum/
 # Install separately if needed: pip install pettingzoo gymnasium
