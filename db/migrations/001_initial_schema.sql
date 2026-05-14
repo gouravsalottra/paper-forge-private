@@ -120,3 +120,13 @@ CREATE TABLE IF NOT EXISTS session_events (
   payload JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS coauthor_invitations (
+  id UUID PRIMARY KEY,
+  session_id UUID REFERENCES sessions(id),
+  invited_email TEXT,
+  invited_by UUID,
+  status TEXT CHECK(status IN ('pending','accepted','declined','revoked')),
+  created_at TIMESTAMPTZ,
+  accepted_at TIMESTAMPTZ
+);

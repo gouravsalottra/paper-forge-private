@@ -221,6 +221,15 @@ def _ensure_schema(conn: Any) -> None:
           payload TEXT NOT NULL,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS coauthor_invitations (
+          id TEXT PRIMARY KEY,
+          session_id TEXT,
+          invited_email TEXT,
+          invited_by TEXT,
+          status TEXT CHECK(status IN ('pending','accepted','declined','revoked')),
+          created_at TEXT,
+          accepted_at TEXT
+        );
         """.replace("PAP_TABLE", "pap" + "_locks")
     )
     conn.commit()
