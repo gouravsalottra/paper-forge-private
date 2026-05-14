@@ -381,14 +381,29 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
     score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1", (session_id,))
     status = _row_get(row, "status")
     next_action = {
+        "draft": "Resume draft",
         "initializing": "Resume draft",
+        "needs_clarification": "Answer clarification",
+        "evidence_blocked": "Review data preview",
         "scope_confirmed": "Approve Blueprint",
         "blueprint_locked": "Review data preview",
         "running": f"Running: {_row_get(phase, 'agent_name', 'Pipeline')}",
         "failed_resumable": "Review failure",
-        "failed_terminal": "Review failure",
+        "failed_terminal": "Download or fork package",
         "paper_unlocked": "Download paper",
     }.get(status, "Review results")
+    resume_route = {
+        "draft": f"/new?session={session_id}",
+        "initializing": f"/new?session={session_id}",
+        "needs_clarification": f"/blueprint/{session_id}#clarifications",
+        "evidence_blocked": f"/data/{session_id}/preview",
+        "scope_confirmed": f"/blueprint/{session_id}",
+        "blueprint_locked": f"/data/{session_id}/preview",
+        "running": f"/run/{session_id}",
+        "failed_resumable": f"/sessions/{session_id}/failure",
+        "failed_terminal": f"/sessions/{session_id}/download",
+        "paper_unlocked": f"/paper/{session_id}",
+    }.get(status, f"/sessions/{session_id}/results")
     return {
         "id": session_id,
         "topic": _row_get(row, "topic"),
@@ -396,6 +411,7 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
         "status": status,
         "last_phase": _row_get(phase, "agent_name"),
         "next_action": next_action,
+        "resume_route": resume_route,
         "created_at": _row_get(row, "created_at"),
         "last_activity_at": _row_get(row, "updated_at"),
         "credits_spent": _row_get(row, "credits_spent", 0),
@@ -458,6 +474,48 @@ def get_session(session_id: str):
         blueprint = _blueprint_row(conn, session_id)
         summary.update({"phases": phases, "blueprint": _blueprint_content(blueprint), "parent_run_id": _row_get(row, "parent_run_id")})
         return summary
+
+
+@router.get("/{session_id}/resume")
+def resume_session(session_id: str):
+    with _with_conn() as conn:
+        row = _session_row(conn, session_id)
+        if not row:
+            return _not_found()
+        summary = _session_summary(conn, row)
+    return {
+        "session_id": session_id,
+        "next_action": summary["next_action"],
+        "route": summary["resume_route"],
+        "stream": f"/api/sessions/{session_id}/stream" if summary["status"] == "running" else None,
+        "status": summary["status"],
+    }
+
+
+@router.get("/{session_id}/compare/{other_session_id}")
+def compare_sessions(session_id: str, other_session_id: str):
+    with _with_conn() as conn:
+        left = _session_row(conn, session_id)
+        right = _session_row(conn, other_session_id)
+        if not left or not right:
+            return _not_found()
+        left_bp = _blueprint_content(_blueprint_row(conn, session_id))
+        right_bp = _blueprint_content(_blueprint_row(conn, other_session_id))
+        left_score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1", (session_id,))
+        right_score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1", (other_session_id,))
+    fields = {
+        "topic": (_row_get(left, "topic"), _row_get(right, "topic")),
+        "research_type": (_row_get(left, "research_type"), _row_get(right, "research_type")),
+        "method": (left_bp.get("method") or left_bp.get("method_style"), right_bp.get("method") or right_bp.get("method_style")),
+        "data_source": (left_bp.get("data_source") or left_bp.get("evidence_route"), right_bp.get("data_source") or right_bp.get("evidence_route")),
+        "reviewer_average_score": (_row_get(left_score, "average_score"), _row_get(right_score, "average_score")),
+    }
+    diff = {
+        key: {"from": before, "to": after}
+        for key, (before, after) in fields.items()
+        if before != after
+    }
+    return {"base_session_id": session_id, "comparison_session_id": other_session_id, "diff": diff}
 
 
 @router.patch("/{session_id}/scope")
