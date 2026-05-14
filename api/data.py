@@ -1,33 +1,34 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import os
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from storage.blob import read_artifact, write_artifact
 
 router = APIRouter()
 
 ROOT = Path(__file__).resolve().parents[1]
-UPLOAD_DIR = ROOT / "research_memory" / "uploads"
 
 
 @router.post("/api/data/upload")
 @router.post("/data/upload")
 async def upload(file: UploadFile = File(...), run_id: str | None = None) -> dict[str, Any]:
-    target_dir = ROOT / "research_memory" / run_id / "uploads" if run_id else UPLOAD_DIR
-    target_dir.mkdir(parents=True, exist_ok=True)
     safe_name = Path(file.filename or "upload.bin").name
-    target = target_dir / safe_name
     content = await file.read()
-    target.write_bytes(content)
+    session_id = run_id or "staged-upload"
+    ref = write_artifact(session_id, f"uploads/{safe_name}", content)
     return {
-        "upload_path": str(target),
+        "upload_path": ref["blob_path"],
         "filename": safe_name,
         "bytes": len(content),
         "sha256": hashlib.sha256(content).hexdigest(),
+        "storage_backend": ref["backend"],
     }
 
 
@@ -38,6 +39,24 @@ def _read_upload(path: Path) -> pd.DataFrame:
     if suffix == ".parquet":
         return pd.read_parquet(path)
     return pd.read_csv(path)
+
+
+def _read_upload_bytes(filename: str, content: bytes) -> pd.DataFrame:
+    suffix = Path(filename).suffix.lower()
+    buffer = io.BytesIO(content)
+    if suffix in {".xlsx", ".xls"}:
+        return pd.read_excel(buffer)
+    if suffix == ".parquet":
+        return pd.read_parquet(buffer)
+    return pd.read_csv(buffer)
+
+
+def _blob_upload(upload_path: str) -> tuple[str, str] | None:
+    clean = str(upload_path).strip().strip("/")
+    parts = clean.split("/")
+    if len(parts) >= 3 and parts[0] == "sessions":
+        return parts[1], "/".join(parts[2:])
+    return None
 
 
 def _date_range(df: pd.DataFrame, fallback: str) -> tuple[str, list[str]]:
@@ -135,7 +154,15 @@ def preview(payload: dict[str, Any]) -> dict[str, Any]:
     if upload_path or data_mode == "upload":
         if not upload_path:
             return {"preview": _preview_payload(pd.DataFrame(), source_route="upload", date_range="unknown", sha=hashlib.sha256(b"").hexdigest())}
+        blob_ref = _blob_upload(str(upload_path))
+        if blob_ref:
+            session_id, relative_path = blob_ref
+            content = read_artifact(session_id, relative_path)
+            df = _read_upload_bytes(Path(relative_path).name, content)
+            return {"preview": _preview_payload(df, source_route="upload", date_range="uploaded file", sha=hashlib.sha256(content).hexdigest())}
         path = Path(str(upload_path)).expanduser()
+        if os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).lower() == "production":
+            raise HTTPException(status_code=400, detail="Production upload preview requires a Blob Storage upload path")
         if not path.exists() or not path.is_file():
             raise HTTPException(status_code=404, detail="Uploaded evidence file not found")
         df = _read_upload(path)

@@ -36,3 +36,36 @@ def test_upload_preview_blocks_empty_or_unusable_file(tmp_path: Path) -> None:
 
     assert preview["preview_status"] == "blocked"
     assert preview["blocking_issues"]
+
+
+def test_api_upload_writes_to_blob_not_local_filesystem(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
+    monkeypatch.chdir(tmp_path)
+    from fastapi.testclient import TestClient
+    from main import app
+    from storage import blob
+
+    blob.reset_mock_storage()
+    response = TestClient(app).post(
+        "/api/data/upload?run_id=data-session",
+        files={"file": ("evidence.csv", b"date,ticker,return\n2024-01-02,SPY,0.01\n", "text/csv")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["upload_path"] == "sessions/data-session/uploads/evidence.csv"
+    assert not (tmp_path / "research_memory").exists()
+    assert blob.read_artifact("data-session", "uploads/evidence.csv").startswith(b"date,ticker")
+
+
+def test_blob_upload_preview_reads_blob_payload(monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
+    from api import data
+    from storage import blob
+
+    blob.reset_mock_storage()
+    blob.write_artifact("preview-session", "uploads/evidence.csv", b"date,ticker,return\n2024-01-02,SPY,0.01\n")
+    result = data.preview({"data_mode": "upload", "upload_path": "sessions/preview-session/uploads/evidence.csv"})
+    assert result["preview"]["rows"] == 1
+    assert result["preview"]["schema_profile"]["date_columns"] == ["date"]
