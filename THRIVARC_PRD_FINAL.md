@@ -1,6 +1,6 @@
 # THRIVARC PRD FINAL
 
-Status: V1 product blueprint grounded in the current repository implementation as of 2026-05-14. Anything not implemented in this pass is marked `[v2]`. Canonical implementation path is `/api/sessions/*`, PostgreSQL state through `db/connection.py`, Azure Blob artifacts through `storage/blob.py`, and real-time updates through Server-Sent Events.
+Status: V1 product blueprint grounded in the current repository implementation as of 2026-05-14. Anything not implemented in this pass is marked `[v2]`. Two canonical API patterns: Pipeline API at `/runs/*` (research execution layer) and Session API at `/api/sessions/*` (session lifecycle and collaboration layer). Both are V1. PostgreSQL state through `db/connection.py`, Azure Blob artifacts through `storage/blob.py`, and real-time updates through Server-Sent Events.
 
 ## 1. Product Definition
 
@@ -371,8 +371,11 @@ Researcher previews uploaded or public data, schema, missingness, identifiers, d
 ### Blueprint Lock
 Confirmatory studies lock Blueprint, hash, hypothesis, primary test, threshold, and pre-registration certificate seed. Exploratory studies are labeled hypothesis-generating.
 
+### Persona Adaptation
+The UI adapts depth and language to the researcher's declared persona (explorer, researcher, expert) without changing the underlying pipeline behavior. Explorer mode uses plain-English labels and hides SHA-256 hashes, run IDs, raw logs, and p-values. Expert mode exposes agent code names, raw JSON previews, and technical identifiers. Persona selection is stored in `localStorage` and applied through `PERSONA_CONFIG` in `frontend/app.html`.
+
 ### Run Page
-Researcher watches live phase updates through Server-Sent Events on `GET /api/sessions/{id}/stream`. Phase cards read from `phases.status`.
+Researcher watches live phase updates through Server-Sent Events. The frontend connects to `GET /api/sessions/{id}/stream` for session-level event replay and `GET /runs/{id}/stream` for pipeline phase polling. Phase cards read from `phases.status`.
 
 ### Reviewer Gate
 Researcher sees scorecard, dimension-level findings, pass/fail outcome, repair scope, and expected next action.
@@ -438,6 +441,9 @@ Every failure writes DB state before emitting SSE.
 - Paper-Code Verifier: paper claim mismatch, action: repair claim/table mismatch.
 - Writer Agent: Writer blocked, action: wait for gate/verifier pass.
 
+### Migration Artifact Fallback
+The Pipeline API artifact routes (`/runs/{id}/findings`, `/runs/{id}/charts`, etc.) check `research_memory/{run_id}/` first and fall back to the legacy `paper_memory/{run_id}/` directory if the primary path does not exist. This is a V1 migration behavior for runs created before the directory rename. Remove this fallback when all legacy runs have been migrated or archived.
+
 ## 13. Co-Author Permission Model
 
 Implemented in `auth/permissions.py` and `coauthor_invitations` table.
@@ -486,6 +492,12 @@ Post-lock removal: removing a co-author after Blueprint lock writes a Deviation 
 | Credits spent | `sessions.credits_spent` | Billing service | N/A |
 
 Frontend enforcement: `frontend/app.html` declares `FRONTEND_TRUTH_STATE_MAP`, uses `EventSource`, and gates lock/writer/download controls from backend state.
+
+SSE stream endpoints:
+- `GET /api/sessions/{id}/stream`: replays stored session events from `session_events` table. Used by the frontend for UI state updates. Event types match the truth matrix above.
+- `GET /runs/{id}/stream`: polls `pipeline_runs` for phase state changes. Emits `event: status` with full run object payload. Used for pipeline progress monitoring. Terminates on `done`, `failed`, or `cancelled`.
+
+Both endpoints return `Content-Type: text/event-stream` and emit SSE-formatted messages.
 
 ## 15. Agent Execution Graph
 
@@ -576,7 +588,67 @@ Schema support: `sessions.credits_spent` exists. `[v2]` account billing ledger, 
 Serves `frontend/app.html` and marketing/static pages. Uses `X-MS-CLIENT-PRINCIPAL` auth header for V1 authenticated identity.
 
 ### Azure Container App
-Runs FastAPI (`main.py` or `api/main.py`) with canonical API routes. Exposes `/health`, `/ready`, `/api/sessions/*`, `/api/data/*`, `/api/guide`, and legacy compatibility routes.
+Runs FastAPI (`main.py` or `api/main.py`) with two canonical API patterns:
+- **Pipeline API** (`/runs/*`): research execution layer. Implemented in `api/runs.py` and `api/artifacts.py`.
+- **Session API** (`/api/sessions/*`): session lifecycle and collaboration layer. Implemented in `api/sessions.py`.
+- **Guide API** (`/guide/*` and `/api/guide/*`): research blueprint builder. Implemented in `api/guide.py`.
+- **Data API** (`/data/*` and `/api/data/*`): evidence upload and preview. Implemented in `api/data.py`.
+
+Both `/runs/*` and `/api/sessions/*` are canonical V1 paths. The Pipeline API handles research execution; the Session API handles session lifecycle, collaboration, and structured state management.
+
+### Pipeline API Route Table (`/runs/*`)
+
+| Method | Route | Response | Source |
+|---|---|---|---|
+| `POST` | `/runs/create` | `{"run_id": "pf-live-..."}` | `api/runs.py` |
+| `GET` | `/runs` | `{"runs": [{run_object}, ...]}` | `api/runs.py` |
+| `GET` | `/runs/{id}/status` | `{run_object}` | `api/runs.py` |
+| `GET` | `/runs/{id}/truth_contract` | `{"truth_contract": {research_state, artifact_manifest, orchestration, failure_catalog, ...}}` | `api/runs.py` |
+| `GET` | `/runs/{id}/stream` | `text/event-stream` — polls DB, emits `event: status\ndata: {run_object}`, terminates on done/failed/cancelled | `api/runs.py` |
+| `GET` | `/runs/{id}/log` | `{"log_lines": [{"timestamp": "...", "message": "..."}]}` — last 500 lines from pipeline.log | `api/runs.py` |
+| `POST` | `/runs/{id}/cancel` | `{"cancelled": true, "run_id": "..."}` — kills subprocess, sets DB status to cancelled | `api/runs.py` |
+| `GET` | `/runs/{id}/findings` | `{"findings": {"validity": "SIGNIFICANT\|NULL\|INCONCLUSIVE", "p_value": 0.008, "key_numbers": {...}}}` | `api/artifacts.py` |
+| `GET` | `/runs/{id}/reviewer_report` | `{"score": 7.5, "reviewer_narrative": "...", "strengths": [...], "weaknesses": [...]}` | `api/artifacts.py` |
+| `GET` | `/runs/{id}/charts` | `{"charts": [{"title": "...", "url": "/runs/{id}/files/chart.png", "alt": "..."}]}` | `api/artifacts.py` |
+| `GET` | `/runs/{id}/tables` | `{"tables": [{"caption": "...", "url": "/runs/{id}/files/stats_tables/file.csv"}]}` | `api/artifacts.py` |
+| `GET` | `/runs/{id}/paper` | `{"paper": {"thrivarc": {"methodology": "...", "results": "..."}, "researcher": {intro/lit/conclusion prompts}}}` | `api/artifacts.py` |
+| `GET` | `/runs/{id}/files/{path}` | Raw file response (PNG, CSV, etc.) — path-traversal protected | `api/artifacts.py` |
+
+### Session API Route Table (`/api/sessions/*`)
+
+| Method | Route | Response | Source |
+|---|---|---|---|
+| `POST` | `/api/sessions` | `{"session_id": "uuid", "status": "initializing", "upload_urls": [...]}` | `api/sessions.py` |
+| `GET` | `/api/sessions` | `[{session_summary}, ...]` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}` | `{session_summary, phases, blueprint}` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}/resume` | `{next_action, route, stream, status}` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}/compare/{other_id}` | `{diff: {field: {from, to}}}` | `api/sessions.py` |
+| `PATCH` | `/api/sessions/{id}/scope` | `{"status": "scope_confirmed"}` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}/blueprint` | `{blueprint_content, reviewer_gate, status}` | `api/sessions.py` |
+| `POST` | `/api/sessions/{id}/blueprint/lock` | `{locked_at, blueprint_hash, pap_lock_id}` | `api/sessions.py` |
+| `POST` | `/api/sessions/{id}/blueprint/deviation` | `{deviation_id, approval_required}` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}/truth_contract` | `{session_id, state_map, blueprint, artifact_root, sse_stream, writer_rule, failure_contract}` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}/stream` | `text/event-stream` — replays stored session events | `api/sessions.py` |
+| `POST` | `/api/sessions/{id}/run` | `{"run_started": true, "estimated_minutes": 45}` | `api/sessions.py` |
+| `POST` | `/api/sessions/{id}/repair/approve` | `{"repair_status": "approved\|rejected"}` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}/artifacts` | `{"artifacts": [{name, path, url, size}]}` | `api/sessions.py` |
+| `GET` | `/api/sessions/{id}/results` | `{reviewer_scores, paper_url, report_url, integrity_artifacts, deviation_count}` | `api/sessions.py` |
+| `POST` | `/api/sessions/{id}/fork` | `{"new_session_id": "uuid"}` | `api/sessions.py` |
+
+### Guide API Route Table
+
+| Method | Route | Response | Source |
+|---|---|---|---|
+| `GET` | `/guide` or `/api/guide` | Reference contract: research_package, clarification_policy, reviewer_gate, repair_contract_template, integrity_artifacts, audit_boundary, paper_code_verifier, data_quality_policy, leakage_policy, statistical_battery, economic_significance, data_fallback_policy | `api/guide.py` |
+| `POST` | `/guide/validate` or `/api/guide/validate` | Full blueprint validation with clarifications, completion contract, and agent_stack_preview | `api/guide.py` |
+| `POST` | `/guide/build_runspec` or `/api/guide/build_runspec` | RunSpec with research, datapull, compute, statsrun, and blueprint sections | `api/guide.py` |
+
+### Data API Route Table
+
+| Method | Route | Response | Source |
+|---|---|---|---|
+| `POST` | `/data/upload` or `/api/data/upload` | `{upload_path, filename, bytes, sha256, storage_backend}` | `api/data.py` |
+| `POST` | `/data/preview` or `/api/data/preview` | `{preview: {rows, columns, date_range, sha256, schema_profile, data_passport, blocking_issues, warnings}}` | `api/data.py` |
 
 ### Azure Container Registry
 Stores deployable API image.
@@ -597,7 +669,11 @@ Storage account: `paperforgeartifacts`. Container: `research-artifacts`. Stores 
 Model string standardized to `gpt-4o`. Used by guide/research-architect paths where an API key is present, with deterministic fallback for tests and unavailable keys.
 
 ### Server-Sent Events
-Real-time state updates use `GET /api/sessions/{id}/stream`. Events include `phase_update`, `section_ready`, `gate_result`, `repair_triggered`, `repair_complete`, `writer_unlocked`, `run_complete`, `run_failed`, `deviation_logged`.
+Two real-time stream endpoints:
+- `GET /api/sessions/{id}/stream`: replays stored session events from `session_events` table. Used by the frontend for UI truth state updates.
+- `GET /runs/{id}/stream`: polls `pipeline_runs` for phase state changes. Emits `event: status` with the full run object. Terminates on done/failed/cancelled.
+
+Both return `Content-Type: text/event-stream`. Events include `phase_update`, `section_ready`, `gate_result`, `repair_triggered`, `repair_complete`, `writer_unlocked`, `run_complete`, `run_failed`, `deviation_logged`.
 
 ### Observability
 `[v2]` Application Insights, distributed tracing, and per-agent latency/cost dashboards.
