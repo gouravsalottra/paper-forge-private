@@ -707,6 +707,27 @@ def _fallback_blueprint(payload: dict[str, Any]) -> dict[str, Any]:
     })
 
 
+@router.get("/api/guide")
+@router.get("/guide")
+def research_guide() -> dict[str, Any]:
+    summary = _fallback_blueprint({"topic": "Empirical finance research blueprint"})["blueprint_summary"]
+    return {
+        "research_package": summary.get("research_package", {}),
+        "clarification_policy": summary.get("clarification_policy", []),
+        "reviewer_gate": summary.get("reviewer_gate", {}),
+        "repair_contract_template": summary.get("repair_contract_template", {}),
+        "integrity_artifacts": summary.get("integrity_artifacts", {}),
+        "audit_boundary": summary.get("audit_boundary", {}),
+        "paper_code_verifier": summary.get("paper_code_verifier", {}),
+        "data_quality_policy": summary.get("data_quality_policy", {}),
+        "leakage_policy": summary.get("leakage_policy", {}),
+        "statistical_battery": summary.get("statistical_battery", {}),
+        "economic_significance": summary.get("economic_significance", {}),
+        "data_fallback_policy": summary.get("data_fallback_policy", {}),
+    }
+
+
+@router.post("/api/guide/validate")
 @router.post("/guide/validate")
 def validate(payload: dict[str, Any]) -> dict[str, Any]:
     if not os.getenv("AZURE_OPENAI_API_KEY"):
@@ -735,6 +756,7 @@ def validate(payload: dict[str, Any]) -> dict[str, Any]:
     return _normalize_contract(result)
 
 
+@router.post("/api/guide/build_runspec")
 @router.post("/guide/build_runspec")
 def build_runspec(payload: dict[str, Any]) -> dict[str, Any]:
     validated = payload.get("validated_result") if isinstance(payload.get("validated_result"), dict) else validate(payload.get("form_data") or payload)

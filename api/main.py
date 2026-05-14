@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import artifacts, data, guide, runs
+from api import artifacts, data, guide, runs, sessions
 
 app = FastAPI(title="Thrivarc Research Engine API", version="1.0.0")
 
@@ -19,6 +19,7 @@ app.include_router(guide.router)
 app.include_router(data.router)
 app.include_router(runs.router)
 app.include_router(artifacts.router)
+app.include_router(sessions.router)
 
 
 @app.get("/health")

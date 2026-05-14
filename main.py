@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 
-from api import artifacts, data, guide, runs
+from api import artifacts, data, guide, runs, sessions
 from db.connection import DatabaseUnavailableError, get_db_connection
 
 ROOT = Path(__file__).resolve().parent
@@ -31,6 +31,7 @@ app.include_router(guide.router)
 app.include_router(data.router)
 app.include_router(runs.router)
 app.include_router(artifacts.router)
+app.include_router(sessions.router)
 
 
 def _db_connected() -> bool:

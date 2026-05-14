@@ -162,3 +162,38 @@ def get_artifact_url(session_id: str, path: str, *, version: int | None = None, 
     except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
         raise BlobStorageUnavailableError("Signed artifact URL could not be created.") from exc
     return f"https://{account_name}.blob.core.windows.net/{CONTAINER_NAME}/{encoded}?{sas}"
+
+
+def list_artifacts(session_id: str) -> list[dict[str, Any]]:
+    """Return artifact metadata and signed read URLs for a session."""
+    prefix = f"sessions/{str(session_id).strip().strip('/')}/"
+    if _is_mock_backend():
+        artifacts: list[dict[str, Any]] = []
+        for blob_path, data in sorted(_MOCK_BLOBS.items()):
+            if not blob_path.startswith(prefix):
+                continue
+            relative = blob_path[len(prefix) :]
+            artifacts.append(
+                {
+                    "name": relative.rsplit("/", 1)[-1],
+                    "path": blob_path,
+                    "url": get_artifact_url(session_id, relative),
+                    "size": len(data),
+                }
+            )
+        return artifacts
+
+    client = _get_blob_service_client()
+    try:
+        container = client.get_container_client(CONTAINER_NAME)
+        return [
+            {
+                "name": item.name.rsplit("/", 1)[-1],
+                "path": item.name,
+                "url": get_artifact_url(session_id, item.name[len(prefix) :]),
+                "size": getattr(item, "size", 0),
+            }
+            for item in container.list_blobs(name_starts_with=prefix)
+        ]
+    except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
+        raise BlobStorageUnavailableError("Artifact list could not be read from storage.") from exc

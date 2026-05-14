@@ -110,3 +110,13 @@ CREATE TABLE IF NOT EXISTS repair_log (
   deviation_registered BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS session_events (
+  id UUID PRIMARY KEY,
+  session_id UUID REFERENCES sessions(id),
+  event_type TEXT NOT NULL,
+  agent TEXT,
+  status TEXT,
+  payload JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

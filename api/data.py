@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 UPLOAD_DIR = ROOT / "research_memory" / "uploads"
 
 
+@router.post("/api/data/upload")
 @router.post("/data/upload")
 async def upload(file: UploadFile = File(...), run_id: str | None = None) -> dict[str, Any]:
     target_dir = ROOT / "research_memory" / run_id / "uploads" if run_id else UPLOAD_DIR
@@ -126,6 +127,7 @@ def _preview_payload(df: pd.DataFrame, *, source_route: str, date_range: str, sh
     }
 
 
+@router.post("/api/data/preview")
 @router.post("/data/preview")
 def preview(payload: dict[str, Any]) -> dict[str, Any]:
     upload_path = payload.get("upload_path")
