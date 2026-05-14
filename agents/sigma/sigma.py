@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from db.connection import get_db_connection
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -71,7 +72,7 @@ class StatsrunAgent:
 
     def _lock_pap(self) -> None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO hypothesis_lock (run_id, locked_at, locked_by, pap_sha256, forge_started_at)
@@ -363,7 +364,7 @@ class StatsrunAgent:
         results["dcccorr_results"].to_csv(base / "dcccorr_results.csv", index=False)
 
     def _write_result_flag(self, flag: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
                 (self.run_id, "SIGMA", self.job, flag, datetime.now(timezone.utc).isoformat(timespec="seconds")),

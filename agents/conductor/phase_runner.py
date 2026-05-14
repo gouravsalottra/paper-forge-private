@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from db.connection import get_db_connection
 import time
 from datetime import datetime, timezone
 from typing import Callable
@@ -44,7 +45,7 @@ class PhaseRunner:
                 time.sleep(backoff)
 
     def _write_phase_status(self, phase_name: str, status: str, duration: float) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             cols = {r[1] for r in conn.execute("PRAGMA table_info(phases)")}
             finished_col = "finished_at" if "finished_at" in cols else "finished_at"
             conn.execute(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from db.connection import get_db_connection
 import time
 from datetime import datetime, timezone
 
@@ -26,7 +27,7 @@ def now_iso() -> str:
 
 
 def complete_phase(db_path: str, run_id: str, phase_name: str) -> None:
-    with sqlite3.connect(db_path) as conn:
+    with get_db_connection(db_path) as conn:
         cols = {row[1] for row in conn.execute("PRAGMA table_info(phases)")}
         finished_col = "completed_at" if "completed_at" in cols else "finished_at"
         if finished_col in cols:
@@ -64,7 +65,7 @@ def main() -> None:
         complete_phase("pipeline.db", run_id, phase_name)
 
         if phase_name == "PREREGISTER":
-            with sqlite3.connect("pipeline.db") as conn:
+            with get_db_connection("pipeline.db") as conn:
                 conn.execute(
                     """
                     INSERT INTO hypothesis_lock (
@@ -80,7 +81,7 @@ def main() -> None:
                 conn.commit()
             print("🔒 PAP locked.")
 
-    with sqlite3.connect("pipeline.db") as conn:
+    with get_db_connection("pipeline.db") as conn:
         rows = conn.execute(
             """
             SELECT phase_name, status

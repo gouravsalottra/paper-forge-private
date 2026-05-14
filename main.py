@@ -7,11 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 
 from api import artifacts, data, guide, runs
-from init_db import init_db
+from db.connection import DatabaseUnavailableError, get_db_connection
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND = ROOT / "frontend"
-DB_PATH = ROOT / "pipeline.db"
 
 app = FastAPI(title="Thrivarc API", version="1.0.0")
 
@@ -36,10 +35,10 @@ app.include_router(artifacts.router)
 
 def _db_connected() -> bool:
     try:
-        init_db(DB_PATH)
-    except Exception:
+        with get_db_connection():
+            return True
+    except DatabaseUnavailableError:
         return False
-    return True
 
 
 @app.get("/health")

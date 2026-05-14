@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+from db.connection import get_db_connection
 import uuid
 from datetime import datetime, timezone
 import json
@@ -112,7 +113,7 @@ def track_usage(
     )
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    with sqlite3.connect(db_path) as conn:
+    with get_db_connection(db_path) as conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS token_budget (

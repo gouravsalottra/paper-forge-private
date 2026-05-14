@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from db.connection import get_db_connection
 import time
 import re
 import subprocess
@@ -477,7 +478,7 @@ class ConductorPipeline:
 
     def _completed_quill_hawk_cycles(self) -> int:
         """Count completed WRITER -> REVIEWER chains; AUTOREPAIR is diagnostic and optional."""
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             cols = set(self._table_columns(conn, "agent_results"))
             if {"phase_name", "created_at"}.issubset(cols):
                 rows = conn.execute(
@@ -527,7 +528,7 @@ class ConductorPipeline:
         return cycles
 
     def _phase_status(self, phase_name: str) -> str | None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             row = conn.execute(
                 "SELECT status FROM phases WHERE run_id=? AND phase_name=? LIMIT 1",
                 (self.run_id, phase_name),
@@ -538,7 +539,7 @@ class ConductorPipeline:
 
     def _mark_remaining_phases_done(self) -> None:
         """When publishability is reached, finalize any remaining phases to done."""
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             rows = conn.execute(
                 "SELECT phase_name, status FROM phases WHERE run_id=?",
                 (self.run_id,),
@@ -652,7 +653,7 @@ class ConductorPipeline:
         return
 
     def _get_checkpoint_count(self, phase_name: str, key: str) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             row = conn.execute(
                 "SELECT value_json FROM checkpoints WHERE run_id=? AND phase_name=? AND checkpoint_key=? LIMIT 1",
                 (self.run_id, phase_name, key),
@@ -668,7 +669,7 @@ class ConductorPipeline:
     def _set_checkpoint_count(self, phase_name: str, key: str, count: int) -> None:
         payload = json.dumps({"count": int(count)})
         now = self._now()
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             cols = set(self._table_columns(conn, "checkpoints"))
             if not cols:
                 conn.execute(
@@ -817,7 +818,7 @@ class ConductorPipeline:
 
     def _advance_phase(self, phase_name: str, status: str) -> None:
         now = self._now()
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             finished_col = "finished_at"
 
             row = conn.execute(
@@ -854,7 +855,7 @@ class ConductorPipeline:
 
     def _check_forge_gate(self) -> None:
         # Non-negotiable: SQL gate, not Python if-chain.
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             row = conn.execute(
                 """
                 SELECT 1
@@ -876,7 +877,7 @@ class ConductorPipeline:
 
     def _check_forge_gate_for_revision(self) -> None:
         """COMPUTE gate check for REVIEWER revision cycles."""
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             row = conn.execute(
                 "SELECT 1 FROM hypothesis_lock WHERE run_id=? AND locked_at IS NOT NULL",
                 (self.run_id,),
@@ -890,7 +891,7 @@ class ConductorPipeline:
             conn.commit()
 
     def _check_writer_gate(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             row = conn.execute(
                 "SELECT results_valid, p_value_passes, seed_consistent, codeaudit_clean FROM results_gate WHERE run_id=?",
                 (self.run_id,),
@@ -903,7 +904,7 @@ class ConductorPipeline:
             )
 
     def _write_result_flag(self, agent: str, job: str | None, flag: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             now = self._now()
             conn.execute(
                 "INSERT INTO agent_results (run_id, agent, job, result_flag, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -966,7 +967,7 @@ class ConductorPipeline:
 
         latency_ms = (_time.perf_counter() - start) * 1000
 
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             now = self._now()
             status_str = "OK" if healthy else "FAILED"
             conn.execute(
@@ -1007,7 +1008,7 @@ class ConductorPipeline:
     def _init_db(self) -> None:
         schema_path = Path(__file__).with_name("schema.sql")
         sql = schema_path.read_text(encoding="utf-8")
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             conn.executescript(sql)
             cols = set(self._table_columns(conn, "agent_results"))
             if "prompt_sha256" not in cols:
@@ -1027,7 +1028,7 @@ class ConductorPipeline:
             conn.commit()
 
     def _ensure_run_rows(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             run_cols = set(self._table_columns(conn, "pipeline_runs"))
             if "finished_at" not in run_cols:
                 conn.execute("ALTER TABLE pipeline_runs ADD COLUMN finished_at TEXT")
@@ -1079,7 +1080,7 @@ class ConductorPipeline:
             conn.commit()
 
     def _set_run_status(self, status: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             finished_col = "finished_at"
             if status == "done":
                 conn.execute(

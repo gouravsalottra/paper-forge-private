@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import sqlite3
+from db.connection import get_db_connection
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -116,7 +117,7 @@ class SigmaJob1:
         )
 
         pap_id = uuid.uuid4().hex
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO pap (

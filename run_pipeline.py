@@ -5,6 +5,7 @@ import getpass
 import hashlib
 import os
 import sqlite3
+from db.connection import get_db_connection
 import sys
 from datetime import datetime, timezone
 
@@ -55,7 +56,7 @@ def _reset_from_phase(run_id: str, from_phase: str) -> None:
     start_idx = phase_order.index(from_phase)
     phases_to_reset = phase_order[start_idx:]
 
-    with sqlite3.connect("pipeline.db") as conn:
+    with get_db_connection("pipeline.db") as conn:
         paper_path = os.environ.get("PAPER_COMPUTE_PAPER_PATH", "PAPER.md")
         paper_bytes = open(paper_path, "rb").read()
         current_hash = hashlib.sha256(paper_bytes).hexdigest()

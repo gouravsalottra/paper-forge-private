@@ -1,4 +1,5 @@
 import sqlite3
+from db.connection import get_db_connection
 from datetime import datetime, timezone
 
 from agents.aria.aria import ConductorPipeline
@@ -8,7 +9,7 @@ def main() -> None:
     run_id = "pf-quick-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     aria = ConductorPipeline(db_path="pipeline.db", run_id=run_id, paper_md_path="PAPER.md")
     del aria
-    with sqlite3.connect("pipeline.db") as conn:
+    with get_db_connection("pipeline.db") as conn:
         rows = conn.execute(
             "SELECT phase_name FROM phases WHERE run_id=? AND status='pending' ORDER BY phase_id ASC",
             (run_id,),

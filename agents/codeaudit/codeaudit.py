@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from db.connection import get_db_connection
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -532,7 +533,7 @@ class CodeAuditAgent:
         return str(payload)
 
     def _write_result(self, flag: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(agent_results)")}
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
@@ -556,7 +557,7 @@ class CodeAuditAgent:
     def _update_results_gate(self, flag: str) -> None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         clean = 1 if flag == "PASS" else 0
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS results_gate (

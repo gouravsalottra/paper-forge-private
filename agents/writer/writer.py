@@ -6,6 +6,7 @@ import csv
 import json
 import re
 import sqlite3
+from db.connection import get_db_connection
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -258,7 +259,7 @@ class WriterAgent:
 
     def _write_result_flag(self, flag: str) -> None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_results)")}
             if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
                 conn.execute(

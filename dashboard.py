@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+from db.connection import get_db_connection
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 def cleanup_stale(db: str, hours: int = 48) -> int:
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    with sqlite3.connect(db) as conn:
+    with get_db_connection(db) as conn:
         rows = conn.execute(
             """
             SELECT run_id
@@ -42,7 +43,7 @@ def _all_runs(db: str) -> str:
         "failed": "FAILED",
         "stale": "STALE",
     }
-    with sqlite3.connect(db) as conn:
+    with get_db_connection(db) as conn:
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if "pipeline_runs" not in tables:
             return "\n".join(lines + ["(no pipeline data yet)"])
@@ -64,7 +65,7 @@ def _all_runs(db: str) -> str:
 
 def _run_detail(db: str, run_id: str) -> str:
     lines = [f"Run: {run_id}"]
-    with sqlite3.connect(db) as conn:
+    with get_db_connection(db) as conn:
         row = conn.execute(
             "SELECT status, started_at, COALESCE(completed_at, finished_at) FROM pipeline_runs WHERE run_id=?",
             (run_id,),

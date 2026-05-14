@@ -13,6 +13,7 @@ from typing import Any, AsyncIterator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from db.connection import get_db_connection
 from init_db import init_db
 
 router = APIRouter()
@@ -57,10 +58,18 @@ def _phase_name(value: str | None) -> str | None:
     return PHASE_MAP.get(raw, raw)
 
 
-def _connect() -> sqlite3.Connection:
-    init_db(DB_PATH)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+def _uses_legacy_sqlite() -> bool:
+    url = os.getenv("DATABASE_URL", "")
+    env = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).lower()
+    return env != "production" and not (url.startswith("postgresql://") or url.startswith("postgres://"))
+
+
+def _connect():
+    if _uses_legacy_sqlite():
+        init_db(DB_PATH)
+    conn = get_db_connection(DB_PATH)
+    if isinstance(conn, sqlite3.Connection):
+        conn.row_factory = sqlite3.Row
     return conn
 
 

@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import sqlite3
+from db.connection import get_db_connection
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -172,7 +173,7 @@ class SigmaJob2:
 
     def _update_results_gate(self, p_value_passes: bool, seed_consistent: bool) -> None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS results_gate (
@@ -216,7 +217,7 @@ class SigmaJob2:
 
     def _seed_from_hypothesis_lock(self) -> int:
         # hypothesis_lock does not carry seed directly in current schema; derive deterministic seed.
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             row = conn.execute(
                 "SELECT pap_sha256 FROM hypothesis_lock WHERE run_id = ? ORDER BY locked_at DESC LIMIT 1",
                 (self.run_id,),
@@ -702,7 +703,7 @@ class SigmaJob2:
 
     def _write_result_flag(self, status: str) -> None:
         created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             cols = [row[1] for row in conn.execute("PRAGMA table_info(agent_results)")]
             if {"run_id", "agent", "result_flag", "created_at"}.issubset(cols):
                 conn.execute(

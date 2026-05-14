@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from db.connection import get_db_connection
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -384,7 +385,7 @@ class LiteratureAgent:
         return out
 
     def _write_result_flag(self, flag: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with get_db_connection(self.db_path) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(agent_results)")}
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             if {"result_id", "run_id", "phase_name", "agent_name", "status", "created_at"}.issubset(cols):
