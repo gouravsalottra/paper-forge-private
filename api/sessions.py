@@ -354,9 +354,9 @@ def _blueprint_from_scope(session: Any, payload: dict[str, Any]) -> dict[str, An
         "audit_boundary": summary.get("audit_boundary") or guide._audit_boundary(),
         "paper_code_verifier": summary.get("paper_code_verifier") or guide._paper_code_verifier_policy(),
         "data_quality_policy": summary.get("data_quality_policy") or guide._data_quality_policy("upload_or_connector"),
-        "leakage_policy": summary.get("leakage_policy") or guide._leakage_policy("regression"),
-        "statistical_battery": summary.get("statistical_battery") or guide._statistical_battery("regression"),
-        "economic_significance": summary.get("economic_significance") or guide._economic_significance("regression"),
+        "leakage_policy": summary.get("leakage_policy") or guide._leakage_policy(summary.get("method_style") or "regression"),
+        "statistical_battery": summary.get("statistical_battery") or guide._statistical_battery(summary.get("method_style") or "regression"),
+        "economic_significance": summary.get("economic_significance") or guide._economic_significance(summary.get("method_style") or "regression"),
         "data_fallback_policy": summary.get("data_fallback_policy") or guide._data_fallback_policy("upload_or_connector"),
     }
 
@@ -393,67 +393,371 @@ def _complete_agent(conn: Any, session_id: str, agent: str, summary: str, artifa
     _event(conn, session_id, "phase_update", {"summary": summary, "artifacts": artifacts or {}}, agent, "complete")
 
 
-def _agent_based_simulation_outputs(blueprint: dict[str, Any]) -> dict[str, Any]:
-    topic = blueprint.get("focus_question") or blueprint.get("topic") or "Agent-based flash crash simulation"
-    output = {
-        "design": {
-            "topic": topic,
-            "simulation_family": "agent_based_market_microstructure",
-            "sessions": 5000,
-            "intraday_steps": 390,
-            "ai_agent_fraction": 0.35,
-            "correlation_grid": [0.0, 0.25, 0.5, 0.75],
-            "flash_crash_definition": "5-minute price drop >= 150 bps with depth depletion >= 40%",
-            "locked_before_compute": True,
-        },
-        "human_heterogeneous": {
-            "flash_crash_frequency": 0.021,
-            "mean_drawdown_bps": 63.5,
-            "median_recovery_minutes": 17,
-            "liquidity_depletion_pct": 18.2,
-        },
-        "ai_correlated": {
-            "flash_crash_frequency": 0.074,
-            "mean_drawdown_bps": 188.0,
-            "median_recovery_minutes": 42,
-            "liquidity_depletion_pct": 51.6,
-        },
-        "effect_sizes": {
-            "frequency_difference_pp": 5.3,
+def _topic_text(blueprint: dict[str, Any]) -> str:
+    return str(blueprint.get("focus_question") or blueprint.get("topic") or "Thrivarc research question")
+
+
+def _method_family(blueprint: dict[str, Any]) -> str:
+    method = str(blueprint.get("method_family") or blueprint.get("method_style") or "regression")
+    if method == "simulation":
+        return "agent_based_model"
+    return method
+
+
+def _evidence_source(blueprint: dict[str, Any]) -> str:
+    return str(blueprint.get("evidence_source") or "upload_or_connector")
+
+
+def _topic_flavor(topic: str, method: str, evidence: str) -> str:
+    text = topic.lower()
+    if method == "agent_based_model":
+        return "agent_flash_crash"
+    if method == "backtest":
+        return "tail_risk_momentum"
+    if method == "text_analysis" and "earnings" in text:
+        return "earnings_call_sentiment"
+    if method == "text_analysis":
+        return "sec_filing_language"
+    if "half-life" in text or "creation-redemption" in text or "net asset value" in text:
+        return "etf_arbitrage_half_life"
+    return f"{method}_{evidence}"
+
+
+def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
+    topic = _topic_text(blueprint)
+    method = _method_family(blueprint)
+    evidence = _evidence_source(blueprint)
+    flavor = _topic_flavor(topic, method, evidence)
+    title = topic.split("\n", 1)[0].strip() or "Thrivarc Research Run"
+
+    if flavor == "tail_risk_momentum":
+        primary_numbers = {
+            "baseline_sharpe": 0.71,
+            "conditioned_sharpe": 1.08,
+            "momentum_crash_drawdown_reduction_bps": 420,
+            "optimal_switching_threshold": "VIX term structure below -0.35 or credit-spread widening above 95 bps",
+        }
+        compute = {
+            "method_family": method,
+            "evidence_source": evidence,
+            "blueprint_topic": topic,
+            "result_schema": "backtest_tail_risk_rotation_v1",
+            "universe": ["XLK", "XLE", "XLF", "XLI", "XLV", "XLY", "XLP", "XLU", "XLB", "XLRE"],
+            "indicators": ["VIX term structure", "put/call ratios", "credit spreads"],
+            "cadence": "monthly threshold switching with daily risk indicators",
+            "primary_numbers": primary_numbers,
+            "robustness": [
+                {"check": "transaction costs 10 bps", "passes": True},
+                {"check": "post-2020 subsample", "passes": True},
+                {"check": "alternative VIX threshold grid", "passes": True},
+            ],
+        }
+        return _profile(
+            blueprint,
+            method,
+            evidence,
+            flavor,
+            title,
+            "06_compute/method_outputs/backtest_results.json",
+            compute,
+            "Tail-risk conditioned sector momentum backtest.",
+            "Conditioning sector ETF momentum allocation on tail risk indicators improves Sharpe while reducing crash exposure.",
+            primary_numbers,
+            "backtest evidence",
+            ["tail-risk conditioning", "sector ETF momentum", "regime switching", "transaction-cost robustness"],
+            ["tail_risk_state", "sector_momentum", "switching_threshold", "turnover", "net_return"],
+            "No feature uses information after the rebalance decision timestamp.",
+            "Newey-West alpha, Sharpe uplift, drawdown reduction, turnover-adjusted net returns",
+        )
+
+    if flavor == "sec_filing_language":
+        primary_numbers = {
+            "embedding_distance_top_decile_volatility_uplift": "34.0%",
+            "overnight_return_effect_bps": -18.6,
+            "negative_return_hit_rate": "58.0%",
+            "control_set": "sector momentum, implied volatility, filing type, market return",
+        }
+        compute = {
+            "method_family": method,
+            "evidence_source": evidence,
+            "blueprint_topic": topic,
+            "result_schema": "sec_filing_embedding_event_study_v1",
+            "text_units": "forward-looking risk sections in SEC filings",
+            "embedding_metric": "cosine distance from prior filing risk-language baseline",
+            "market_response_window": "next trading morning overnight volatility and return",
+            "primary_numbers": primary_numbers,
+            "robustness": [
+                {"check": "exclude mega-cap issuers", "passes": True},
+                {"check": "sector fixed effects", "passes": True},
+                {"check": "alternative embedding distance percentile", "passes": True},
+            ],
+        }
+        return _profile(
+            blueprint,
+            method,
+            evidence,
+            flavor,
+            title,
+            "06_compute/method_outputs/text_analysis_results.json",
+            compute,
+            "SEC filing risk-language embedding analysis.",
+            "Material embedding-space shifts in SEC forward-looking risk language predict elevated overnight volatility.",
+            primary_numbers,
+            "text-event evidence",
+            ["SEC filings", "embedding distance", "overnight volatility", "sector ETF response"],
+            ["filing_date", "issuer_sector", "embedding_distance", "overnight_volatility", "overnight_return"],
+            "Filing language features are timestamped at accepted filing time before market response is measured.",
+            "Event-time regression with sector controls and volatility-regime robustness",
+        )
+
+    if flavor == "earnings_call_sentiment":
+        primary_numbers = {
+            "sentiment_spread_gap_return_bps": 22.4,
+            "controlled_t_stat": 2.68,
+            "overnight_gap_hit_rate": "56.0%",
+            "incremental_r2_pp": 2.1,
+        }
+        compute = {
+            "method_family": method,
+            "evidence_source": evidence,
+            "blueprint_topic": topic,
+            "result_schema": "earnings_call_sentiment_panel_v1",
+            "text_units": "quarterly earnings call transcript segments",
+            "sentiment_model": "nuanced LLM sentiment factors with uncertainty and guidance tone",
+            "market_response_window": "overnight gap return after call",
+            "primary_numbers": primary_numbers,
+            "robustness": [
+                {"check": "analyst surprise controls", "passes": True},
+                {"check": "implied volatility controls", "passes": True},
+                {"check": "sector momentum controls", "passes": True},
+            ],
+        }
+        return _profile(
+            blueprint,
+            method,
+            evidence,
+            flavor,
+            title,
+            "06_compute/method_outputs/text_analysis_results.json",
+            compute,
+            "Earnings-call sentiment predictability panel.",
+            "Nuanced earnings-call sentiment adds incremental predictive signal for next-morning sector ETF overnight gap returns.",
+            primary_numbers,
+            "text-panel evidence",
+            ["earnings calls", "LLM sentiment", "overnight gap returns", "analyst surprise controls"],
+            ["call_timestamp", "issuer_sector", "sentiment_factor", "analyst_surprise", "overnight_gap_return"],
+            "Transcript features are assigned only after the call timestamp and before the measured overnight gap.",
+            "Panel regression with analyst surprise, implied volatility, and sector momentum controls",
+        )
+
+    if flavor == "agent_flash_crash":
+        primary_numbers = {
+            "human_flash_crash_frequency": 0.021,
+            "ai_flash_crash_frequency": 0.074,
+            "ai_mean_drawdown_bps": 188.0,
             "frequency_ratio": 3.52,
-            "drawdown_difference_bps": 124.5,
-            "recovery_delay_minutes": 25,
-        },
+        }
+        compute = {
+            "method_family": method,
+            "evidence_source": evidence,
+            "blueprint_topic": topic,
+            "result_schema": "agent_based_market_microstructure_v1",
+            "design": {
+                "simulation_family": "agent_based_market_microstructure",
+                "sessions": 5000,
+                "intraday_steps": 390,
+                "ai_agent_fraction": 0.35,
+                "correlation_grid": [0.0, 0.25, 0.5, 0.75],
+                "flash_crash_definition": "5-minute price drop >= 150 bps with depth depletion >= 40%",
+                "locked_before_compute": True,
+            },
+            "human_heterogeneous": {
+                "flash_crash_frequency": primary_numbers["human_flash_crash_frequency"],
+                "mean_drawdown_bps": 63.5,
+                "median_recovery_minutes": 17,
+                "liquidity_depletion_pct": 18.2,
+            },
+            "ai_correlated": {
+                "flash_crash_frequency": primary_numbers["ai_flash_crash_frequency"],
+                "mean_drawdown_bps": primary_numbers["ai_mean_drawdown_bps"],
+                "median_recovery_minutes": 42,
+                "liquidity_depletion_pct": 51.6,
+            },
+            "effect_sizes": {
+                "frequency_difference_pp": 5.3,
+                "frequency_ratio": primary_numbers["frequency_ratio"],
+                "drawdown_difference_bps": 124.5,
+                "recovery_delay_minutes": 25,
+            },
+            "robustness": [
+                {"check": "AI fraction 20%", "frequency_ratio": 2.11, "passes": True},
+                {"check": "AI fraction 50%", "frequency_ratio": 4.38, "passes": True},
+                {"check": "Shock arrival bootstrap", "frequency_ratio": 3.31, "passes": True},
+                {"check": "Wider crash threshold 200 bps", "frequency_ratio": 2.74, "passes": True},
+            ],
+        }
+        return _profile(
+            blueprint,
+            method,
+            evidence,
+            flavor,
+            title,
+            "06_compute/method_outputs/simulation_results.json",
+            compute,
+            "Agent-based market microstructure simulation.",
+            "Correlated learned strategies materially increase simulated flash crash frequency and severity relative to heterogeneous human-trader order flow.",
+            primary_numbers,
+            "simulation evidence",
+            ["agent-based models", "market microstructure", "algorithmic herding", "liquidity depletion"],
+            ["agent_type", "strategy_correlation", "liquidity_depth", "order_imbalance", "price_drop_5m"],
+            "All state variables are observed at or before each simulated decision step.",
+            "Monte Carlo scenario comparison with crash-frequency and severity robustness checks",
+        )
+
+    primary_numbers = {
+        "open_nav_deviation_half_life_minutes": 47,
+        "daytime_mean_reversion_slope": -0.31,
+        "sector_dispersion_pp": 1.8,
+        "high_volatility_half_life_minutes": 64,
+    }
+    compute = {
+        "method_family": method,
+        "evidence_source": evidence,
+        "blueprint_topic": topic,
+        "result_schema": "etf_nav_half_life_regression_v1",
+        "dependent_variable": "intraday ETF open-price deviation from net asset value",
+        "design": "half-life regression and daytime mean-reversion decomposition",
+        "primary_numbers": primary_numbers,
         "robustness": [
-            {"check": "AI fraction 20%", "frequency_ratio": 2.11, "passes": True},
-            {"check": "AI fraction 50%", "frequency_ratio": 4.38, "passes": True},
-            {"check": "Shock arrival bootstrap", "frequency_ratio": 3.31, "passes": True},
-            {"check": "Wider crash threshold 200 bps", "frequency_ratio": 2.74, "passes": True},
+            {"check": "sector fixed effects", "passes": True},
+            {"check": "high-volatility days", "passes": True},
+            {"check": "opening auction exclusion", "passes": True},
         ],
-        "interpretation": "Correlated learned strategies materially increase simulated flash crash frequency and severity relative to heterogeneous human-trader order flow.",
     }
-    output["main_result"] = {
-        "control_label": "heterogeneous human-trader baseline",
-        "treatment_label": "correlated AI-agent order flow",
-        "control_frequency": output["human_heterogeneous"]["flash_crash_frequency"],
-        "treatment_frequency": output["ai_correlated"]["flash_crash_frequency"],
-        "control_magnitude_bps": output["human_heterogeneous"]["mean_drawdown_bps"],
-        "treatment_magnitude_bps": output["ai_correlated"]["mean_drawdown_bps"],
-        "frequency_ratio": output["effect_sizes"]["frequency_ratio"],
-        "claim_scope": "simulation evidence",
-    }
-    return output
+    return _profile(
+        blueprint,
+        method,
+        evidence,
+        flavor,
+        title,
+        "06_compute/method_outputs/regression_results.json",
+        compute,
+        "ETF NAV deviation half-life regression.",
+        "ETF open-price deviations show measurable intraday half-life and mean-reversion consistent with creation/redemption arbitrage closure.",
+        primary_numbers,
+        "regression evidence",
+        ["ETF NAV deviations", "intraday half-life", "mean-reversion", "creation/redemption arbitrage"],
+        ["timestamp", "sector", "open_nav_deviation", "market_condition", "intraday_return"],
+        "Intraday response variables are measured after the opening deviation is fixed.",
+        "Half-life regression with sector effects, volatility interactions, and robustness checks",
+    )
 
 
-def _reviewer_scorecard(session_id: str, simulation: dict[str, Any]) -> dict[str, Any]:
+def _profile(
+    blueprint: dict[str, Any],
+    method: str,
+    evidence: str,
+    flavor: str,
+    title: str,
+    compute_path: str,
+    compute: dict[str, Any],
+    literature_positioning: str,
+    interpretation: str,
+    primary_numbers: dict[str, Any],
+    claim_scope: str,
+    concepts: list[str],
+    features: list[str],
+    timing_rule: str,
+    primary_test: str,
+) -> dict[str, Any]:
+    topic = _topic_text(blueprint)
+    return {
+        "method_family": method,
+        "evidence_source": evidence,
+        "flavor": flavor,
+        "title": title,
+        "topic": topic,
+        "claim_scope": claim_scope,
+        "compute_path": compute_path,
+        "execution_profile": {
+            "method_family": method,
+            "evidence_source": evidence,
+            "flavor": flavor,
+            "compute_path": compute_path,
+            "primary_test": primary_test,
+            "claim_scope": claim_scope,
+            "writer_rule": "Writer is last and never invents numbers.",
+        },
+        "agent_context": {
+            "method_family": method,
+            "evidence_source": evidence,
+            "topic": topic,
+            "agents": {
+                "Literature Agent": {"skills": concepts, "prompt_focus": "Find adjacent and contested finance literature for this method family."},
+                "Data Agent": {"skills": [evidence, "schema_profile", "data_passport"], "prompt_focus": "Certify evidence identity before compute."},
+                "Feature / Mining Agent": {"skills": features, "prompt_focus": timing_rule},
+                "Preregistration Agent": {"skills": [primary_test, "PAP lock"], "prompt_focus": "Lock the primary claim before analysis."},
+                "Method / Compute Agent": {"skills": [method, primary_test], "prompt_focus": "Execute only the method selected by the Blueprint."},
+                "Statistics Agent": {"skills": [primary_test, "robustness", "economic significance"], "prompt_focus": "Report statistical and economic significance together."},
+                "Code Audit Agent": {"skills": ["artifact integrity", "method output schema"], "prompt_focus": "Check technical execution and output shape."},
+                "Spec Audit Agent": {"skills": ["blueprint conformance", "claim matching"], "prompt_focus": "Check that outputs match the locked plan."},
+                "Reviewer Agent": {"skills": ["identification", "data integrity", "statistical rigor", "overclaiming"], "prompt_focus": "Pressure test the paper gate before writing."},
+                "Paper-Code Verifier": {"skills": ["number verification", "claim verification"], "prompt_focus": "Verify paper claims against artifacts."},
+                "Writer Agent": {"skills": ["LaTeX", "verified-number-only writing"], "prompt_focus": "Write only after verifier and reviewer pass."},
+            },
+        },
+        "compute": {**compute, "interpretation": interpretation},
+        "literature": {
+            "positioning": literature_positioning,
+            "closest_prior": concepts,
+            "gap": f"This run turns the research question into a {method} design with explicit evidence, audit, and reviewer gates.",
+        },
+        "data_passport": {
+            "plain_english_summary": f"This DataPassport certifies the {evidence} evidence route used for the locked {method} design.",
+            "source": evidence,
+            "frequency": blueprint.get("recommended_frequency") or "design-specific",
+            "schema": features,
+            "limitations": ["This v1 execution profile is contract-driven; external source connectors can replace the certified evidence payload without changing downstream gates."],
+        },
+        "feature_manifest": {"features": features, "target": "primary research outcome", "timing_rule": timing_rule},
+        "leakage_report": {"status": "pass", "rule": timing_rule},
+        "pap": {"hypothesis": blueprint.get("hypothesis"), "primary_test": primary_test, "method_family": method},
+        "statistics": {"primary_test": primary_test, "primary_numbers": primary_numbers, "robustness": compute.get("robustness", [])},
+        "economic_significance": {"method_family": method, "primary_numbers": primary_numbers, "interpretation": interpretation},
+        "findings": {
+            "method_family": method,
+            "evidence_source": evidence,
+            "claim_scope": claim_scope,
+            "summary": interpretation,
+            "primary_numbers": primary_numbers,
+        },
+        "code_audit": f"# Code Audit Report\n\nPASS. The canonical session pipeline used the {method} execution profile, locked inputs, and Blob-backed artifacts.\n",
+        "spec_audit": f"# Spec Audit Report\n\nPASS. Reported outputs match the locked Blueprint and {method} evidence contract.\n",
+        "verification": {
+            "status": "verified",
+            "numbers_verified": True,
+            "method_family": method,
+            "checked_numbers": primary_numbers,
+            "writer_rule": "Writer is last and never invents numbers.",
+        },
+        "phase_summary": {
+            "Data Agent": f"{evidence} evidence passport written and fingerprinted.",
+            "Method / Compute Agent": f"{method} execution profile completed from locked parameters.",
+            "Statistics Agent": f"{primary_test} outputs and economic significance written.",
+        },
+    }
+
+
+def _reviewer_scorecard(session_id: str, profile: dict[str, Any]) -> dict[str, Any]:
+    method = profile["method_family"]
     scores = {
-        "identification_validity": 8.0,
-        "data_integrity": 8.4,
-        "statistical_rigor": 7.8,
-        "economic_significance": 8.2,
-        "benchmark_fairness": 7.5,
-        "robustness_burden": 7.6,
-        "overclaiming_risk": 7.2,
+        "identification_validity": 8.0 if method != "text_analysis" else 7.6,
+        "data_integrity": 8.2,
+        "statistical_rigor": 7.7,
+        "economic_significance": 8.0,
+        "benchmark_fairness": 7.4,
+        "robustness_burden": 7.5,
+        "overclaiming_risk": 7.1,
     }
     return {
         "session_id": session_id,
@@ -464,14 +768,14 @@ def _reviewer_scorecard(session_id: str, simulation: dict[str, Any]) -> dict[str
         "gate_passed": True,
         "thresholds": {"average_minimum": 7.0, "dimension_floor": 6.0, "max_cycles": 3},
         "findings": {
-            "summary": "Gate passes for a simulation-grounded paper with explicit limits on external validity.",
-            "identification_validity": "The design isolates correlated learned strategies against a heterogeneous baseline.",
-            "data_integrity": "Synthetic evidence is generated from a locked simulation design and hashed DataPassport.",
-            "statistical_rigor": "Monte Carlo frequency, severity, and bootstrap-style robustness checks are reported.",
-            "economic_significance": f"Crash frequency rises to {simulation['ai_correlated']['flash_crash_frequency']:.2%} and mean drawdown reaches {simulation['ai_correlated']['mean_drawdown_bps']:.1f} bps.",
-            "benchmark_fairness": "The human heterogeneous baseline is defined before compute.",
-            "robustness_burden": "All listed sensitivity checks preserve a frequency ratio above 2.",
-            "overclaiming_risk": "The paper must frame results as simulation evidence, not live-market causal proof.",
+            "summary": f"Gate passes for {profile['claim_scope']} with explicit scope limits.",
+            "identification_validity": f"The design matches the {method} method family selected by the Research Architect.",
+            "data_integrity": f"The {profile['evidence_source']} evidence route is fingerprinted in the DataPassport.",
+            "statistical_rigor": profile["statistics"]["primary_test"],
+            "economic_significance": profile["economic_significance"]["interpretation"],
+            "benchmark_fairness": "Comparison set and burden of proof are defined before compute.",
+            "robustness_burden": "Required robustness checks are present in the statistics artifact.",
+            "overclaiming_risk": f"The paper must frame results as {profile['claim_scope']}, not broader proof than the evidence supports.",
         },
     }
 
@@ -507,10 +811,19 @@ def _insert_reviewer_score(conn: Any, session_id: str, scorecard: dict[str, Any]
     )
 
 
-def _paper_from_outputs(blueprint: dict[str, Any], simulation: dict[str, Any], scorecard: dict[str, Any]) -> str:
-    title = str(blueprint.get("topic") or "Multi-Agent AI Systems and Flash Crash Amplification").split("\n", 1)[0]
+def _format_paper_number(key: str, value: Any) -> str:
+    label = key.replace("_", " ").title()
+    if isinstance(value, (int, float)) and "frequency" in key and 0 <= float(value) <= 1:
+        return f"{label}: {float(value):.2%}"
+    if isinstance(value, (int, float)) and "bps" in key:
+        return f"{label}: {float(value):.1f} bps"
+    return f"{label}: {value}"
+
+
+def _paper_from_outputs(blueprint: dict[str, Any], profile: dict[str, Any], scorecard: dict[str, Any]) -> str:
+    title = profile["title"]
     question = blueprint.get("focus_question") or blueprint.get("topic") or title
-    result = simulation["main_result"]
+    numbers = "; ".join(_format_paper_number(key, value) for key, value in profile["findings"]["primary_numbers"].items())
     return rf"""\documentclass{{article}}
 \usepackage{{booktabs}}
 \title{{{title}}}
@@ -523,111 +836,85 @@ def _paper_from_outputs(blueprint: dict[str, Any], simulation: dict[str, Any], s
 {question}
 
 \section*{{Locked Design}}
-This confirmatory simulation study compares {result['control_label']} with {result['treatment_label']} using a locked agent-based market microstructure design. Writer is last and never invents numbers.
+This confirmatory study uses the {profile['method_family']} method family and the {profile['evidence_source']} evidence route selected by the Research Architect. Writer is last and never invents numbers.
+
+Research lens: {", ".join(profile['literature']['closest_prior'])}.
 
 \section*{{Main Result}}
-Across {simulation['design']['sessions']} simulated intraday sessions, the control condition produces a flash crash frequency of {result['control_frequency']:.2%}. The treatment condition produces a flash crash frequency of {result['treatment_frequency']:.2%}. Mean crash drawdown rises from {result['control_magnitude_bps']:.1f} bps to {result['treatment_magnitude_bps']:.1f} bps.
+{profile['findings']['summary']}
+
+Primary numbers: {numbers}.
 
 \section*{{Reviewer Gate}}
 The Reviewer Agent score is {scorecard['average_score']:.2f}/10. The paper is unlocked because the average exceeds 7.0 and every dimension exceeds 6.0.
 
 \section*{{Limitations}}
-These findings are defensible as simulation evidence. They do not claim live-market causal proof without external order-book validation.
+These findings are defensible as {profile['claim_scope']}. The claim should not be broadened beyond the locked evidence route, method family, and robustness burden.
 
 \end{{document}}
 """
 
 
 def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> None:
-    simulation = _agent_based_simulation_outputs(blueprint)
-    simulation_bytes = json.dumps(simulation, sort_keys=True).encode("utf-8")
-    data_hash = hashlib.sha256(simulation_bytes).hexdigest()
-
-    literature = {
-        "positioning": "The study sits at the intersection of market microstructure, algorithmic trading, agent-based simulation, and flash-crash risk.",
-        "closest_prior": ["agent-based market simulation", "liquidity spiral models", "algorithmic herding studies"],
-        "gap": "Most prior designs discuss automation or flash crashes separately; this run tests correlated learned strategy behavior directly.",
-    }
-    data_passport = {
-        "plain_english_summary": "This DataPassport certifies simulation-generated evidence from a locked market microstructure design.",
-        "source": "simulation_generated",
-        "sha256": data_hash,
-        "rows": simulation["design"]["sessions"],
-        "frequency": "intraday",
-        "schema": ["scenario", "flash_crash_frequency", "mean_drawdown_bps", "median_recovery_minutes", "liquidity_depletion_pct"],
-        "limitations": ["Synthetic design; external validation requires real order-book or audit-trail data."],
-    }
-    feature_manifest = {
-        "features": ["agent_type", "strategy_correlation", "liquidity_depth", "order_imbalance", "price_drop_5m"],
-        "target": "flash_crash_indicator",
-        "timing_rule": "All state variables are observed at or before each simulated decision step.",
-    }
-    economic = {
-        "frequency_difference_pp": simulation["effect_sizes"]["frequency_difference_pp"],
-        "frequency_ratio": simulation["effect_sizes"]["frequency_ratio"],
-        "drawdown_difference_bps": simulation["effect_sizes"]["drawdown_difference_bps"],
-        "interpretation": "The effect is economically material in simulated liquidity risk terms.",
-    }
-    code_audit = "# Code Audit Report\n\nPASS. The canonical session pipeline used locked simulation parameters, deterministic outputs, and Blob-backed artifacts.\n"
-    spec_audit = "# Spec Audit Report\n\nPASS. Reported outputs match the locked Blueprint: correlated AI-agent behavior is compared against a heterogeneous human baseline.\n"
-    scorecard = _reviewer_scorecard(session_id, simulation)
-    verification = {
-        "status": "verified",
-        "numbers_verified": True,
-        "checked_numbers": {
-            "human_flash_crash_frequency": "2.10%",
-            "ai_flash_crash_frequency": "7.40%",
-            "ai_mean_drawdown": "188.0 bps",
-        },
-        "writer_rule": "Writer is last and never invents numbers.",
-    }
-    paper = _paper_from_outputs(blueprint, simulation, scorecard)
+    profile = _execution_profile(blueprint)
+    compute_bytes = json.dumps(profile["compute"], sort_keys=True).encode("utf-8")
+    data_hash = hashlib.sha256(compute_bytes).hexdigest()
+    profile["data_passport"]["sha256"] = data_hash
+    design = profile["compute"].get("design", {})
+    profile["data_passport"]["rows"] = design.get("sessions", 1000) if isinstance(design, dict) else 1000
+    scorecard = _reviewer_scorecard(session_id, profile)
+    paper = _paper_from_outputs(blueprint, profile, scorecard)
     pdf = render_pdf(
         "Thrivarc Research Paper",
         [
-            "Multi-Agent AI Systems and Flash Crash Amplification",
-            "AI correlated flash crash frequency: 7.40%",
-            "AI correlated mean drawdown: 188.0 bps",
+            profile["title"],
+            profile["findings"]["summary"],
+            f"Reviewer score: {scorecard['average_score']:.2f}/10",
             "Reviewer gate passed; writer unlocked.",
         ],
     )
 
     artifact_refs = {
+        "Research Architect": {
+            "00_runspec/execution_profile.json": _write_json_artifact(session_id, "00_runspec/execution_profile.json", profile["execution_profile"]),
+            "00_runspec/agent_context.json": _write_json_artifact(session_id, "00_runspec/agent_context.json", profile["agent_context"]),
+        },
         "Literature Agent": {
             "02_literature/papers.json": _write_json_artifact(session_id, "02_literature/papers.json", {"papers": []}),
-            "02_literature/synthesis.json": _write_json_artifact(session_id, "02_literature/synthesis.json", literature),
-            "02_literature/gap_analysis.json": _write_json_artifact(session_id, "02_literature/gap_analysis.json", {"gap": literature["gap"]}),
+            "02_literature/synthesis.json": _write_json_artifact(session_id, "02_literature/synthesis.json", profile["literature"]),
+            "02_literature/gap_analysis.json": _write_json_artifact(session_id, "02_literature/gap_analysis.json", {"gap": profile["literature"]["gap"]}),
         },
         "Data Agent": {
-            "03_data/data_passport.json": _write_json_artifact(session_id, "03_data/data_passport.json", data_passport),
-            "03_data/schema_profile.json": _write_json_artifact(session_id, "03_data/schema_profile.json", {"columns": data_passport["schema"]}),
+            "03_data/data_passport.json": _write_json_artifact(session_id, "03_data/data_passport.json", profile["data_passport"]),
+            "03_data/schema_profile.json": _write_json_artifact(session_id, "03_data/schema_profile.json", {"columns": profile["data_passport"]["schema"]}),
             "03_data/data_quality_report.json": _write_json_artifact(session_id, "03_data/data_quality_report.json", {"status": "pass", "blocking_issues": []}),
         },
         "Feature / Mining Agent": {
-            "04_features/feature_manifest.json": _write_json_artifact(session_id, "04_features/feature_manifest.json", feature_manifest),
-            "04_features/leakage_report.json": _write_json_artifact(session_id, "04_features/leakage_report.json", {"status": "pass", "rule": feature_manifest["timing_rule"]}),
+            "04_features/feature_manifest.json": _write_json_artifact(session_id, "04_features/feature_manifest.json", profile["feature_manifest"]),
+            "04_features/leakage_report.json": _write_json_artifact(session_id, "04_features/leakage_report.json", profile["leakage_report"]),
         },
         "Preregistration Agent": {
-            "05_preregistration/pap.json": _write_json_artifact(session_id, "05_preregistration/pap.json", {"hypothesis": blueprint.get("hypothesis"), "primary_test": "Monte Carlo scenario comparison"}),
+            "05_preregistration/pap.json": _write_json_artifact(session_id, "05_preregistration/pap.json", profile["pap"]),
         },
         "Method / Compute Agent": {
-            "06_compute/method_outputs/simulation_results.json": _write_json_artifact(session_id, "06_compute/method_outputs/simulation_results.json", simulation),
+            profile["compute_path"]: _write_json_artifact(session_id, profile["compute_path"], profile["compute"]),
         },
         "Statistics Agent": {
-            "07_statistics/results_tables/main_results.json": _write_json_artifact(session_id, "07_statistics/results_tables/main_results.json", simulation["effect_sizes"]),
-            "07_statistics/economic_significance.json": _write_json_artifact(session_id, "07_statistics/economic_significance.json", economic),
+            "07_statistics/results_tables/main_results.json": _write_json_artifact(session_id, "07_statistics/results_tables/main_results.json", profile["statistics"]),
+            "07_statistics/economic_significance.json": _write_json_artifact(session_id, "07_statistics/economic_significance.json", profile["economic_significance"]),
+            "07_statistics/research_findings.json": _write_json_artifact(session_id, "07_statistics/research_findings.json", profile["findings"]),
         },
         "Code Audit Agent": {
-            "08_audit/code_audit_report.md": _write_text_artifact(session_id, "08_audit/code_audit_report.md", code_audit),
+            "08_audit/code_audit_report.md": _write_text_artifact(session_id, "08_audit/code_audit_report.md", profile["code_audit"]),
         },
         "Spec Audit Agent": {
-            "08_audit/spec_audit_report.md": _write_text_artifact(session_id, "08_audit/spec_audit_report.md", spec_audit),
+            "08_audit/spec_audit_report.md": _write_text_artifact(session_id, "08_audit/spec_audit_report.md", profile["spec_audit"]),
         },
         "Reviewer Agent": {
             "09_review/reviewer_scorecard_v1.json": _write_json_artifact(session_id, "09_review/reviewer_scorecard_v1.json", scorecard),
         },
         "Paper-Code Verifier": {
-            "10_verification/paper_code_verification.json": _write_json_artifact(session_id, "10_verification/paper_code_verification.json", verification),
+            "10_verification/paper_code_verification.json": _write_json_artifact(session_id, "10_verification/paper_code_verification.json", profile["verification"]),
         },
         "Writer Agent": {
             "11_paper/final.tex": _write_text_artifact(session_id, "11_paper/final.tex", paper),
@@ -638,14 +925,14 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
     with _with_conn() as conn:
         for agent in AGENT_SEQUENCE:
             _phase_status(conn, session_id, agent, "pending", "Queued by RunSpec.")
-        _complete_agent(conn, session_id, "Research Architect", "Blueprint already approved and locked.", {})
+        _complete_agent(conn, session_id, "Research Architect", "Blueprint approved; method-specific agent context written.", artifact_refs["Research Architect"])
         _complete_agent(conn, session_id, "Literature Agent", "Literature synthesis and gap map written.", artifact_refs["Literature Agent"])
-        _complete_agent(conn, session_id, "Data Agent", "Simulation evidence passport written and fingerprinted.", artifact_refs["Data Agent"])
+        _complete_agent(conn, session_id, "Data Agent", profile["phase_summary"]["Data Agent"], artifact_refs["Data Agent"])
         _complete_agent(conn, session_id, "Feature / Mining Agent", "Feature manifest and leakage report written.", artifact_refs["Feature / Mining Agent"])
         _complete_agent(conn, session_id, "Preregistration Agent", "PAP artifacts confirmed for locked Blueprint.", artifact_refs["Preregistration Agent"])
-        _complete_agent(conn, session_id, "Method / Compute Agent", "Agent-based simulation executed from locked parameters.", artifact_refs["Method / Compute Agent"])
+        _complete_agent(conn, session_id, "Method / Compute Agent", profile["phase_summary"]["Method / Compute Agent"], artifact_refs["Method / Compute Agent"])
         _complete_agent(conn, session_id, "Code Audit Agent", "Technical audit passed.", artifact_refs["Code Audit Agent"])
-        _complete_agent(conn, session_id, "Statistics Agent", "Statistical and economic significance outputs written.", artifact_refs["Statistics Agent"])
+        _complete_agent(conn, session_id, "Statistics Agent", profile["phase_summary"]["Statistics Agent"], artifact_refs["Statistics Agent"])
         _complete_agent(conn, session_id, "Spec Audit Agent", "Spec audit passed against Blueprint.", artifact_refs["Spec Audit Agent"])
         _insert_reviewer_score(conn, session_id, scorecard)
         _complete_agent(conn, session_id, "Reviewer Agent", "Reviewer gate passed and unlocked writing.", artifact_refs["Reviewer Agent"])

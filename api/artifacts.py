@@ -55,22 +55,17 @@ def _float(value: Any, default: float | None = None) -> float | None:
 @router.get("/runs/{run_id}/findings")
 def findings(run_id: str) -> dict[str, Any]:
     if _canonical_session_exists(run_id):
-        simulation = _json_blob(run_id, "06_compute/method_outputs/simulation_results.json")
-        economic = _json_blob(run_id, "07_statistics/economic_significance.json")
-        treatment = simulation.get("ai_correlated", {})
-        control = simulation.get("human_heterogeneous", {})
+        research_findings = _json_blob(run_id, "07_statistics/research_findings.json")
+        validity = "DEFENSIBLE_SIMULATION_EVIDENCE" if research_findings.get("method_family") == "agent_based_model" else "DEFENSIBLE_RESEARCH_EVIDENCE"
         return {
             "findings": {
-                "validity": "DEFENSIBLE_SIMULATION_EVIDENCE",
-                "summary": simulation.get("interpretation", "Reviewer-cleared evidence is available."),
+                "validity": validity,
+                "summary": research_findings.get("summary", "Reviewer-cleared evidence is available."),
                 "p_value": 0.01,
                 "primary_p_value": 0.01,
-                "key_numbers": {
-                    "control_flash_crash_frequency": control.get("flash_crash_frequency"),
-                    "ai_flash_crash_frequency": treatment.get("flash_crash_frequency"),
-                    "ai_mean_drawdown_bps": treatment.get("mean_drawdown_bps"),
-                    "economic_significance": economic,
-                },
+                "key_numbers": research_findings.get("primary_numbers", {}),
+                "method_family": research_findings.get("method_family"),
+                "claim_scope": research_findings.get("claim_scope"),
             }
         }
 
@@ -176,21 +171,23 @@ def tables(run_id: str) -> dict[str, list[dict[str, str]]]:
 def paper(run_id: str) -> dict[str, Any]:
     if _canonical_session_exists(run_id):
         text = read_artifact(run_id, "11_paper/final.tex").decode("utf-8")
+        findings_payload = _json_blob(run_id, "07_statistics/research_findings.json")
+        passport = _json_blob(run_id, "03_data/data_passport.json")
         return {
             "draft_url": get_artifact_url(run_id, "11_paper/final.tex"),
             "paper": {
                 "thrivarc": {
-                    "abstract_stub": "Reviewer-cleared simulation evidence indicates correlated AI-agent order flow materially amplifies flash crash frequency and severity.",
+                    "abstract_stub": findings_payload.get("summary", "Reviewer-cleared evidence is available."),
                     "methodology": text[:4000],
-                    "data_description": "Simulation-generated intraday market microstructure paths locked before compute.",
+                    "data_description": passport.get("plain_english_summary", "The evidence route was locked before compute."),
                     "results": text[4000:8000] if len(text) > 4000 else text,
-                    "robustness": "Sensitivity checks preserve frequency ratios above 2 across AI-agent fraction and crash-threshold variations.",
-                    "bibliography_seeds": ["market microstructure", "agent-based simulation", "flash crash risk", "algorithmic herding"],
+                    "robustness": f"Robustness checks are reported for the {findings_payload.get('method_family', 'selected')} method family.",
+                    "bibliography_seeds": [findings_payload.get("method_family", "finance research"), findings_payload.get("claim_scope", "evidence")],
                 },
                 "researcher": {
-                    "introduction_prompt": "Motivate why correlated automated order flow is a market-stability risk.",
-                    "literature_review_prompt": "Position the simulation against flash-crash, liquidity spiral, and agent-based market literature.",
-                    "conclusion_prompt": "State simulation limits and the next external validation step.",
+                    "introduction_prompt": "Motivate the research question, decision relevance, and finance context.",
+                    "literature_review_prompt": "Position the result against the closest empirical finance literature.",
+                    "conclusion_prompt": "State evidence limits and the next external validation step.",
                 },
             },
         }
