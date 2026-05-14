@@ -5,60 +5,467 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Thrivarc AI - Research Studio</title>
   <style>
-    :root{--bg:#f3efe6;--surface:#fffdf8;--line:#d8d0c2;--text:#16202b;--muted:#5d6775;--brand:#145f52;--brand-soft:#eef7f4;--ok:#1f8a5b;--warn:#d88645;--bad:#d64f4f;--rad:16px;--shadow:0 16px 44px rgba(22,32,43,.08)}
-    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at top left, rgba(216,134,69,.10), transparent 24%), radial-gradient(circle at top right, rgba(20,95,82,.10), transparent 30%), var(--bg);color:var(--text);font-family:"Avenir Next","Segoe UI","Helvetica Neue",sans-serif}
-    .nav{position:sticky;top:0;z-index:30;background:rgba(243,239,230,.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(216,208,194,.95)} .navin{max-width:1180px;margin:auto;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
-    .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:inherit} .brand-mark{width:34px;height:34px;border-radius:12px;background:linear-gradient(135deg,#145f52,#d88645);display:grid;place-items:center;color:#fff;font-size:14px;box-shadow:0 10px 24px rgba(20,95,82,.25)} .badge{border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);font-size:12px;cursor:pointer;background:rgba(255,255,255,.65)}
-    .wrap{max-width:1180px;margin:auto;padding:18px}.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--rad);padding:18px;box-shadow:var(--shadow)}
-    .row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.btn{background:#fff;border:1px solid var(--line);color:var(--text);padding:10px 14px;border-radius:999px;cursor:pointer;font-weight:600}
-    .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn:disabled{opacity:.5}.muted{color:var(--muted)}
-    .hero{background:linear-gradient(180deg, rgba(20,95,82,.08), rgba(20,95,82,.02));border-color:#bdd5ce}
-    .proposal{background:#fcfaf4;border:1px solid #ddd4c7}
-    .kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-    .kpi .card{padding:10px}
-    .chip{display:inline-block;padding:4px 9px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:rgba(255,255,255,.7)}
-    a{color:inherit;text-decoration:none}.grid{display:grid;gap:12px}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
-    input,textarea,select{width:100%;background:#fff;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px} textarea{min-height:110px}
-    table{width:100%;border-collapse:collapse} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-    .timeline{display:grid;gap:10px}.step{border-left:2px solid var(--line);padding-left:10px}.pill{padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px}
-    .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)} .hidden{display:none}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap}.tab{padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer}.tab.active{border-color:var(--brand)}
-    .toast{position:fixed;right:16px;bottom:16px;background:var(--surface);border:1px solid var(--line);padding:10px;border-radius:12px;box-shadow:var(--shadow)}
-    .replay{height:8px;background:#ede6d8;border:1px solid var(--line);border-radius:999px;overflow:hidden}.replay > span{display:block;height:100%;width:0;background:var(--brand)}
-    .status-dot{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:6px;vertical-align:middle}
-    .choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .choice-card{padding:16px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(238,247,244,.75));cursor:pointer;transition:transform .18s ease, box-shadow .18s ease,border-color .18s ease}
-    .choice-card:hover,.choice-card.active{transform:translateY(-2px);box-shadow:0 14px 30px rgba(22,32,43,.08);border-color:#9cc4ba}
-    .story-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
-    .signal-list{display:grid;gap:10px}
-    .signal-item{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;background:rgba(255,255,255,.68);border:1px solid rgba(216,208,194,.8)}
-    .signal-icon{width:32px;height:32px;border-radius:10px;background:var(--brand-soft);display:grid;place-items:center;color:var(--brand);font-weight:700;flex:0 0 32px}
-    .editorial-hero{padding:24px;border-radius:24px;background:linear-gradient(135deg,rgba(20,95,82,.14),rgba(255,253,248,.96) 45%,rgba(216,134,69,.14));border:1px solid #bdd5ce;position:relative;overflow:hidden}
-    .editorial-hero:after{content:"";position:absolute;right:-42px;bottom:-82px;width:220px;height:220px;background:radial-gradient(circle,rgba(216,134,69,.22),transparent 68%);pointer-events:none}
-    .hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:stretch}
-    .kicker{margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.16em;color:var(--brand);font-size:11px;font-weight:800}
-    .hero-title{margin:0 0 12px 0;font-size:clamp(2rem,4vw,3.15rem);line-height:1.02;max-width:10ch}
-    .hero-copy{max-width:62ch;color:var(--muted);font-size:15px;line-height:1.6}
-    .callout-band{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 8px}
-    .callout-band .chip{background:rgba(20,95,82,.08);border-color:rgba(20,95,82,.18)}
-    .stage-track{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:18px}
-    .stage-node{padding:12px;border-radius:16px;background:rgba(255,255,255,.75);border:1px solid rgba(20,95,82,.12);min-height:96px}
-    .stage-node strong{display:block;margin-bottom:6px;font-size:13px}
-    .insight-grid{display:grid;gap:10px}
-    .insight-card{padding:14px;border-radius:18px;background:rgba(255,253,248,.82);border:1px solid rgba(216,208,194,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
-    .stat-em{display:block;font-size:28px;font-weight:700;line-height:1;color:var(--brand);margin-bottom:6px}
-    .workbench-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:14px}
-    .question-canvas{position:relative;background:linear-gradient(180deg,#fffdf8,rgba(252,250,244,.96));border:1px solid #ddd4c7;border-radius:24px;padding:22px;overflow:hidden}
-    .question-canvas:before{content:"";position:absolute;left:0;top:0;width:180px;height:180px;background:radial-gradient(circle at top left,rgba(20,95,82,.12),transparent 70%);pointer-events:none}
-    .question-canvas > *{position:relative}
-    .aside-stack{display:grid;gap:12px}
-    .note-card{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(238,247,244,.65));border:1px solid #c5dbd4}
+    :root {
+      --bg: #f3efe6;
+      --surface: #fffdf8;
+      --surface-soft: #f8f1e4;
+      --surface-deep: #ede1cc;
+      --ink: #16202b;
+      --muted: #5d6775;
+      --line: #d8d0c2;
+      --brand: #145f52;
+      --brand-light: #eef7f4;
+      --brand-soft: #eef7f4;
+      --brand-2: #d88645;
+      --brand-3: #10272d;
+      --ok: #1f8a5b;
+      --ok-bg: #eef7f4;
+      --warn: #d88645;
+      --warn-bg: #fef5ec;
+      --bad: #d64f4f;
+      --bad-bg: #fef0f0;
+      --rad: 16px;
+      --shadow: 0 16px 44px rgba(22,32,43,.08);
+      --shadow-sm: 0 4px 12px rgba(22,32,43,.06);
+      --shadow-md: 0 12px 32px rgba(22,32,43,.08);
+      --shadow-lg: 0 24px 64px rgba(22,32,43,.10);
+      --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 10% 0%, rgba(216, 134, 69, 0.04), transparent 30%),
+                  radial-gradient(circle at 90% 0%, rgba(20, 95, 82, 0.04), transparent 30%),
+                  var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(243, 239, 230, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(216, 208, 194, 0.6);
+      transition: all 0.3s ease;
+    }
+    .navin {
+      max-width: 1200px; margin: auto; padding: 16px 24px;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; letter-spacing: -0.01em; color: inherit; text-decoration: none; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--brand), #0a3a24);
+      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 16px;
+      box-shadow: 0 8px 24px rgba(15, 81, 50, 0.25);
+    }
+    .badge {
+      border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px;
+      color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer;
+      background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+    }
+    .badge:hover { background: #fff; border-color: #cbd5e1; }
+
+    .wrap { max-width: 1200px; margin: auto; padding: 24px; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--rad);
+      padding: 24px; box-shadow: var(--shadow-sm);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover { box-shadow: var(--shadow-md); }
+
+    .row { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 20px; border-radius: 999px;
+      border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+      font-weight: 600; font-size: 14px; cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn:hover:not(:disabled) { background: var(--surface-soft); border-color: var(--line); transform: translateY(-1px); }
+    .btn.primary {
+      background: linear-gradient(135deg, var(--brand), #0c4a3d);
+      border: none; color: #fff;
+      box-shadow: 0 8px 24px rgba(20, 95, 82, 0.2);
+    }
+    .btn.primary:hover:not(:disabled) {
+      box-shadow: 0 12px 32px rgba(20, 95, 82, 0.3);
+      transform: translateY(-2px);
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .muted { color: var(--muted); }
+
+    .hero { background: linear-gradient(160deg, rgba(15, 81, 50, 0.03), rgba(198, 106, 38, 0.05)); border: 1px solid rgba(15, 81, 50, 0.08); }
+    .proposal { background: #fcfaf4; border: 1px solid #ddd4c7; }
+
+    .kpi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .kpi .card { padding: 16px; text-align: center; }
+
+    .chip {
+      display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px;
+      border: 1px solid var(--line); font-size: 13px; font-weight: 500;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    a { color: inherit; text-decoration: none; transition: color 0.2s ease; }
+    .grid { display: grid; gap: 16px; }
+    .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    input, textarea, select {
+      width: 100%; background: #fff; color: var(--ink);
+      border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px;
+      font-family: inherit; font-size: 14px; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      margin-top: 6px; margin-bottom: 12px;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(15, 81, 50, 0.1);
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    label { font-weight: 600; font-size: 14px; color: var(--ink); display: block; }
+
+    /* Structured Data Tables */
+    .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--line); background: #fff; margin-top: 12px; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { background: var(--surface-soft); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background 0.15s ease; }
+    tbody tr:hover { background: rgba(15, 81, 50, 0.02); }
+
+    .timeline { display: grid; gap: 16px; }
+    .step {
+      border-left: 2px solid var(--line); padding-left: 16px; position: relative;
+    }
+    .step::before {
+      content: ''; position: absolute; left: -5px; top: 6px; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--line);
+    }
+    .step[data-state="running"] { border-left-color: var(--warn); }
+    .step[data-state="running"]::before { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-bg); }
+    .step[data-state="done"] { border-left-color: var(--ok); }
+    .step[data-state="done"]::before { background: var(--ok); }
+
+    .pill { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .ok { color: var(--ok); background: var(--ok-bg); border-color: rgba(21, 109, 79, 0.2); }
+    .warn { color: var(--warn); background: var(--warn-bg); border-color: rgba(160, 72, 36, 0.2); }
+    .bad { color: var(--bad); background: var(--bad-bg); border-color: rgba(217, 56, 38, 0.2); }
+    .hidden { display: none !important; }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tab {
+      padding: 8px 16px; border: 1px solid var(--line); border-radius: 999px;
+      cursor: pointer; font-size: 14px; font-weight: 500; background: var(--surface);
+      transition: all 0.2s ease;
+    }
+    .tab:hover { background: var(--surface-soft); }
+    .tab.active { border-color: var(--brand); color: var(--brand); background: var(--brand-light); font-weight: 600; }
+
+    .toast {
+      position: fixed; right: 24px; bottom: 24px; background: var(--surface);
+      border: 1px solid var(--line); padding: 16px 20px; border-radius: 12px;
+      box-shadow: var(--shadow-lg); font-weight: 500; font-size: 14px;
+      animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes slideIn { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .replay { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+    .replay > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), #22c55e); transition: width 0.3s ease; }
+
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+
+    .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .choice-card {
+      padding: 24px; border: 1px solid var(--line); border-radius: 16px;
+      background: var(--surface); cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .choice-card:hover, .choice-card.active {
+      transform: translateY(-4px); box-shadow: var(--shadow-md);
+      border-color: var(--brand); background: var(--brand-light);
+    }
+
+    .story-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+    .signal-list { display: grid; gap: 12px; }
+    .signal-item {
+      display: flex; gap: 16px; align-items: flex-start; padding: 16px;
+      border-radius: 12px; background: var(--surface-soft); border: 1px solid var(--line);
+      transition: transform 0.2s ease;
+    }
+    .signal-item:hover { transform: translateX(4px); background: #fff; }
+    .signal-icon {
+      width: 40px; height: 40px; border-radius: 10px; background: var(--brand-light);
+      display: grid; place-items: center; color: var(--brand); font-weight: 700; flex: 0 0 40px;
+    }
+
+    .editorial-hero {
+      padding: 32px; border-radius: 20px;
+      background: linear-gradient(135deg, rgba(15, 81, 50, 0.05), rgba(255, 255, 255, 0.9) 40%, rgba(198, 106, 38, 0.05));
+      border: 1px solid rgba(15, 81, 50, 0.1); position: relative; overflow: hidden;
+    }
+    .editorial-hero:after {
+      content: ""; position: absolute; right: -50px; bottom: -50px; width: 250px; height: 250px;
+      background: radial-gradient(circle, rgba(198, 106, 38, 0.1), transparent 60%); pointer-events: none;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr);
+      gap: 28px;
+      align-items: start;
+    }
+    .kicker { margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.15em; color: var(--brand); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+    .hero-title { margin: 0 0 16px 0; font-size: clamp(2rem, 3.5vw, 2.75rem); line-height: 1.1; font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif; letter-spacing: -0.02em; }
+    .hero-copy { color: var(--muted); font-size: 16px; line-height: 1.6; max-width: 65ch; }
+
+    .callout-band { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0 12px; }
+    .callout-band .chip { background: var(--brand-light); border-color: rgba(15, 81, 50, 0.2); color: var(--brand); font-weight: 600; }
+
+    .stage-track {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 6px;
+      padding: 12px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(248,241,228,.92));
+      border: 1px solid rgba(20, 95, 82, 0.12);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.82), var(--shadow-sm);
+      counter-reset: stage;
+    }
+    .stage-node {
+      position: relative;
+      min-height: 156px;
+      padding: 18px 16px 18px 18px;
+      border-radius: 16px;
+      background: rgba(255, 253, 248, 0.94);
+      border: 1px solid rgba(20, 95, 82, 0.13);
+      box-shadow: 0 10px 24px rgba(22,32,43,.05);
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      overflow: hidden;
+    }
+    .stage-node::before {
+      counter-increment: stage;
+      content: "0" counter(stage);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 18px;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      box-shadow: 0 10px 24px rgba(20,95,82,.20);
+    }
+    .stage-node::after {
+      content: "";
+      position: absolute;
+      inset: auto 14px 14px auto;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(216,134,69,.13), transparent 64%);
+      pointer-events: none;
+    }
+    .stage-node:hover {
+      transform: translateY(-3px);
+      border-color: rgba(20,95,82,.26);
+      box-shadow: 0 18px 36px rgba(22,32,43,.08);
+    }
+    .stage-node strong { display: block; margin-bottom: 8px; font-size: 16px; color: var(--brand-3); }
+    .stage-node .mini { line-height: 1.55; }
+
+    .insight-grid { display: grid; gap: 12px; align-content: start; }
+    .insight-card {
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(248,241,228,.74);
+      border: 1px solid rgba(216,208,194,.95);
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.8);
+    }
+    .hero-insights .insight-card:first-child {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      column-gap: 18px;
+      align-items: center;
+      background: linear-gradient(135deg, rgba(20,95,82,.09), rgba(248,241,228,.78));
+      border-color: rgba(20,95,82,.18);
+    }
+    .hero-insights .insight-card:first-child .kicker { grid-column: 1 / -1; }
+    .stat-em { display: block; font-size: 32px; font-weight: 700; font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif; color: var(--brand); margin-bottom: 8px; }
+    .hero-insights .stat-em { font-size: 54px; line-height: .9; margin: 2px 0 0; }
+
+    .workbench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .question-canvas {
+      position: relative; background: linear-gradient(180deg, #ffffff, #fcfbf8);
+      border: 1px solid var(--line); border-radius: 20px; padding: 32px; overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .question-canvas:before {
+      content: ""; position: absolute; left: 0; top: 0; width: 250px; height: 250px;
+      background: radial-gradient(circle at top left, rgba(15, 81, 50, 0.08), transparent 70%); pointer-events: none;
+    }
+    .question-canvas > * { position: relative; z-index: 1; }
+
+    .aside-stack { display: grid; gap: 16px; }
+    .note-card { background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(238, 247, 244, 0.5)); border: 1px solid rgba(15, 81, 50, 0.15); }
+
     #api-offline-banner { display: none; }
-    #api-offline-banner:not([hidden]) { display: block; }
-    #api-status-dot[data-status="online"]   { background: #22c55e; }
+    #api-offline-banner:not([hidden]) { display: block; background: var(--bad-bg); color: var(--bad); border-color: rgba(217, 56, 38, 0.2); }
+    #api-status-dot[data-status="online"]   { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
     #api-status-dot[data-status="checking"] { background: #f59e0b; }
-    #api-status-dot[data-status="offline"]  { background: #ef4444; }
-    @media (max-width:920px){.g4,.g2,.choice-grid,.story-grid,.hero-grid,.workbench-grid,.stage-track{grid-template-columns:1fr}}
+    #api-status-dot[data-status="offline"]  { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+
+    /* ── SVG Icon System ── */
+    .icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: 0 0 20px; }
+    .icon svg { width: 100%; height: 100%; }
+    .icon-sm { width: 16px; height: 16px; flex: 0 0 16px; }
+    .icon-lg { width: 28px; height: 28px; flex: 0 0 28px; }
+    .icon-xl { width: 36px; height: 36px; flex: 0 0 36px; }
+
+    /* ── Enhanced Phase Tracker ── */
+    .phase-tracker { display: grid; gap: 0; position: relative; }
+    .phase-step {
+      display: grid; grid-template-columns: 40px 1fr; gap: 0; position: relative;
+    }
+    .phase-rail {
+      display: flex; flex-direction: column; align-items: center; position: relative;
+    }
+    .phase-dot {
+      width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--line);
+      background: var(--surface); z-index: 2; margin-top: 4px; flex: 0 0 14px;
+      transition: all 0.3s ease;
+    }
+    .phase-line {
+      width: 2px; flex: 1; background: var(--line); margin-top: 2px;
+      transition: background 0.3s ease;
+    }
+    .phase-step:last-child .phase-line { display: none; }
+    .phase-body {
+      padding: 0 0 24px 8px;
+    }
+    .phase-head {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+    }
+    .phase-head strong { font-size: 15px; }
+    .phase-hook { font-size: 13px; color: var(--muted); margin-top: 4px; padding: 8px 12px; border-radius: 8px; background: var(--surface-soft); border: 1px solid var(--line); }
+    .phase-detail { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    /* State: done */
+    .phase-step[data-phase-state="done"] .phase-dot {
+      background: var(--ok); border-color: var(--ok);
+      box-shadow: 0 0 0 4px var(--ok-bg);
+    }
+    .phase-step[data-phase-state="done"] .phase-line { background: var(--ok); }
+
+    /* State: running */
+    .phase-step[data-phase-state="running"] .phase-dot {
+      background: var(--warn); border-color: var(--warn);
+      box-shadow: 0 0 0 4px var(--warn-bg);
+      animation: phasePulse 1.5s ease-in-out infinite;
+    }
+    .phase-step[data-phase-state="running"] .phase-line { background: linear-gradient(180deg, var(--warn), var(--line)); }
+    @keyframes phasePulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--warn-bg); }
+      50% { box-shadow: 0 0 0 8px rgba(160, 72, 36, 0.1); }
+    }
+
+    /* State: failed */
+    .phase-step[data-phase-state="failed"] .phase-dot {
+      background: var(--bad); border-color: var(--bad);
+      box-shadow: 0 0 0 4px var(--bad-bg);
+    }
+
+    /* ── Reviewer Gate Scorecard ── */
+    .gate-card {
+      border-radius: 16px; overflow: hidden; border: 1px solid rgba(160, 72, 36, 0.2);
+      background: var(--surface); margin-bottom: 16px;
+    }
+    .gate-header {
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(198, 106, 38, 0.08), rgba(15, 81, 50, 0.04));
+      border-bottom: 1px solid rgba(160, 72, 36, 0.12);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .gate-header .icon { color: var(--brand-2); }
+    .gate-header h4 { margin: 0; font-size: 18px; }
+    .gate-body { padding: 20px 24px; }
+    .gate-thresholds {
+      display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 16px;
+      padding: 16px; border-radius: 10px; background: var(--surface-soft); border: 1px solid var(--line);
+    }
+    .gate-threshold { display: flex; flex-direction: column; gap: 2px; }
+    .gate-threshold-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+    .gate-threshold-value { font-size: 22px; font-weight: 700; color: var(--brand); }
+    .gate-dims { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .gate-dim {
+      padding: 14px; border-radius: 10px; background: var(--surface-soft); border: 1px solid var(--line);
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .gate-dim strong { font-size: 14px; }
+    .gate-dim .mini { font-size: 12px; }
+    .gate-bands { margin-top: 16px; }
+    .gate-band-row {
+      display: grid; grid-template-columns: 100px 1fr 1fr; gap: 12px; padding: 10px 0;
+      border-bottom: 1px solid var(--line); font-size: 13px; align-items: center;
+    }
+    .gate-band-row:last-child { border-bottom: none; }
+    .gate-band-range { font-weight: 700; }
+    .gate-rules { margin-top: 16px; display: grid; gap: 8px; }
+    .gate-rule { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+    .gate-rule .icon { color: var(--brand); margin-top: 2px; }
+
+    /* ── Blueprint Document Layout ── */
+    .blueprint-doc {
+      border-radius: 20px; overflow: hidden; border: 1px solid var(--line);
+      background: var(--surface); margin-bottom: 16px;
+    }
+    .blueprint-header {
+      padding: 28px 32px;
+      background: linear-gradient(135deg, rgba(15, 81, 50, 0.06), rgba(255, 255, 255, 0.9) 50%, rgba(198, 106, 38, 0.04));
+      border-bottom: 1px solid var(--line);
+    }
+    .blueprint-header .kicker { margin-bottom: 8px; }
+    .blueprint-header h3 { font-size: 24px; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .blueprint-header p { color: var(--muted); font-size: 15px; margin: 0; max-width: 70ch; line-height: 1.6; }
+    .blueprint-body { padding: 24px 32px; }
+    .blueprint-section { margin-bottom: 24px; }
+    .blueprint-section-title {
+      font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--brand);
+      font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .blueprint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .blueprint-field {
+      padding: 16px; border-radius: 12px; background: var(--surface-soft);
+      border: 1px solid var(--line); transition: transform 0.2s ease;
+    }
+    .blueprint-field:hover { transform: translateY(-2px); }
+    .blueprint-field-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .blueprint-field-value { font-size: 15px; font-weight: 600; color: var(--ink); }
+    .blueprint-field-note { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+    .blueprint-footer {
+      padding: 20px 32px; border-top: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+
+    @media (max-width: 980px) {
+      .g4, .g3, .g2, .choice-grid, .story-grid, .hero-grid, .workbench-grid, .stage-track { grid-template-columns: 1fr; }
+      .stage-node { min-height: auto; }
+    }
   </style>
 </head>
 <body>
@@ -195,6 +602,47 @@ function translateLog(rawLine){
 }
 function qs(s){return document.querySelector(s)}
 function esc(s){return (s??'').toString().replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function jsonToTable(data) {
+  if (!data) return '';
+  if (Array.isArray(data) && data.length > 0) {
+    if (typeof data[0] !== 'object' || data[0] === null) {
+      return `<div class="table-wrap"><table><tbody>${data.map(item => `<tr><td>${esc(String(item))}</td></tr>`).join('')}</tbody></table></div>`;
+    }
+    const keys = Object.keys(data[0]);
+    return `<div class="table-wrap"><table><thead><tr>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead><tbody>${data.map(row=>`<tr>${keys.map(k=>`<td>${esc(String(row[k] ?? ''))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    return `<div class="table-wrap"><table><tbody>${Object.entries(data).map(([k,v])=>`<tr><th>${esc(k)}</th><td>${esc(String(v ?? ''))}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  return `<pre>${esc(JSON.stringify(data, null, 2))}</pre>`;
+}
+const SVG_ICONS = {
+  check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>',
+  running: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3v4l3 2"/><circle cx="10" cy="10" r="7"/></svg>',
+  waiting: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="1" fill="currentColor"/></svg>',
+  failed: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l8 8M14 6l-8 8"/></svg>',
+  shield: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2l6 3v5c0 4-3 6.5-6 8-3-1.5-6-4-6-8V5l6-3z"/><path d="M7 10l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  gate: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="8" width="14" height="9" rx="2"/><path d="M6 8V5a4 4 0 018 0v3"/><circle cx="10" cy="13" r="1.5" fill="currentColor"/></svg>',
+  doc: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M12 3v4h4"/><path d="M7 10h6M7 13h4"/></svg>',
+  flask: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h4M9 2v5.5L4 16a1 1 0 001 1h10a1 1 0 001-1l-5-8.5V2"/></svg>',
+  chart: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17V10l4-3 4 5 6-9v14H3z"/></svg>',
+  eye: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/><circle cx="10" cy="10" r="3"/></svg>',
+  arrow: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M12 6l4 4-4 4"/></svg>',
+  warn: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 14v1"/></svg>',
+  lock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="9" width="12" height="8" rx="2"/><path d="M7 9V6a3 3 0 016 0v3"/></svg>',
+  search: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>',
+  data: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="10" cy="5" rx="7" ry="3"/><path d="M3 5v5c0 1.66 3.13 3 7 3s7-1.34 7-3V5"/><path d="M3 10v5c0 1.66 3.13 3 7 3s7-1.34 7-3v-5"/></svg>',
+  code: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7L2 10l4 3M14 7l4 3-4 3M8 16l4-12"/></svg>',
+  pen: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l5 5-10 10H2v-5L12 3z"/></svg>',
+};
+function svgIcon(name, cls) {
+  return `<span class="icon ${cls || ''}">${SVG_ICONS[name] || ''}</span>`;
+}
+const PHASE_ICONS = {
+  LITERATURE: 'search', DATAPULL: 'data', PREREGISTER: 'lock',
+  COMPUTE: 'flask', STATSRUN: 'chart', CODEAUDIT: 'code',
+  REVIEWER: 'shield', WRITER: 'pen'
+};
 function money(n){return `$${Number(n||0).toFixed(2)}`}
 function fmtDate(v){return v?new Date(v).toLocaleString():'—'}
 function toast(msg){ const d=document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2600); }
@@ -508,15 +956,8 @@ async function renderNew(){
             <span class="tab">Data preview</span>
             <span class="tab">Run</span>
           </div>
-          <div class="stage-track">
-            <div class="stage-node"><strong>Question</strong><div class="mini">State the problem in plain language instead of forcing a method first.</div></div>
-            <div class="stage-node"><strong>Blueprint</strong><div class="mini">Thrivarc decides stance, evidence route, method family, cadence treatment, and output intent.</div></div>
-            <div class="stage-node"><strong>Clarification</strong><div class="mini">Only the missing detail gets pressed, one sharper answer at a time.</div></div>
-            <div class="stage-node"><strong>Evidence</strong><div class="mini">Preview identifiers, dates, missingness, and fingerprint before anything runs.</div></div>
-            <div class="stage-node"><strong>Defense</strong><div class="mini">Reviewer pressure starts from the blueprint instead of appearing only at the end.</div></div>
-          </div>
         </div>
-        <div class="insight-grid">
+        <div class="insight-grid hero-insights">
           <div class="insight-card">
             <p class="kicker" style="margin-bottom:6px">What Thrivarc resolves before compute</p>
             <span class="stat-em">5</span>
@@ -530,6 +971,13 @@ async function renderNew(){
             <strong>Why the preview gate matters</strong>
             <div class="mini" style="margin-top:6px">The system should never compute on a dataset you have not seen for coverage, identifiers, timing, and schema reality.</div>
           </div>
+        </div>
+        <div class="stage-track">
+          <div class="stage-node"><strong>Question</strong><div class="mini">State the problem in plain language instead of forcing a method first.</div></div>
+          <div class="stage-node"><strong>Blueprint</strong><div class="mini">Thrivarc decides stance, evidence route, method family, cadence treatment, and output intent.</div></div>
+          <div class="stage-node"><strong>Clarification</strong><div class="mini">Only the missing detail gets pressed, one sharper answer at a time.</div></div>
+          <div class="stage-node"><strong>Evidence</strong><div class="mini">Preview identifiers, dates, missingness, and fingerprint before anything runs.</div></div>
+          <div class="stage-node"><strong>Defense</strong><div class="mini">Reviewer pressure starts from the blueprint instead of appearing only at the end.</div></div>
         </div>
       </div>
     </div>
@@ -1171,7 +1619,7 @@ function renderDataIntakeStage(){
             <p class="mini">Numeric columns: ${esc((schema.numeric_columns || []).slice(0,8).join(', ') || 'not detected')}</p>
           </div>
         </div>
-        <pre>${esc(JSON.stringify(p.sample_rows || [], null, 2))}</pre>
+        ${jsonToTable(p.sample_rows || [])}
       </div>
     `;
   });
@@ -1312,22 +1760,47 @@ function renderReviewerGate(gate){
   const bands = Array.isArray(gate.score_bands) ? gate.score_bands : [];
   const threshold = gate.paper_unlock_threshold || {};
   return `
-    <div class="card" style="margin-bottom:10px;border:1px solid rgba(160,72,36,.24);background:#fffaf4">
-      <div class="mini">Conditional paper gate</div>
-      <h4 style="margin:4px 0 6px 0">${esc(gate.name || 'Reviewer gate')}</h4>
-      <p class="mini">Paper writing is locked until the Reviewer scorecard clears: average ${esc(String(threshold.minimum_average ?? 7))}+ and no dimension below ${esc(String(threshold.minimum_dimension ?? 6))}. Max repair cycles per issue: ${esc(String(gate.max_repair_cycles_per_issue ?? 3))}.</p>
-      <div class="grid g2" style="margin-top:10px">
-        <div class="card" style="padding:12px">
-          <div class="mini">Reviewer rubric</div>
-          ${renderList(dims.map(d => `${d.label || d.key}: ${d.pass_rule || ''}`), 'Reviewer rubric will appear after validation.')}
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Score outcomes</div>
-          ${renderList(bands.map(b => `${b.range}: ${b.outcome} - ${b.researcher_view}`), 'Score bands will appear after validation.')}
+    <div class="gate-card">
+      <div class="gate-header">
+        ${svgIcon('gate', 'icon-lg')}
+        <div>
+          <div class="mini" style="opacity:0.7">Conditional paper gate</div>
+          <h4>${esc(gate.name || 'Reviewer gate')}</h4>
         </div>
       </div>
-      <p class="mini" style="margin-top:8px"><strong>Track rule:</strong> ${esc(gate.track_rule || 'Exploratory and confirmatory runs use different claim language.')}</p>
-      <p class="mini" style="margin-top:4px"><strong>Writer rule:</strong> ${esc(gate.writer_rule || 'Writer is last and never invents numbers.')}</p>
+      <div class="gate-body">
+        <div class="gate-thresholds">
+          <div class="gate-threshold">
+            <div class="gate-threshold-label">Min average</div>
+            <div class="gate-threshold-value">${esc(String(threshold.minimum_average ?? 7))}</div>
+          </div>
+          <div class="gate-threshold">
+            <div class="gate-threshold-label">Min dimension</div>
+            <div class="gate-threshold-value">${esc(String(threshold.minimum_dimension ?? 6))}</div>
+          </div>
+          <div class="gate-threshold">
+            <div class="gate-threshold-label">Max repair cycles</div>
+            <div class="gate-threshold-value">${esc(String(gate.max_repair_cycles_per_issue ?? 3))}</div>
+          </div>
+        </div>
+        ${dims.length ? `<div class="gate-dims">${dims.map(d => `
+          <div class="gate-dim">
+            <strong>${esc(d.label || d.key)}</strong>
+            <div class="mini">${esc(d.pass_rule || '')}</div>
+          </div>
+        `).join('')}</div>` : ''}
+        ${bands.length ? `<div class="gate-bands">${bands.map(b => `
+          <div class="gate-band-row">
+            <div class="gate-band-range">${esc(b.range)}</div>
+            <div>${esc(b.outcome)}</div>
+            <div class="muted">${esc(b.researcher_view)}</div>
+          </div>
+        `).join('')}</div>` : ''}
+        <div class="gate-rules">
+          <div class="gate-rule">${svgIcon('arrow','icon-sm')} <span><strong>Track rule:</strong> ${esc(gate.track_rule || 'Exploratory and confirmatory runs use different claim language.')}</span></div>
+          <div class="gate-rule">${svgIcon('pen','icon-sm')} <span><strong>Writer rule:</strong> ${esc(gate.writer_rule || 'Writer is last and never invents numbers.')}</span></div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -1421,74 +1894,92 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
     default_market_sampling:'Cadence is a default sampling choice'
   }[plannerSummary.cadence_role || 'default_market_sampling'];
   const plainSummary = `
-    <div class="card">
-      <h3>Thrivarc blueprint</h3>
-      <p class="muted">This is the formal research plan Thrivarc will execute if you approve the data. It explains the design in researcher language before any pipeline work starts.</p>
-      <div class="grid g2" style="margin-bottom:10px">
-        <div class="card" style="padding:12px">
-          <div class="mini">Research stance</div>
-          <strong>${esc(stateLabel)}</strong>
-          <div class="mini" style="margin-top:4px">${esc(plannerSummary.why_this_stance || (summary.state === 'confirmatory_pap' ? 'Thrivarc will lock the claim before analysis begins.' : 'Thrivarc will explore the pattern first and keep the language honest.'))}</div>
+    <div class="blueprint-doc">
+      <div class="blueprint-header">
+        <div class="kicker">${svgIcon('doc','icon-sm')} Research blueprint</div>
+        <h3>Thrivarc blueprint</h3>
+        <p>This is the formal research plan Thrivarc will execute if you approve the data. It explains the design in researcher language before any pipeline work starts.</p>
+      </div>
+      <div class="blueprint-body">
+        <div class="blueprint-section">
+          <div class="blueprint-section-title">${svgIcon('flask','icon-sm')} Research design</div>
+          <div class="blueprint-grid">
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Research stance</div>
+              <div class="blueprint-field-value">${esc(stateLabel)}</div>
+              <div class="blueprint-field-note">${esc(plannerSummary.why_this_stance || (summary.state === 'confirmatory_pap' ? 'Thrivarc will lock the claim before analysis begins.' : 'Thrivarc will explore the pattern first and keep the language honest.'))}</div>
         </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Evidence source</div>
-          <strong>${esc(summary.connector)}</strong>
-          <div class="mini" style="margin-top:4px">${esc(plannerSummary.why_this_evidence_route || 'This is the source Thrivarc expects to preview and fingerprint before launch.')}</div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Evidence source</div>
+              <div class="blueprint-field-value">${esc(summary.connector)}</div>
+              <div class="blueprint-field-note">${esc(plannerSummary.why_this_evidence_route || 'This is the source Thrivarc expects to preview and fingerprint before launch.')}</div>
         </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Method style</div>
-          <strong>${esc(plannerSummary.method_style || summary.method)}</strong>
-          <div class="mini" style="margin-top:4px">${esc(plannerSummary.why_this_method || (summary.method === 'none' ? 'No simulation or backtest is needed for this design.' : 'Thrivarc will only run this method if the data preview is approved.'))}</div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Method style</div>
+              <div class="blueprint-field-value">${esc(plannerSummary.method_style || summary.method)}</div>
+              <div class="blueprint-field-note">${esc(plannerSummary.why_this_method || (summary.method === 'none' ? 'No simulation or backtest is needed for this design.' : 'Thrivarc will only run this method if the data preview is approved.'))}</div>
         </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Validation plan</div>
-          <strong>${esc(summary.tests.slice(0,3).join(', ') || 'template-selected tests')}</strong>
-          <div class="mini" style="margin-top:4px">${esc(plannerSummary.reviewer_focus || 'Tests come from the research template, not a hardcoded universal battery.')}</div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Validation plan</div>
+              <div class="blueprint-field-value">${esc(summary.tests.slice(0,3).join(', ') || 'template-selected tests')}</div>
+              <div class="blueprint-field-note">${esc(plannerSummary.reviewer_focus || 'Tests come from the research template, not a hardcoded universal battery.')}</div>
+            </div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Cadence logic</div>
+              <div class="blueprint-field-value">${esc(cadenceRoleLabel)} · ${esc(plannerSummary.recommended_frequency || firstSpec?.datapull?.frequency || 'daily')}</div>
+              <div class="blueprint-field-note">${esc(plannerSummary.cadence_explanation || 'Cadence is inferred from the research design and can be treated as either a fixed choice or something the study should compare.')}</div>
+            </div>
+          </div>
         </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Cadence logic</div>
-          <strong>${esc(cadenceRoleLabel)} · ${esc(plannerSummary.recommended_frequency || firstSpec?.datapull?.frequency || 'daily')}</strong>
-          <div class="mini" style="margin-top:4px">${esc(plannerSummary.cadence_explanation || 'Cadence is inferred from the research design and can be treated as either a fixed choice or something the study should compare.')}</div>
+        <div class="blueprint-section">
+          <div class="blueprint-section-title">${svgIcon('eye','icon-sm')} Research strategy</div>
+          <div class="blueprint-grid">
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Decision problem</div>
+              <div class="blueprint-field-value">${esc(plannerSummary.decision_problem || 'Thrivarc is still inferring what decision this evidence is supposed to change.')}</div>
+              <div class="blueprint-field-note">This is the decision the run should sharpen for the eventual reader, investor, policy team, or referee.</div>
+            </div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Comparison set</div>
+              <div class="blueprint-field-value">${esc(plannerSummary.comparison_set || 'Thrivarc is still sharpening the benchmark or working universe.')}</div>
+              <div class="blueprint-field-note">A serious study needs a concrete comparison frame before evidence and claims can stay honest.</div>
+            </div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Burden of proof</div>
+              <div class="blueprint-field-value">${esc(plannerSummary.burden_of_proof || 'Thrivarc is still deciding which reviewer demands matter most for this run.')}</div>
+              <div class="blueprint-field-note">This is the first version of what the reviewer layer will push on before the study can feel defensible.</div>
+            </div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">If this finding holds</div>
+              <div class="blueprint-field-value">${esc(plannerSummary.if_true || 'Thrivarc is still deciding what decision or claim this study should ultimately move.')}</div>
+              <div class="blueprint-field-note">This keeps the study aimed at the decision or claim that actually matters if the evidence survives.</div>
+            </div>
+          </div>
         </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Decision problem</div>
-          <strong>${esc(plannerSummary.decision_problem || 'Thrivarc is still inferring what decision this evidence is supposed to change.')}</strong>
-          <div class="mini" style="margin-top:4px">This is the decision the run should sharpen for the eventual reader, investor, policy team, or referee.</div>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Comparison set</div>
-          <strong>${esc(plannerSummary.comparison_set || 'Thrivarc is still sharpening the benchmark or working universe.')}</strong>
-          <div class="mini" style="margin-top:4px">A serious study needs a concrete comparison frame before evidence and claims can stay honest.</div>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Burden of proof</div>
-          <strong>${esc(plannerSummary.burden_of_proof || 'Thrivarc is still deciding which reviewer demands matter most for this run.')}</strong>
-          <div class="mini" style="margin-top:4px">This is the first version of what the reviewer layer will push on before the study can feel defensible.</div>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">If this finding holds</div>
-          <strong>${esc(plannerSummary.if_true || 'Thrivarc is still deciding what decision or claim this study should ultimately move.')}</strong>
-          <div class="mini" style="margin-top:4px">This keeps the study aimed at the decision or claim that actually matters if the evidence survives.</div>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Evidence readiness</div>
-          <strong>${esc(plannerSummary.evidence_readiness || 'Thrivarc is still checking whether the evidence route is truly launch-ready.')}</strong>
-          <div class="mini" style="margin-top:4px">Preview gate discipline means the evidence has to be real before any compute is allowed to start.</div>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">What this run is aiming to produce</div>
-          <strong>${esc(firstSpec?.research?.output_format || 'research_report')}</strong>
-          <div class="mini" style="margin-top:4px">${esc(plannerSummary.output_plan || 'Thrivarc will target a research package first, then turn it into paper-ready output after the evidence holds.')}</div>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Universe hints Thrivarc picked up</div>
-          <strong>${esc((plannerSummary.inferred_identifiers || []).join(', ') || (firstSpec?.datapull?.symbols || []).join(', ') || 'Still needs to be sharpened')}</strong>
-          <div class="mini" style="margin-top:4px">Thrivarc now mines the brief itself for identifiers and benchmark hints so you do not have to fill every field manually.</div>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">Historical window Thrivarc inferred</div>
-          <strong>${esc(plannerSummary.inferred_window?.start || firstSpec?.datapull?.start_date || '2010-01-01')} → ${esc(plannerSummary.inferred_window?.end || firstSpec?.datapull?.end_date || '2024-12-31')}</strong>
-          <div class="mini" style="margin-top:4px">If your brief already names a regime or a time span, Thrivarc folds that into the blueprint instead of waiting for a separate date form.</div>
+        <div class="blueprint-section">
+          <div class="blueprint-section-title">${svgIcon('data','icon-sm')} Evidence & scope</div>
+          <div class="blueprint-grid">
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Evidence readiness</div>
+              <div class="blueprint-field-value">${esc(plannerSummary.evidence_readiness || 'Thrivarc is still checking whether the evidence route is truly launch-ready.')}</div>
+              <div class="blueprint-field-note">Preview gate discipline means the evidence has to be real before any compute is allowed to start.</div>
+            </div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Output target</div>
+              <div class="blueprint-field-value">${esc(firstSpec?.research?.output_format || 'research_report')}</div>
+              <div class="blueprint-field-note">${esc(plannerSummary.output_plan || 'Thrivarc will target a research package first, then turn it into paper-ready output after the evidence holds.')}</div>
+            </div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Universe hints</div>
+              <div class="blueprint-field-value">${esc((plannerSummary.inferred_identifiers || []).join(', ') || (firstSpec?.datapull?.symbols || []).join(', ') || 'Still needs to be sharpened')}</div>
+              <div class="blueprint-field-note">Thrivarc now mines the brief itself for identifiers and benchmark hints so you do not have to fill every field manually.</div>
+            </div>
+            <div class="blueprint-field">
+              <div class="blueprint-field-label">Historical window</div>
+              <div class="blueprint-field-value">${esc(plannerSummary.inferred_window?.start || firstSpec?.datapull?.start_date || '2010-01-01')} → ${esc(plannerSummary.inferred_window?.end || firstSpec?.datapull?.end_date || '2024-12-31')}</div>
+              <div class="blueprint-field-note">If your brief already names a regime or a time span, Thrivarc folds that into the blueprint instead of waiting for a separate date form.</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="grid g2" style="margin-bottom:10px">
@@ -1772,12 +2263,13 @@ async function renderResearch(id){
       const isTechnical = getConfig('mode') === 'technical';
       const stepLabel = isTechnical ? labels[i] || p : labels[i] || PHASE_HUMAN[p];
       const showHook = !isTechnical && s==='running' && (p!=='PREREGISTER' || String(st.research_state || '').includes('confirmatory'));
-      const hookHtml = showHook ? `<div class="step-hook muted" data-hook="true">${esc(STEP_HOOKS[p] || '')}</div>` : '';
-      const detailHtml = s==='done' ? `<div class="step-detail mini">Completed · timing captured in the research log.</div>` : '';
+      const hookHtml = showHook ? `<div class="phase-hook" data-hook="true">${esc(STEP_HOOKS[p] || '')}</div>` : '';
+      const detailHtml = s==='done' ? `<div class="phase-detail">${svgIcon('check','icon-sm')} Completed · timing captured in the research log.</div>` : '';
       const learningHtml = (getConfig('learningMoments') && s==='done' && p==='PREREGISTER' && String(st.research_state || '').includes('confirmatory'))
         ? `<details class="card step-learning-moment" data-learning-moment="true" style="margin-top:8px"><summary>What just happened</summary><p>Your research question has been cryptographically locked. This is pre-registration: your hypothesis cannot change after viewing outcomes.</p></details>`
         : '';
-      return `<div class="step" data-truth-source="phases.status"><strong>${i+1}. <span data-step-label="${i}">${esc(stepLabel)}</span></strong> <span class="pill ${s==='done'?'ok':s==='running'?'warn':s==='failed'?'bad':'muted'}">${s}</span>${hookHtml}${s==='running'?`<p class="muted">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'In progress...')}</p>`:''}${detailHtml}${learningHtml}</div>`;
+      const stateIcon = s==='done' ? svgIcon('check') : s==='running' ? svgIcon('running') : s==='failed' ? svgIcon('failed') : svgIcon('waiting');
+      return `<div class="phase-step" data-phase-state="${s}" data-truth-source="phases.status"><div class="phase-rail"><div class="phase-dot"></div><div class="phase-line"></div></div><div class="phase-body"><div class="phase-head">${svgIcon(PHASE_ICONS[p] || 'doc')} <strong><span data-step-label="${i}">${esc(stepLabel)}</span></strong> <span class="pill ${s==='done'?'ok':s==='running'?'warn':s==='failed'?'bad':'muted'}">${s}</span></div>${hookHtml}${s==='running'?`<p class="muted">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'In progress...')}</p>`:''}${detailHtml}${learningHtml}</div></div>`;
     }).join('');
 
     const seedTable = getConfig('showSeedNumbers') && (st.phases_completed||[]).includes('STATSRUN') ? `<div class="card"><h3>Seed consistency snapshot</h3><table><tbody><tr><td>Seed 42</td><td>p=0.018</td><td>significant=true</td></tr><tr><td>Seed 1337</td><td>p=0.024</td><td>significant=true</td></tr><tr><td>Seed 9999</td><td>p=0.031</td><td>significant=true</td></tr><tr><td><strong>Consensus</strong></td><td colspan="2"><strong>CONSISTENT ✓</strong></td></tr></tbody></table></div>` : '';
@@ -1801,7 +2293,7 @@ async function renderResearch(id){
       <p>${esc(findings.summary || 'Summary will appear here once findings.json is available.')}</p>
       <p><strong>Significance:</strong> <span data-pvalue="${esc(String(findings.p_value ?? findings.primary_p_value ?? 0.05))}"></span></p>
       <p data-technical="sha256"><strong>Data SHA-256:</strong> ${esc(st.data_preview_sha256 || st.data_sha256 || 'not available')}</p>
-      <pre>${esc(JSON.stringify(findings.key_numbers || {}, null, 2))}</pre>
+      ${jsonToTable(findings.key_numbers || {})}
       </div>` : '';
     const chartsCard = st.status==='done' ? `
       <div class="card" style="margin-bottom:12px"><h3>Charts</h3>
@@ -1932,7 +2424,7 @@ async function renderResearch(id){
     qs('#replay')?.addEventListener('click',()=>startReplay());
     qs('#scrub')?.addEventListener('input',(e)=>{ const v=e.target.value; qs('#replaybar').style.width=`${v}%`; });
     qs('#copy-share')?.addEventListener('click',async()=>{
-      const html = `<div style="font-family:Inter,sans-serif;border:1px solid #ddd;padding:14px;border-radius:8px;max-width:560px"><h3>Thrivarc Research Summary</h3><p><strong>Topic:</strong> ${esc((st.topic||'').slice(0,120))}</p><p><strong>Pre-registration:</strong> ✓</p><p><strong>Data certified:</strong> ✓</p><p><strong>Status:</strong> ${esc(st.status)}</p></div>`;
+      const html = `<div style="font-family:Avenir Next,Segoe UI,Helvetica Neue,sans-serif;border:1px solid #ddd;padding:14px;border-radius:8px;max-width:560px"><h3>Thrivarc Research Summary</h3><p><strong>Topic:</strong> ${esc((st.topic||'').slice(0,120))}</p><p><strong>Pre-registration:</strong> ✓</p><p><strong>Data certified:</strong> ✓</p><p><strong>Status:</strong> ${esc(st.status)}</p></div>`;
       await navigator.clipboard.writeText(html); toast('Shareable card copied');
     });
     qs('#keep-exploratory')?.addEventListener('click',()=>toast('Staying exploratory.'));
