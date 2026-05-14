@@ -1,1 +1,1 @@
-"""FastAPI bridge layer for the existing Paper Forge pipeline."""
+"""FastAPI layer for the Thrivarc research engine."""

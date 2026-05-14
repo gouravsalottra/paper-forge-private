@@ -108,6 +108,94 @@ def _finding_valid(conn: sqlite3.Connection, run_id: str) -> bool | None:
         return None
 
 
+def _artifact_manifest(run_id: str) -> dict[str, Any]:
+    base = f"research_memory/{run_id}"
+    return {
+        "runspec": f"{base}/00_runspec/runspec.json",
+        "blueprint": f"{base}/00_runspec/blueprint.json",
+        "integrity": {
+            "data_passport": f"{base}/01_integrity/data_passport_preview.json",
+            "deviation_register": f"{base}/01_integrity/deviation_register.json",
+            "reviewer_gate": f"{base}/01_integrity/reviewer_gate.json",
+            "repair_contract_template": f"{base}/01_integrity/repair_contract_template.json",
+        },
+        "phase_outputs": {
+            "literature": f"{base}/02_literature",
+            "datapull": f"{base}/03_datapull",
+            "compute": f"{base}/04_compute",
+            "statsrun": f"{base}/05_statsrun",
+            "audits": f"{base}/06_audits",
+            "reviewer": f"{base}/07_reviewer",
+            "writer": f"{base}/08_writer",
+        },
+    }
+
+
+def _failure_catalog() -> list[dict[str, str]]:
+    return [
+        {"phase": "LITERATURE", "failure": "too few relevant papers", "researcher_view": "Proceed with a literature gap warning or sharpen the question."},
+        {"phase": "DATAPULL", "failure": "data source unavailable or schema mismatch", "researcher_view": "Upload data, adjust source route, or stop before compute."},
+        {"phase": "COMPUTE", "failure": "method cannot run on certified evidence", "researcher_view": "Repair method parameters or return to Blueprint."},
+        {"phase": "STATSRUN", "failure": "weak or null evidence", "researcher_view": "Receive null-result package or launch scoped robustness repairs."},
+        {"phase": "CODEAUDIT", "failure": "technical execution mismatch", "researcher_view": "Repair code/output issues before reviewer scoring."},
+        {"phase": "REVIEWER", "failure": "score below paper threshold", "researcher_view": "Run issue-scoped repairs or accept a failure package."},
+        {"phase": "WRITER", "failure": "paper-code mismatch", "researcher_view": "Writer stays blocked until verifier clears the claim."},
+    ]
+
+
+def _orchestration_graph(plan: dict[str, Any]) -> dict[str, Any]:
+    package = plan.get("research_package") or {}
+    track = package.get("track") or "exploratory"
+    phases = ["LITERATURE", "DATAPULL"]
+    if track == "confirmatory":
+        phases.append("PREREGISTER")
+    phases.extend(["COMPUTE", "STATSRUN", "CODEAUDIT", "REVIEWER", "WRITER"])
+    return {
+        "serial_gates": phases,
+        "parallel_after_data": ["LITERATURE follow-up synthesis", "DATAPULL quality profiling"],
+        "parallel_after_stats": ["CODEAUDIT", "Spec Audit"],
+        "writer_gate": "WRITER starts only after Reviewer, Code Audit, Spec Audit, and Paper-Code Verifier pass.",
+    }
+
+
+def _truth_contract(run_id: str, meta: dict[str, Any]) -> dict[str, Any]:
+    plan = meta.get("plan") if isinstance(meta.get("plan"), dict) else {}
+    return {
+        "run_id": run_id,
+        "research_state": meta.get("research_state") or "exploratory",
+        "runspec_present": isinstance(meta.get("runspec"), dict),
+        "research_package": plan.get("research_package", {}),
+        "paper_gate": plan.get("reviewer_gate", {}),
+        "repair_contract_template": plan.get("repair_contract_template", {}),
+        "integrity_artifacts": plan.get("integrity_artifacts", {}),
+        "audit_boundary": plan.get("audit_boundary", {}),
+        "paper_code_verifier": plan.get("paper_code_verifier", {}),
+        "artifact_manifest": _artifact_manifest(run_id),
+        "orchestration": _orchestration_graph(plan),
+        "failure_catalog": _failure_catalog(),
+    }
+
+
+def _write_contract_artifacts(run_id: str, meta: dict[str, Any]) -> None:
+    run_dir = RUN_STORE / run_id
+    runspec_dir = run_dir / "00_runspec"
+    integrity_dir = run_dir / "01_integrity"
+    for directory in [runspec_dir, integrity_dir]:
+        directory.mkdir(parents=True, exist_ok=True)
+    plan = meta.get("plan") if isinstance(meta.get("plan"), dict) else {}
+    files = {
+        runspec_dir / "runspec.json": meta.get("runspec") or {},
+        runspec_dir / "blueprint.json": plan,
+        integrity_dir / "truth_contract.json": _truth_contract(run_id, meta),
+        integrity_dir / "reviewer_gate.json": plan.get("reviewer_gate", {}),
+        integrity_dir / "repair_contract_template.json": plan.get("repair_contract_template", {}),
+        integrity_dir / "data_passport_preview.json": (plan.get("integrity_artifacts") or {}).get("data_passport", {}),
+        integrity_dir / "deviation_register.json": {"entries": [], "policy": (plan.get("integrity_artifacts") or {}).get("deviation_register", {})},
+    }
+    for path, payload in files.items():
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def _run_object(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     meta = _parse_json(row["meta_json"] if "meta_json" in row.keys() else None)
     current, completed = _phase_state(conn, row["run_id"])
@@ -183,6 +271,7 @@ async def create_run(payload: dict[str, Any]) -> dict[str, str]:
             (run_id, _now(), None, "queued", topic, json.dumps(meta)),
         )
         conn.commit()
+    _write_contract_artifacts(run_id, meta)
     asyncio.create_task(_launch_pipeline(run_id))
     return {"run_id": run_id}
 
@@ -206,6 +295,18 @@ def run_status(run_id: str) -> dict[str, Any]:
         if not row:
             raise HTTPException(status_code=404, detail="Run not found")
         return _run_object(conn, row)
+
+
+@router.get("/runs/{run_id}/truth_contract")
+def run_truth_contract(run_id: str) -> dict[str, Any]:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT run_id, started_at, finished_at, status, seed_query, meta_json FROM pipeline_runs WHERE run_id=? LIMIT 1",
+            (run_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return {"truth_contract": _truth_contract(run_id, _parse_json(row["meta_json"]))}
 
 
 @router.get("/runs/{run_id}/log")

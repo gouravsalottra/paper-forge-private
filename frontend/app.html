@@ -1059,6 +1059,10 @@ function renderDataIntakeStage(){
     };
     const out = await api('/data/preview', {method:'POST', body:JSON.stringify(payload)});
     const p = out.preview || {};
+    const passport = p.data_passport || {};
+    const schema = p.schema_profile || {};
+    const blockingIssues = Array.isArray(p.blocking_issues) ? p.blocking_issues : [];
+    const warnings = Array.isArray(p.warnings) ? p.warnings : [];
     stageState.previewRunId = runTemp;
     onDataPreviewSuccess(p);
     qs('#data-preview-card').innerHTML = `
@@ -1070,8 +1074,22 @@ function renderDataIntakeStage(){
           <div class="card"><div class="mini">Columns</div><strong>${esc(String((p.columns || []).length))}</strong></div>
           <div class="card"><div class="mini">Coverage</div><strong>${esc(p.date_range || 'N/A')}</strong></div>
         </div>
-        <p class="mini" style="margin-top:8px">${getConfig('showSHA256') ? `SHA-256: ${esc((p.sha256||'').slice(0,16))}... · ` : ''}Quality: ${esc(p.data_quality || 'unknown')}</p>
+        <p class="mini" style="margin-top:8px">${getConfig('showSHA256') ? `SHA-256: ${esc((p.sha256||'').slice(0,16))}... · ` : ''}Quality: ${esc(p.data_quality || 'unknown')} · Status: ${esc(p.preview_status || 'ready')}</p>
         <p class="mini">Fields: ${esc((p.columns || []).join(', '))}</p>
+        ${blockingIssues.length ? `<div class="card" style="margin-top:8px;background:#fcf4ea;border-color:#e7c9a3"><strong>Blocking data issues</strong>${renderList(blockingIssues, 'No blocking data issues.')}</div>` : ''}
+        ${warnings.length ? `<div class="card" style="margin-top:8px;background:#fcfaf4"><strong>Data warnings</strong>${renderList(warnings, 'No data warnings.')}</div>` : ''}
+        <div class="grid g2" style="margin-top:8px">
+          <div class="card" style="padding:12px">
+            <div class="mini">DataPassport preview</div>
+            ${renderList(passport.plain_english_summary, 'DataPassport will be created after evidence preview.')}
+          </div>
+          <div class="card" style="padding:12px">
+            <div class="mini">Schema profile</div>
+            <p class="mini">Date columns: ${esc((schema.date_columns || []).join(', ') || 'not detected')}</p>
+            <p class="mini">Identifier columns: ${esc((schema.identifier_columns || []).join(', ') || 'not detected')}</p>
+            <p class="mini">Numeric columns: ${esc((schema.numeric_columns || []).slice(0,8).join(', ') || 'not detected')}</p>
+          </div>
+        </div>
         <pre>${esc(JSON.stringify(p.sample_rows || [], null, 2))}</pre>
       </div>
     `;
@@ -1085,9 +1103,11 @@ function updateRunButtonState() {
 }
 
 function onDataPreviewSuccess(previewResult) {
-  stageState.dataPreviewComplete = true;
+  const blocked = previewResult.preview_status === 'blocked' || (Array.isArray(previewResult.blocking_issues) && previewResult.blocking_issues.length > 0);
+  stageState.dataPreviewComplete = !blocked;
   stageState.dataPreviewSha256 = previewResult.sha256 || null;
   updateRunButtonState();
+  if(blocked) toast('Data preview is blocked. Fix the listed data issues before launching the run.');
 }
 
 function summarizeRunSpec(spec){
@@ -1154,6 +1174,142 @@ function renderRevisionPolicy(policy){
   `;
 }
 
+function renderList(items, fallback){
+  const arr = Array.isArray(items) ? items : [];
+  return `<ul style="margin:8px 0 0 18px">${arr.map(item => `<li>${esc(String(item))}</li>`).join('') || `<li>${esc(fallback)}</li>`}</ul>`;
+}
+
+function renderResearchPackage(pkg){
+  if(!pkg || typeof pkg !== 'object') return '';
+  return `
+    <div class="card" style="margin-bottom:10px;border:1px solid rgba(30,94,74,.24);background:#f7fbf5">
+      <div class="mini">Research path</div>
+      <h4 style="margin:4px 0 6px 0">${esc(pkg.label || 'Research package')}</h4>
+      <p class="mini">${esc(pkg.integrity_statement || 'Thrivarc keeps the output language inside the research track.')}</p>
+      <div class="grid g2" style="margin-top:10px">
+        <div class="card" style="padding:12px">
+          <div class="mini">Included in this package</div>
+          ${renderList(pkg.includes, 'Package inclusions will appear after the blueprint is rebuilt.')}
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Not allowed in this package</div>
+          ${renderList(pkg.excludes, 'Package exclusions will appear after the blueprint is rebuilt.')}
+        </div>
+      </div>
+      <p class="mini" style="margin-top:8px"><strong>Writer posture:</strong> ${esc(pkg.writer_posture || 'Writer waits until the defense gate clears.')}</p>
+    </div>
+  `;
+}
+
+function renderClarificationPolicy(policy){
+  const rows = Array.isArray(policy) ? policy : [];
+  if(!rows.length) return '';
+  const badge = decision => decision === 'block' ? 'warn' : decision === 'confirm' ? 'muted' : 'ok';
+  return `
+    <div class="card" style="margin-bottom:10px">
+      <h4>Research Architect clarification policy</h4>
+      <p class="mini">Every Blueprint field is either inferred, shown for confirmation, or blocked before evidence preview. This keeps the flow universal without pretending finance research fits a dropdown.</p>
+      <div class="grid g2" style="margin-top:10px">
+        ${rows.map(row => `
+          <div class="card" style="padding:12px">
+            <div class="row" style="justify-content:space-between;gap:8px">
+              <strong>${esc(row.field || row.key || 'Blueprint field')}</strong>
+              <span class="pill ${badge(row.decision)}">${esc(row.decision || 'infer')}</span>
+            </div>
+            <div class="mini" style="margin-top:6px"><strong>Current:</strong> ${esc(row.current_value || 'not set')}</div>
+            <div class="mini" style="margin-top:6px">${esc(row.reason || '')}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderReviewerGate(gate){
+  if(!gate || typeof gate !== 'object') return '';
+  const dims = Array.isArray(gate.dimensions) ? gate.dimensions : [];
+  const bands = Array.isArray(gate.score_bands) ? gate.score_bands : [];
+  const threshold = gate.paper_unlock_threshold || {};
+  return `
+    <div class="card" style="margin-bottom:10px;border:1px solid rgba(160,72,36,.24);background:#fffaf4">
+      <div class="mini">Conditional paper gate</div>
+      <h4 style="margin:4px 0 6px 0">${esc(gate.name || 'Reviewer gate')}</h4>
+      <p class="mini">Paper writing is locked until the Reviewer scorecard clears: average ${esc(String(threshold.minimum_average ?? 7))}+ and no dimension below ${esc(String(threshold.minimum_dimension ?? 6))}. Max repair cycles per issue: ${esc(String(gate.max_repair_cycles_per_issue ?? 3))}.</p>
+      <div class="grid g2" style="margin-top:10px">
+        <div class="card" style="padding:12px">
+          <div class="mini">Reviewer rubric</div>
+          ${renderList(dims.map(d => `${d.label || d.key}: ${d.pass_rule || ''}`), 'Reviewer rubric will appear after validation.')}
+        </div>
+        <div class="card" style="padding:12px">
+          <div class="mini">Score outcomes</div>
+          ${renderList(bands.map(b => `${b.range}: ${b.outcome} - ${b.researcher_view}`), 'Score bands will appear after validation.')}
+        </div>
+      </div>
+      <p class="mini" style="margin-top:8px"><strong>Track rule:</strong> ${esc(gate.track_rule || 'Exploratory and confirmatory runs use different claim language.')}</p>
+      <p class="mini" style="margin-top:4px"><strong>Writer rule:</strong> ${esc(gate.writer_rule || 'Writer is last and never invents numbers.')}</p>
+    </div>
+  `;
+}
+
+function renderRepairContract(contract){
+  if(!contract || typeof contract !== 'object') return '';
+  return `
+    <div class="card" style="margin-bottom:10px">
+      <h4>${esc(contract.name || 'Repair Contract')}</h4>
+      <p class="mini">Repairs are issue-scoped. They can fix evidence, code, stats, or prose mismatches, but they cannot mutate the study silently.</p>
+      <div class="grid g2" style="margin-top:10px">
+        <div class="card" style="padding:12px"><div class="mini">Automatic scope</div>${renderList(contract.automatic_scope, 'No automatic repair scope surfaced yet.')}</div>
+        <div class="card" style="padding:12px"><div class="mini">Researcher approval required</div>${renderList(contract.requires_researcher_approval, 'No approval rules surfaced yet.')}</div>
+        <div class="card" style="padding:12px"><div class="mini">Never allowed</div>${renderList(contract.never_allowed, 'No hard bans surfaced yet.')}</div>
+        <div class="card" style="padding:12px"><div class="mini">Exhausted cycles</div><strong>${esc(contract.exhausted_cycle_outcome || 'Escalate to researcher with a failure package.')}</strong></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderIntegrityArtifacts(artifacts){
+  if(!artifacts || typeof artifacts !== 'object') return '';
+  const passport = artifacts.data_passport || {};
+  const deviation = artifacts.deviation_register || {};
+  const prereg = artifacts.preregistration_certificate || {};
+  return `
+    <div class="card" style="margin-bottom:10px">
+      <h4>Integrity artifacts</h4>
+      <p class="mini">These are product objects, not backend trivia. They are what make a run reviewable by a mentor, co-author, journal editor, or investment committee.</p>
+      <div class="grid g3" style="margin-top:10px">
+        <div class="card" style="padding:12px"><div class="mini">${esc(passport.visible_name || 'DataPassport')}</div>${renderList(passport.plain_english_summary, 'Data source, coverage, hash, and limits.')}</div>
+        <div class="card" style="padding:12px"><div class="mini">${esc(deviation.visible_name || 'Deviation Register')}</div>${renderList(deviation.entry_fields, 'Deviation entries will appear when a post-lock change happens.')}<div class="mini" style="margin-top:6px">${esc(deviation.paper_treatment || '')}</div></div>
+        <div class="card" style="padding:12px"><div class="mini">${esc(prereg.visible_name || 'Pre-registration certificate')}</div><strong>${prereg.enabled ? 'Enabled for this run' : 'Not issued for exploratory runs'}</strong>${renderList(prereg.fields, 'Certificate fields appear for confirmatory runs.')}<div class="mini" style="margin-top:6px">${esc(prereg.compatibility_target || '')}</div></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderOperationalContracts(summary){
+  const dataQuality = summary.data_quality_policy || {};
+  const leakage = summary.leakage_policy || {};
+  const stats = summary.statistical_battery || {};
+  const econ = summary.economic_significance || {};
+  const fallback = summary.data_fallback_policy || {};
+  const audit = summary.audit_boundary || {};
+  const verifier = summary.paper_code_verifier || {};
+  return `
+    <div class="card" style="margin-bottom:10px">
+      <h4>Execution truth contract</h4>
+      <p class="mini">This is the backend promise behind the screen: what gets checked, what can fail, and what blocks the Writer.</p>
+      <div class="grid g2" style="margin-top:10px">
+        <div class="card" style="padding:12px"><div class="mini">Data and schema handling</div>${renderList(Object.entries(dataQuality.schema_mismatch || {}).map(([k,v]) => `${k}: ${v}`), 'Data preview must pass before compute.')}</div>
+        <div class="card" style="padding:12px"><div class="mini">Leakage rule</div><strong>${esc(leakage.primary_rule || 'Timing must match the Blueprint.')}</strong><div class="mini" style="margin-top:6px">${esc(leakage.failure_action || '')}</div></div>
+        <div class="card" style="padding:12px"><div class="mini">Statistical battery</div>${renderList(stats.tests, 'Tests are selected from the method family.')}</div>
+        <div class="card" style="padding:12px"><div class="mini">Economic significance</div><strong>${esc(econ.rule || 'Report effect size, not only p-values.')}</strong></div>
+        <div class="card" style="padding:12px"><div class="mini">Data fallback</div>${renderList(fallback.preferred_sequence, 'Upload or public sources first.')}<div class="mini" style="margin-top:6px">${esc(fallback.wrds_status || '')}</div></div>
+        <div class="card" style="padding:12px"><div class="mini">Audit boundary</div><strong>Code Audit:</strong><div class="mini">${esc(audit.code_audit_agent?.definition || 'Technical correctness.')}</div><strong style="display:block;margin-top:6px">Spec Audit:</strong><div class="mini">${esc(audit.spec_audit_agent?.definition || 'Research integrity.')}</div></div>
+      </div>
+      <p class="mini" style="margin-top:8px"><strong>Paper-Code Verifier:</strong> ${esc(verifier.trigger || 'Runs before Writer export.')} ${esc(verifier.on_mismatch || '')}</p>
+    </div>
+  `;
+}
+
 function renderRunspecCommit(buildResult, chosenProposals, mode){
   const holder = qs(mode === 'expert' ? '#expert-preview' : '#blueprint-zone');
   const runspecs = buildResult.runspecs || [];
@@ -1168,6 +1324,12 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
   const architectQuestions = plannerSummary.architect_questions || firstSpec?.blueprint?.architect_questions || [];
   const launchReadiness = plannerSummary.launch_readiness || firstSpec?.blueprint?.launch_readiness || {};
   const revisionPolicy = plannerSummary.revision_policy || firstSpec?.blueprint?.revision_policy || {};
+  const contractSummary = {...(firstSpec?.blueprint || {}), ...plannerSummary};
+  const researchPackage = contractSummary.research_package || {};
+  const clarificationPolicy = contractSummary.clarification_policy || [];
+  const reviewerGate = contractSummary.reviewer_gate || {};
+  const repairContract = contractSummary.repair_contract_template || {};
+  const integrityArtifacts = contractSummary.integrity_artifacts || {};
   const stateLabel = summary.state === 'confirmatory_pap' ? 'Confirmatory with pre-registration' : summary.state === 'confirmatory_no_pap' ? 'Confirmatory without pre-registration' : 'Exploratory';
   const cadenceRoleLabel = {
     design_variable:'Cadence is part of the experiment',
@@ -1262,6 +1424,12 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
           </ul>
         </div>
       </div>
+      ${renderResearchPackage(researchPackage)}
+      ${renderClarificationPolicy(clarificationPolicy)}
+      ${renderIntegrityArtifacts(integrityArtifacts)}
+      ${renderReviewerGate(reviewerGate)}
+      ${renderRepairContract(repairContract)}
+      ${renderOperationalContracts(contractSummary)}
       <div class="card" style="margin-bottom:10px">
         <h4>Who is working on this study</h4>
         <p class="mini">This is the specialist stack Thrivarc assembled from the blueprint. It is the truthful execution contract for this run, not generic marketing copy.</p>

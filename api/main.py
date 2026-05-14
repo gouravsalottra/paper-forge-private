@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import artifacts, data, guide, runs
 
-app = FastAPI(title="Thrivarc Paper Forge Bridge", version="1.0.0")
+app = FastAPI(title="Thrivarc Research Engine API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
