@@ -48,6 +48,28 @@ def test_validate_recomputes_completion_contract_after_blocking_clarifications(m
     assert summary["completion_contract"]["blockers"][0]["key"] == "universe"
 
 
+def test_validate_sanitizes_all_agent_stack_engine_labels(monkeypatch) -> None:
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+
+    payload = _blocking_payload()
+    payload["clarifications"] = []
+    payload["blueprint_summary"]["agent_stack_preview"] = [
+        {"phase": "DATAPULL", "engine": "Thrivarc evidence connector"},
+        {"phase": "COMPUTE", "engine": "Thrivarc compute adapter"},
+        {"phase": "STATSRUN", "engine": "existing stats agents"},
+        {"phase": "WRITER", "engine": "existing writer"},
+    ]
+    monkeypatch.setattr(guide, "_json_call", lambda _system, _payload: payload)
+
+    result = guide.validate({"topic": "Test whether sector ETF momentum predicts future returns from 2015 to 2024"})
+
+    engines = [
+        item["engine"]
+        for item in result["blueprint_summary"]["agent_stack_preview"]
+    ]
+    assert engines == ["gpt-4o", "gpt-4o", "gpt-4o", "gpt-4o"]
+
+
 def test_build_runspec_recomputes_completion_contract_from_client_payload(monkeypatch) -> None:
     monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
     stale_validated = _blocking_payload()

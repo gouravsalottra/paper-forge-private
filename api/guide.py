@@ -803,7 +803,6 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
 
     # Build canonical agent_stack_preview — always uses AZURE_DEPLOYMENT (gpt-4o).
     # Defending against hallucinated model names from LLM.
-    _LLM_AGENT_PHASES = {"LITERATURE", "DATAPULL", "PREREGISTER", "COMPUTE", "STATSRUN", "CODEAUDIT", "REVIEWER", "WRITER"}
     canonical_stack = [
         {"phase": "LITERATURE", "label": "Context scan", "engine": AZURE_DEPLOYMENT, "skill": "Search and synthesize prior evidence", "reads": "research brief", "produces": "literature_map.md", "why_now": "Ground the study before execution."},
         {"phase": "DATAPULL", "label": "Evidence pull", "engine": AZURE_DEPLOYMENT, "skill": "Fetch or ingest the dataset", "reads": "RunSpec.datapull", "produces": "data preview and certificate", "why_now": "Evidence must be inspected before compute."},
@@ -817,12 +816,12 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
         canonical_stack.insert(2, {"phase": "PREREGISTER", "label": "Claim lock", "engine": AZURE_DEPLOYMENT, "skill": "Lock hypothesis", "reads": "research claim", "produces": "PAP lock", "why_now": "Confirmatory claims must be locked before results."})
     summary.setdefault("agent_stack_preview", canonical_stack)
 
-    # Sanitize: if the LLM returned agent_stack_preview with wrong engine names,
-    # force LLM-backed phases back to AZURE_DEPLOYMENT.
+    # Sanitize: if the LLM returned agent_stack_preview with wrong engine names
+    # or non-model labels, force every engine field back to AZURE_DEPLOYMENT.
     existing_stack = summary.get("agent_stack_preview")
     if isinstance(existing_stack, list):
         for agent_entry in existing_stack:
-            if isinstance(agent_entry, dict) and agent_entry.get("phase") in _LLM_AGENT_PHASES:
+            if isinstance(agent_entry, dict):
                 agent_entry["engine"] = AZURE_DEPLOYMENT
 
     if clarifications:
