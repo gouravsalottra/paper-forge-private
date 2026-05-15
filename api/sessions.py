@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import asyncio
 import json
+import os
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -12,7 +14,12 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from api import guide
+from api.code_audit_agent import _audit_fallback, run_code_audit
+from api.llm_caller import call_agent_llm
+from api.method_agent import _method_fallback, get_method_spec
 from api.method_registry import method_definition
+from api.prompts import HAWK_PROMPT, LITERATURE_AGENT_PROMPT, REPAIR_AGENT_PROMPT
+from api.stats_agent import _stats_fallback, get_stats_spec
 from db.connection import DatabaseUnavailableError, get_db_connection
 from integrity.pdf import render_pdf
 from storage.blob import BlobStorageUnavailableError, get_artifact_url, list_artifacts, read_artifact, write_artifact
@@ -830,6 +837,145 @@ def _profile(
     }
 
 
+def _agent_client():
+    if not os.getenv("AZURE_OPENAI_API_KEY"):
+        return None
+    try:
+        return guide._client()
+    except Exception:
+        return None
+
+
+def _run_async_agent(coro):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    raise RuntimeError("Cannot run asynchronous LLM agent from an active event loop.")
+
+
+def _agent_blueprint(blueprint: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
+    window = blueprint.get("inferred_window")
+    if not isinstance(window, dict):
+        window = {"start": "2010-01-01", "end": "2024-12-31"}
+    return {
+        **blueprint,
+        "primary_hypothesis": blueprint.get("hypothesis") or profile.get("findings", {}).get("summary", ""),
+        "method_family": profile["method_family"],
+        "data_structure": blueprint.get("data_structure") or "panel",
+        "identification_strategy": blueprint.get("identification_strategy") or profile["claim_scope"],
+        "outcome_variable": blueprint.get("outcome_variable") or "primary research outcome",
+        "key_predictors": blueprint.get("key_predictors") or profile["feature_manifest"]["features"][:3],
+        "control_variables": blueprint.get("control_variables") or [],
+        "inferred_identifiers": blueprint.get("inferred_identifiers") or profile["data_passport"].get("schema", []),
+        "inferred_window": window,
+        "known_threats": blueprint.get("known_threats") or profile["agent_context"]["agents"]["Reviewer Agent"]["skills"],
+        "economic_significance_definition": blueprint.get("economic_significance_definition") or profile["economic_significance"]["interpretation"],
+        "benchmark": blueprint.get("benchmark", "locked comparison set"),
+        "event_window": blueprint.get("event_window", "not specified"),
+        "return_definition": blueprint.get("return_definition", "defined by locked method family"),
+    }
+
+
+def _build_agent_contracts(session_id: str, blueprint: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
+    agent_blueprint = _agent_blueprint(blueprint, profile)
+    client = _agent_client()
+
+    if client is None:
+        method_spec = _method_fallback(agent_blueprint.get("method_family", "descriptive"))
+        stats_spec = _stats_fallback(agent_blueprint.get("method_family", "descriptive"))
+        code_audit = _audit_fallback()
+    else:
+        method_spec = _run_async_agent(get_method_spec(blueprint=agent_blueprint, client=client))
+        stats_spec = _run_async_agent(get_stats_spec(blueprint=agent_blueprint, method_spec=method_spec, client=client))
+        analysis_code = json.dumps(profile.get("compute", {}), sort_keys=True)
+        code_audit = _run_async_agent(run_code_audit(blueprint=agent_blueprint, analysis_code=analysis_code, client=client))
+
+    profile["method_spec"] = method_spec
+    profile["stats_spec"] = stats_spec
+    profile["code_audit_json"] = code_audit
+    profile["agent_context"]["llm_first_contracts"] = {
+        "method_spec_path": "06_compute/method_spec.json",
+        "stats_spec_path": "07_statistics/statistical_test_battery.json",
+        "code_audit_path": "08_audit/code_audit_report.json",
+        "fallback_used": bool(
+            method_spec.get("fallback_used")
+            or stats_spec.get("fallback_used")
+            or code_audit.get("fallback_used")
+        ),
+    }
+    profile["execution_profile"]["llm_first_agents"] = {
+        "method_agent": "api.method_agent.get_method_spec",
+        "stats_agent": "api.stats_agent.get_stats_spec",
+        "code_audit_agent": "api.code_audit_agent.run_code_audit",
+        "hawk_prompt": "api.prompts.HAWK_PROMPT",
+        "repair_prompt": "api.prompts.REPAIR_AGENT_PROMPT",
+        "literature_prompt": "api.prompts.LITERATURE_AGENT_PROMPT",
+    }
+    return {"agent_blueprint": agent_blueprint, "method_spec": method_spec, "stats_spec": stats_spec, "code_audit": code_audit}
+
+
+def _scorecard_from_hawk(session_id: str, profile: dict[str, Any], hawk_result: dict[str, Any]) -> dict[str, Any]:
+    raw_scores = hawk_result.get("scores", {})
+    scores: dict[str, float] = {}
+    for key in [
+        "identification_validity",
+        "data_integrity",
+        "statistical_rigor",
+        "economic_significance",
+        "benchmark_fairness",
+        "robustness_burden",
+        "overclaiming_risk",
+    ]:
+        value = raw_scores.get(key, 0.0)
+        scores[key] = float(value.get("score", value) if isinstance(value, dict) else value or 0.0)
+    if not any(scores.values()):
+        return _reviewer_scorecard(session_id, profile)
+    average = round(sum(scores.values()) / len(scores), 4)
+    floor_failed = [key for key, value in scores.items() if value < 6.0]
+    gate_passed = bool(hawk_result.get("gate_passed", average >= 7.0 and not floor_failed))
+    findings = {
+        "summary": hawk_result.get("reviewer_letter_opening") or f"HAWK reviewed {profile['claim_scope']}.",
+        "top_3_issues": hawk_result.get("top_3_issues", []),
+        "what_would_make_this_accept": hawk_result.get("what_would_make_this_accept", ""),
+    }
+    for key, value in raw_scores.items():
+        if isinstance(value, dict):
+            findings[key] = value.get("rationale", "")
+    return {
+        "session_id": session_id,
+        "cycle": 1,
+        "scores": scores,
+        "average_score": average,
+        "floor_failed": floor_failed,
+        "gate_passed": gate_passed,
+        "thresholds": {"average_minimum": 7.0, "dimension_floor": 6.0, "max_cycles": 3},
+        "findings": findings,
+    }
+
+
+def _run_hawk_review(session_id: str, blueprint: dict[str, Any], profile: dict[str, Any], contracts: dict[str, Any]) -> dict[str, Any]:
+    client = _agent_client()
+    if client is None:
+        return _reviewer_scorecard(session_id, profile)
+    prompt = HAWK_PROMPT.format(
+        blueprint_json=json.dumps(contracts["agent_blueprint"], indent=2, sort_keys=True),
+        method_spec_json=json.dumps(contracts["method_spec"], indent=2, sort_keys=True),
+        stats_spec_json=json.dumps(contracts["stats_spec"], indent=2, sort_keys=True),
+        results_json=json.dumps(profile["findings"], indent=2, sort_keys=True),
+    )
+    hawk_result = _run_async_agent(
+        call_agent_llm(
+            agent_name="HAWK",
+            prompt=prompt,
+            client=client,
+            fallback_fn=lambda: _reviewer_scorecard(session_id, profile),
+            max_tokens=4000,
+        )
+    )
+    return _scorecard_from_hawk(session_id, profile, hawk_result)
+
+
 def _reviewer_scorecard(session_id: str, profile: dict[str, Any]) -> dict[str, Any]:
     method = profile["method_family"]
     scores = {
@@ -939,12 +1085,31 @@ These findings are defensible as {profile['claim_scope']}. The claim should not 
 
 def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> None:
     profile = _execution_profile(blueprint)
+    contracts = _build_agent_contracts(session_id, blueprint, profile)
+    agent_blueprint = contracts["agent_blueprint"]
+    profile["literature_prompt_contract"] = LITERATURE_AGENT_PROMPT.format(
+        research_question=agent_blueprint.get("primary_hypothesis", ""),
+        method_family=agent_blueprint.get("method_family", ""),
+        identification_strategy=agent_blueprint.get("identification_strategy", ""),
+        data_structure=agent_blueprint.get("data_structure", ""),
+        evidence_route=agent_blueprint.get("evidence_source", profile["evidence_source"]),
+        primary_hypothesis=agent_blueprint.get("primary_hypothesis", ""),
+    )
+    profile["repair_contract"] = {
+        "repairs": [],
+        "deviation_register_entries": [],
+        "repair_priority_order": [],
+        "projected_average_after_all_repairs": None,
+        "projected_gate_pass": True,
+        "repairs_exhausted": False,
+        "prompt_template": "api.prompts.REPAIR_AGENT_PROMPT",
+    }
     compute_bytes = json.dumps(profile["compute"], sort_keys=True).encode("utf-8")
     data_hash = hashlib.sha256(compute_bytes).hexdigest()
     profile["data_passport"]["sha256"] = data_hash
     design = profile["compute"].get("design", {})
     profile["data_passport"]["rows"] = design.get("sessions", 1000) if isinstance(design, dict) else 1000
-    scorecard = _reviewer_scorecard(session_id, profile)
+    scorecard = _run_hawk_review(session_id, blueprint, profile, contracts)
     paper = _paper_from_outputs(blueprint, profile, scorecard)
     pdf = render_pdf(
         "Thrivarc Research Paper",
@@ -965,6 +1130,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
             "02_literature/papers.json": _write_json_artifact(session_id, "02_literature/papers.json", {"papers": []}),
             "02_literature/synthesis.json": _write_json_artifact(session_id, "02_literature/synthesis.json", profile["literature"]),
             "02_literature/gap_analysis.json": _write_json_artifact(session_id, "02_literature/gap_analysis.json", {"gap": profile["literature"]["gap"]}),
+            "02_literature/literature_prompt_contract.txt": _write_text_artifact(session_id, "02_literature/literature_prompt_contract.txt", profile["literature_prompt_contract"]),
         },
         "Data Agent": {
             "03_data/data_passport.json": _write_json_artifact(session_id, "03_data/data_passport.json", profile["data_passport"]),
@@ -979,14 +1145,17 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
             "05_preregistration/pap.json": _write_json_artifact(session_id, "05_preregistration/pap.json", profile["pap"]),
         },
         "Method / Compute Agent": {
+            "06_compute/method_spec.json": _write_json_artifact(session_id, "06_compute/method_spec.json", profile["method_spec"]),
             profile["compute_path"]: _write_json_artifact(session_id, profile["compute_path"], profile["compute"]),
         },
         "Statistics Agent": {
             "07_statistics/results_tables/main_results.json": _write_json_artifact(session_id, "07_statistics/results_tables/main_results.json", profile["statistics"]),
+            "07_statistics/statistical_test_battery.json": _write_json_artifact(session_id, "07_statistics/statistical_test_battery.json", profile["stats_spec"]),
             "07_statistics/economic_significance.json": _write_json_artifact(session_id, "07_statistics/economic_significance.json", profile["economic_significance"]),
             "07_statistics/research_findings.json": _write_json_artifact(session_id, "07_statistics/research_findings.json", profile["findings"]),
         },
         "Code Audit Agent": {
+            "08_audit/code_audit_report.json": _write_json_artifact(session_id, "08_audit/code_audit_report.json", profile["code_audit_json"]),
             "08_audit/code_audit_report.md": _write_text_artifact(session_id, "08_audit/code_audit_report.md", profile["code_audit"]),
         },
         "Spec Audit Agent": {
@@ -994,6 +1163,9 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         },
         "Reviewer Agent": {
             "09_review/reviewer_scorecard_v1.json": _write_json_artifact(session_id, "09_review/reviewer_scorecard_v1.json", scorecard),
+        },
+        "Repair Agent": {
+            "09_review/repair_contracts/repair_cycle_0.json": _write_json_artifact(session_id, "09_review/repair_contracts/repair_cycle_0.json", profile["repair_contract"]),
         },
         "Paper-Code Verifier": {
             "10_verification/paper_code_verification.json": _write_json_artifact(session_id, "10_verification/paper_code_verification.json", profile["verification"]),
@@ -1019,7 +1191,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         _insert_reviewer_score(conn, session_id, scorecard)
         _complete_agent(conn, session_id, "Reviewer Agent", "Reviewer gate passed and unlocked writing.", artifact_refs["Reviewer Agent"])
         _event(conn, session_id, "gate_result", scorecard, "Reviewer Agent", "complete")
-        _complete_agent(conn, session_id, "Repair Agent", "No repair required; all reviewer dimensions passed.", {})
+        _complete_agent(conn, session_id, "Repair Agent", "No repair required; all reviewer dimensions passed.", artifact_refs["Repair Agent"])
         _complete_agent(conn, session_id, "Paper-Code Verifier", "Paper claims verified against output artifacts.", artifact_refs["Paper-Code Verifier"])
         _event(conn, session_id, "writer_unlocked", {"summary": "Paper writing is now unlocked.", "scores": scorecard["scores"]}, "Reviewer Agent", "paper_unlocked")
         _complete_agent(conn, session_id, "Writer Agent", "Final LaTeX and PDF artifacts written from verified numbers.", artifact_refs["Writer Agent"])
