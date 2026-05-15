@@ -198,6 +198,21 @@ class TestWriterGate:
         assert can_trigger_writer(hawk_passed) is True
 
 
+class TestLiteratureRetrieval:
+    """Literature retrieval should broaden narrow finance topics without hardcoding studies."""
+
+    def test_supplemental_queries_include_topic_acronyms(self):
+        from api.literature_agent import _supplemental_queries
+
+        queries = _supplemental_queries(
+            "Does the VIX term structure inversion predict next-month momentum crashes in US equity sector ETFs?",
+            "time_series",
+        )
+
+        assert any(query.startswith("VIX ") for query in queries)
+        assert any("asset pricing" in query for query in queries)
+
+
 class TestNoHardcodedRegistryInPrimaryPath:
     """
     Registry must not appear as primary path in agent files.

@@ -6,6 +6,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 SEMANTIC_SEARCH_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 OPENALEX_WORKS_URL = "https://api.openalex.org/works"
+ARXIV_QUERY_URL = "https://export.arxiv.org/api/query"
 
 
 def _topic_text(topic: str, blueprint: dict[str, Any]) -> str:
@@ -32,6 +34,8 @@ def _fallback_queries(topic: str, method_style: str) -> dict[str, list[str]]:
             f"{clean} econometric identification",
             f"{clean} market response literature",
             f"{clean} robustness tests",
+            f"{clean} financial markets",
+            f"{method} asset pricing empirical evidence",
         ]
     }
 
@@ -107,13 +111,13 @@ def _dedupe(papers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _semantic_papers(query: str) -> list[dict[str, Any]]:
+def _semantic_papers(query: str, limit: int = 20) -> list[dict[str, Any]]:
     payload = _get_json(
         SEMANTIC_SEARCH_URL,
         {
             "query": query,
             "fields": "paperId,title,abstract,year,authors,citationCount,externalIds,venue,referenceCount,citationStyles",
-            "limit": 10,
+            "limit": limit,
         },
     )
     papers = []
@@ -137,14 +141,13 @@ def _semantic_papers(query: str) -> list[dict[str, Any]]:
     return papers
 
 
-def _openalex_papers(query: str) -> list[dict[str, Any]]:
+def _openalex_papers(query: str, per_page: int = 10) -> list[dict[str, Any]]:
     payload = _get_json(
         OPENALEX_WORKS_URL,
         {
             "search": query,
             "filter": "type:article",
-            "sort": "cited_by_count:desc",
-            "per-page": 5,
+            "per-page": per_page,
         },
     )
     papers = []
@@ -179,6 +182,84 @@ def _openalex_papers(query: str) -> list[dict[str, Any]]:
     return papers
 
 
+def _arxiv_papers(query: str, max_results: int = 8) -> list[dict[str, Any]]:
+    params = urllib.parse.urlencode(
+        {
+            "search_query": f'all:"{query}"',
+            "start": 0,
+            "max_results": max_results,
+            "sortBy": "relevance",
+            "sortOrder": "descending",
+        }
+    )
+    request = urllib.request.Request(f"{ARXIV_QUERY_URL}?{params}", headers={"User-Agent": "Thrivarc literature agent"})
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 - fixed scholarly API only
+            root = ET.fromstring(response.read())
+    except Exception as exc:
+        logger.warning("arXiv request failed: %s", exc)
+        return []
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    papers = []
+    for entry in root.findall("atom:entry", ns):
+        title = " ".join((entry.findtext("atom:title", default="", namespaces=ns) or "").split())
+        abstract = " ".join((entry.findtext("atom:summary", default="", namespaces=ns) or "").split())
+        year = (entry.findtext("atom:published", default="", namespaces=ns) or "")[:4]
+        authors = [
+            (author.findtext("atom:name", default="", namespaces=ns) or "").strip()
+            for author in entry.findall("atom:author", ns)
+        ]
+        url = entry.findtext("atom:id", default="", namespaces=ns)
+        if title:
+            papers.append(
+                {
+                    "source": "arXiv",
+                    "paper_id": url,
+                    "title": title,
+                    "abstract": abstract,
+                    "year": int(year) if year.isdigit() else year,
+                    "authors": [author for author in authors if author],
+                    "citation_count": 0,
+                    "doi": "",
+                    "venue": "arXiv",
+                    "url": url,
+                    "query": query,
+                }
+            )
+    return papers
+
+
+def _supplemental_queries(topic: str, method_style: str) -> list[str]:
+    clean = re.sub(r"\s+", " ", topic).strip()
+    method = str(method_style or "empirical finance").replace("_", " ")
+    acronyms = re.findall(r"\b[A-Z][A-Z0-9^]{1,}\b", clean)
+    topic_terms_list = re.findall(r"[A-Za-z][A-Za-z0-9-]{2,}", clean)
+    topic_terms = " ".join(topic_terms_list[:8])
+    acronym_queries: list[str] = []
+    for acronym in acronyms[:3]:
+        nearby = " ".join(term for term in topic_terms_list[:8] if term.upper() != acronym)
+        acronym_queries.extend([f"{acronym} {nearby}".strip(), f"{acronym} asset pricing", f"{acronym} predictability"])
+    candidates = [
+        clean,
+        *acronym_queries,
+        f"{topic_terms} empirical asset pricing",
+        f"{topic_terms} empirical finance",
+        f"{topic_terms} corporate finance",
+        f"{topic_terms} financial econometrics",
+        f"{topic_terms} market microstructure",
+        f"{method} finance econometrics",
+        f"{method} robustness empirical finance",
+    ]
+    out: list[str] = []
+    seen: set[str] = set()
+    for query in candidates:
+        normalized = query.lower().strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            out.append(query)
+    return out
+
+
 def _semantic_references(paper_id: str) -> list[dict[str, Any]]:
     if not paper_id:
         return []
@@ -210,14 +291,35 @@ def _semantic_references(paper_id: str) -> list[dict[str, Any]]:
 
 
 def _fallback_rank(topic: str, papers: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    topic_terms = set(re.findall(r"[a-z]{4,}", topic.lower()))
+    stopwords = {
+        "does",
+        "with",
+        "from",
+        "this",
+        "that",
+        "next",
+        "month",
+        "study",
+        "research",
+        "empirical",
+        "finance",
+        "financial",
+        "market",
+        "markets",
+    }
+    topic_terms = {term for term in re.findall(r"[a-z][a-z0-9-]{2,}", topic.lower()) if term not in stopwords}
     ranked = []
     for paper in papers:
-        title_abs = f"{paper.get('title', '')} {paper.get('abstract', '')}".lower()
+        title = str(paper.get("title") or "").lower()
+        title_abs = f"{title} {paper.get('abstract', '')}".lower()
         overlap = sum(1 for term in topic_terms if term in title_abs)
-        citation = min(float(paper.get("citation_count") or 0) / 100.0, 2.0)
-        score = max(1.0, min(10.0, 4.0 + overlap + citation))
-        ranked.append({**paper, "relevance_score": round(score, 2)})
+        title_overlap = sum(1 for term in topic_terms if term in title)
+        citation = min(float(paper.get("citation_count") or 0) / 500.0, 1.0)
+        score = max(1.0, min(10.0, 2.0 + overlap * 1.2 + title_overlap * 1.6 + citation))
+        ranked.append({**paper, "relevance_score": round(score, 2), "_lexical_overlap": overlap})
+    relevant = [paper for paper in ranked if paper.get("_lexical_overlap", 0) > 0]
+    if len(relevant) >= 10:
+        ranked = relevant
     return sorted(ranked, key=lambda item: (item.get("relevance_score", 0), item.get("citation_count", 0)), reverse=True)
 
 
@@ -394,12 +496,30 @@ async def run_literature_agent(topic: str, method_style: str, blueprint: dict[st
         time.sleep(0.1)
         papers.extend(_openalex_papers(query))
         time.sleep(0.1)
+        papers.extend(_arxiv_papers(query))
+        time.sleep(0.1)
     papers = _dedupe(papers)
+    for query in _supplemental_queries(topic, method_style):
+        papers.extend(_semantic_papers(query, limit=20))
+        time.sleep(0.1)
+        papers.extend(_openalex_papers(query, per_page=10))
+        time.sleep(0.1)
+        papers.extend(_arxiv_papers(query, max_results=10))
+        time.sleep(0.1)
+        papers = _dedupe(papers)
+        if len(papers) >= 60:
+            break
     for paper in sorted(papers, key=lambda item: item.get("citation_count", 0), reverse=True)[:5]:
         if paper.get("source") == "Semantic Scholar" and paper.get("paper_id"):
             papers.extend(_semantic_references(str(paper["paper_id"])))
             time.sleep(0.1)
     papers = _dedupe(papers)
+    if len(papers) < 20:
+        for query in _supplemental_queries(topic, method_style):
+            papers.extend(_arxiv_papers(query, max_results=10))
+            papers = _dedupe(papers)
+            if len(papers) >= 20:
+                break
     ranked = await _rank_papers(topic, papers, client)
     used: set[str] = set()
     enriched = []
