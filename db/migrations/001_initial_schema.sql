@@ -1,4 +1,5 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- uuid-ossp extension removed: Azure Database for PostgreSQL Flexible Server
+-- does not allow-list it by default, and the app generates UUIDs in Python.
 
 CREATE TABLE IF NOT EXISTS sessions (
   id UUID PRIMARY KEY,

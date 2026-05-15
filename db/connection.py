@@ -9,6 +9,21 @@ from typing import Any
 try:  # pragma: no cover - dependency presence is environment-specific
     import psycopg2
     import psycopg2.extras
+    import psycopg2.extensions
+
+    # PostgreSQL UUID columns (OID 2950/2951) return uuid.UUID objects by default.
+    # The app was designed for SQLite which stores UUIDs as plain TEXT strings.
+    # Register a type adapter so psycopg2 returns strings for UUID columns,
+    # ensuring json.dumps() works without a custom encoder throughout the codebase.
+    _uuid_as_str = psycopg2.extensions.new_type(
+        (2950,), "UUID_AS_STR",
+        lambda v, c: str(v) if v is not None else None,
+    )
+    _uuid_arr_as_str = psycopg2.extensions.new_array_type(
+        (2951,), "UUID_ARR_AS_STR", _uuid_as_str,
+    )
+    psycopg2.extensions.register_type(_uuid_as_str)
+    psycopg2.extensions.register_type(_uuid_arr_as_str)
 except Exception:  # pragma: no cover
     psycopg2 = None  # type: ignore[assignment]
 
