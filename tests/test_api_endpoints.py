@@ -94,6 +94,63 @@ def test_session_api_create_scope_lock_run_results_and_fork(tmp_path: Path, monk
     assert child["parent_run_id"] == session_id
 
 
+def test_session_scope_post_saves_climate_etf_blueprint(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+
+    created = client.post(
+        "/api/sessions",
+        json={
+            "topic": "Do energy transition policy announcements produce opposite-sign overnight return responses in fossil fuel (XLE) versus clean energy (ICLN) ETFs?",
+            "domain": "finance_economics",
+        },
+    )
+    assert created.status_code == 200
+    session_id = created.json()["session_id"]
+
+    scoped = client.post(
+        f"/api/sessions/{session_id}/scope",
+        json={
+            "research_type": "confirmatory",
+            "focus_question": "Do energy transition policy announcements produce opposite-sign overnight return responses in fossil fuel (XLE) versus clean energy (ICLN) ETFs?",
+            "hypothesis": "Energy transition policy announcements produce negative overnight responses in XLE and positive overnight responses in ICLN.",
+            "constraints": {
+                "method_style": "event_study",
+                "evidence_route": "yfinance",
+                "identifiers": ["XLE", "ICLN"],
+                "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+                "event_file": "sessions/staged-upload/uploads/events_climate_etf.csv",
+                "uploaded_event_sha256": "bad8c8703accc78afab28bcc2cd657eb3a1a417d956162e065e408fb3edf68d9",
+                "return_definition": "overnight_return = open(t) - close(t-1), not close(t) - close(t-1)",
+            },
+            "target_outcome": "paper",
+        },
+    )
+    assert scoped.status_code == 200
+    assert scoped.json() == {"status": "scope_confirmed"}
+
+    blueprint = client.get(f"/api/sessions/{session_id}/blueprint").json()
+    assert blueprint["method_family"] == "event_study"
+    assert blueprint["evidence_source"] == "yfinance"
+    assert blueprint["evidence_route"] == "yfinance"
+    assert blueprint["inferred_identifiers"] == ["XLE", "ICLN"]
+    assert blueprint["inferred_window"] == {"start": "2015-01-01", "end": "2024-12-31"}
+    assert blueprint["event_file"] == "sessions/staged-upload/uploads/events_climate_etf.csv"
+    assert blueprint["uploaded_event_sha256"] == "bad8c8703accc78afab28bcc2cd657eb3a1a417d956162e065e408fb3edf68d9"
+    assert blueprint["return_definition"] == "overnight_return = open(t) - close(t-1), not close(t) - close(t-1)"
+
+    locked = client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"})
+    assert locked.status_code == 200
+    assert locked.json()["blueprint_hash"]
+
+    launched = client.post(f"/api/sessions/{session_id}/run", json={"approved": True})
+    assert launched.status_code == 200
+    assert launched.json()["run_started"] is True
+
+    session = client.get(f"/api/sessions/{session_id}").json()
+    assert session["phases"]
+    assert {phase["status"] for phase in session["phases"]} <= {"pending", "running", "complete"}
+
+
 def test_api_guide_and_data_aliases_exist(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 

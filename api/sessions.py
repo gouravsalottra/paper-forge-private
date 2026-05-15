@@ -4,6 +4,7 @@ import base64
 import hashlib
 import asyncio
 import json
+import logging
 import os
 import sqlite3
 import threading
@@ -26,6 +27,7 @@ from integrity.pdf import render_pdf
 from storage.blob import BlobStorageUnavailableError, get_artifact_url, list_artifacts, read_artifact, write_artifact
 
 router = APIRouter(prefix="/api/sessions")
+logger = logging.getLogger(__name__)
 
 AGENT_SEQUENCE = [
     "Research Architect",
@@ -306,6 +308,37 @@ def _blueprint_content(row: Any) -> dict[str, Any]:
     return _json_loads(_row_get(row, "content"), {})
 
 
+def _payload_or_constraint(payload: dict[str, Any], constraints: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in payload and payload.get(key) not in (None, "", [], {}):
+            return payload.get(key)
+        if key in constraints and constraints.get(key) not in (None, "", [], {}):
+            return constraints.get(key)
+    return None
+
+
+def _as_identifier_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip().upper() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip().upper() for item in value.split(",") if item.strip()]
+    return []
+
+
+def _window_from_payload(payload: dict[str, Any], constraints: dict[str, Any], fallback: Any) -> dict[str, str]:
+    window = _payload_or_constraint(payload, constraints, "inferred_window", "window", "date_window")
+    if isinstance(window, dict):
+        start = window.get("start") or window.get("start_date")
+        end = window.get("end") or window.get("end_date")
+        if start and end:
+            return {"start": str(start), "end": str(end)}
+    start = _payload_or_constraint(payload, constraints, "window_start", "start_date", "start")
+    end = _payload_or_constraint(payload, constraints, "window_end", "end_date", "end")
+    if start and end:
+        return {"start": str(start), "end": str(end)}
+    return fallback if isinstance(fallback, dict) else {}
+
+
 def _reviewer_gate() -> dict[str, Any]:
     gate = guide._reviewer_gate(True, "regression")
     gate.setdefault("thresholds", {"average_minimum": 7.0, "dimension_floor": 6.0, "max_cycles": 3})
@@ -332,28 +365,52 @@ def _repair_contract_template() -> dict[str, Any]:
 
 def _blueprint_from_scope(session: Any, payload: dict[str, Any]) -> dict[str, Any]:
     topic = payload.get("focus_question") or payload.get("hypothesis") or _row_get(session, "topic")
+    constraints = payload.get("constraints") if isinstance(payload.get("constraints"), dict) else {}
     validated = guide.validate(
         {
             "topic": topic,
             "hypothesis": payload.get("hypothesis"),
-            "context": json.dumps(payload.get("constraints") or {}),
+            "context": json.dumps(constraints),
             "target_outcome": payload.get("target_outcome"),
         }
     )
     summary = validated.get("blueprint_summary", {}) if isinstance(validated, dict) else {}
+    explicit_method = _payload_or_constraint(payload, constraints, "method_family", "method_style", "method")
+    explicit_evidence = _payload_or_constraint(payload, constraints, "evidence_route", "evidence_source", "price_data_route", "connector")
+    explicit_identifiers = _as_identifier_list(
+        _payload_or_constraint(payload, constraints, "inferred_identifiers", "identifiers", "tickers", "symbols")
+    )
+    explicit_window = _window_from_payload(payload, constraints, summary.get("inferred_window"))
+    return_definition = _payload_or_constraint(payload, constraints, "return_definition", "overnight_return")
+    event_file = _payload_or_constraint(payload, constraints, "event_file", "event_upload_path", "uploaded_event_file")
+    uploaded_event_sha256 = _payload_or_constraint(payload, constraints, "uploaded_event_sha256", "event_sha256", "sha256")
+    method = str(explicit_method or summary.get("method_family") or summary.get("method_style") or "regression")
+    evidence = str(explicit_evidence or summary.get("evidence_source") or "upload_or_connector")
+    identifiers = explicit_identifiers or summary.get("inferred_identifiers") or []
     return {
         "session_id": _row_get(session, "id"),
         "topic": _row_get(session, "topic"),
         "research_type": payload.get("research_type") or _row_get(session, "research_type") or "unknown",
         "focus_question": topic,
         "hypothesis": payload.get("hypothesis") or summary.get("if_true"),
-        "method_family": summary.get("method_family") or summary.get("method_style"),
-        "method_style": summary.get("method_style"),
-        "evidence_source": summary.get("evidence_source"),
-        "constraints": payload.get("constraints") or {},
+        "method_family": method,
+        "method_style": method,
+        "evidence_source": evidence,
+        "evidence_route": evidence,
+        "event_file": event_file,
+        "uploaded_event_sha256": uploaded_event_sha256,
+        "constraints": constraints,
         "target_outcome": payload.get("target_outcome") or "research_report",
+        "inferred_identifiers": identifiers,
+        "inferred_window": explicit_window,
+        "return_definition": return_definition,
+        "overnight_return": return_definition,
+        "data_structure": payload.get("data_structure") or constraints.get("data_structure") or summary.get("data_structure"),
+        "outcome_variable": payload.get("outcome_variable") or constraints.get("outcome_variable") or summary.get("outcome_variable"),
+        "key_predictors": payload.get("key_predictors") or constraints.get("key_predictors") or summary.get("key_predictors") or [],
+        "control_variables": payload.get("control_variables") or constraints.get("control_variables") or summary.get("control_variables") or [],
+        "identification_strategy": payload.get("identification_strategy") or constraints.get("identification_strategy") or summary.get("identification_strategy"),
         "clarification_policy": summary.get("clarification_policy") or [],
-        "evidence_route": summary.get("data_fallback_policy") or {},
         "research_package": summary.get("research_package") or {},
         "completion_contract": summary.get("completion_contract") or {},
         "launch_readiness": summary.get("launch_readiness") or {},
@@ -362,11 +419,11 @@ def _blueprint_from_scope(session: Any, payload: dict[str, Any]) -> dict[str, An
         "integrity_artifacts": summary.get("integrity_artifacts") or guide._integrity_artifacts(payload.get("research_type") == "confirmatory"),
         "audit_boundary": summary.get("audit_boundary") or guide._audit_boundary(),
         "paper_code_verifier": summary.get("paper_code_verifier") or guide._paper_code_verifier_policy(),
-        "data_quality_policy": summary.get("data_quality_policy") or guide._data_quality_policy("upload_or_connector"),
-        "leakage_policy": summary.get("leakage_policy") or guide._leakage_policy(summary.get("method_style") or "regression"),
-        "statistical_battery": summary.get("statistical_battery") or guide._statistical_battery(summary.get("method_style") or "regression"),
-        "economic_significance": summary.get("economic_significance") or guide._economic_significance(summary.get("method_style") or "regression"),
-        "data_fallback_policy": summary.get("data_fallback_policy") or guide._data_fallback_policy("upload_or_connector"),
+        "data_quality_policy": summary.get("data_quality_policy") or guide._data_quality_policy(evidence),
+        "leakage_policy": summary.get("leakage_policy") or guide._leakage_policy(method),
+        "statistical_battery": summary.get("statistical_battery") or guide._statistical_battery(method),
+        "economic_significance": summary.get("economic_significance") or guide._economic_significance(method),
+        "data_fallback_policy": summary.get("data_fallback_policy") or guide._data_fallback_policy(evidence),
     }
 
 
@@ -1361,6 +1418,7 @@ def compare_sessions(session_id: str, other_session_id: str):
     return {"base_session_id": session_id, "comparison_session_id": other_session_id, "diff": diff}
 
 
+@router.post("/{session_id}/scope")
 @router.patch("/{session_id}/scope")
 def update_scope(session_id: str, payload: dict[str, Any]):
     with _with_conn() as conn:
@@ -1472,6 +1530,34 @@ def stream(session_id: str):
     return StreamingResponse(events(), media_type="text/event-stream")
 
 
+def _mark_pipeline_failed(session_id: str, exc: BaseException) -> None:
+    reason = f"{exc.__class__.__name__}: {exc}"
+    with _with_conn() as conn:
+        _phase_status(conn, session_id, "Pipeline orchestrator", "failed_resumable", reason)
+        _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("failed_resumable", _now(), session_id))
+        _event(
+            conn,
+            session_id,
+            "run_failed",
+            {
+                "summary": "Pipeline failed before completion.",
+                "failure_reason": reason,
+                "available_actions": ["retry_run", "review_failure"],
+            },
+            "Pipeline orchestrator",
+            "failed_resumable",
+        )
+        _commit(conn)
+
+
+def _run_pipeline_background(session_id: str, blueprint: dict[str, Any]) -> None:
+    try:
+        _execute_session_pipeline(session_id, blueprint)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Canonical session pipeline failed for %s", session_id)
+        _mark_pipeline_failed(session_id, exc)
+
+
 @router.post("/{session_id}/run")
 def run_session(session_id: str, payload: dict[str, Any]):
     if payload.get("approved") is not True:
@@ -1484,9 +1570,14 @@ def run_session(session_id: str, payload: dict[str, Any]):
         if not blueprint:
             return _error(409, "BLUEPRINT_MISSING", "Create and approve a Blueprint before launch.", "needs_blueprint", ["update_scope"])
         _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("running", _now(), session_id))
+        for agent in AGENT_SEQUENCE:
+            _phase_status(conn, session_id, agent, "pending", "Queued by RunSpec.")
         _event(conn, session_id, "phase_update", {"summary": "Pipeline run started."}, "Pipeline orchestrator", "running")
         _commit(conn)
-    _execute_session_pipeline(session_id, blueprint)
+    if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
+        _run_pipeline_background(session_id, blueprint)
+    else:
+        threading.Thread(target=_run_pipeline_background, args=(session_id, blueprint), daemon=True).start()
     return {"run_started": True, "estimated_minutes": 45}
 
 
