@@ -1575,6 +1575,11 @@ def _reviewer_scorecard(session_id: str, profile: dict[str, Any]) -> dict[str, A
 
 def _insert_reviewer_score(conn: Any, session_id: str, scorecard: dict[str, Any]) -> None:
     scores = scorecard["scores"]
+    try:
+        cycle_row = _fetchone(conn, "SELECT COALESCE(MAX(cycle), 0) + 1 AS next_cycle FROM reviewer_scores WHERE session_id=?", (session_id,))
+        next_cycle = int(_row_get(cycle_row, "next_cycle", scorecard.get("cycle", 1)))
+    except Exception:
+        next_cycle = int(scorecard.get("cycle", 1))
     _execute(
         conn,
         """
@@ -1588,7 +1593,7 @@ def _insert_reviewer_score(conn: Any, session_id: str, scorecard: dict[str, Any]
         (
             str(uuid.uuid4()),
             session_id,
-            scorecard["cycle"],
+            next_cycle,
             scores["identification_validity"],
             scores["data_integrity"],
             scores["statistical_rigor"],
@@ -1824,7 +1829,7 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
     session_id = _row_get(row, "id")
     blueprint = _blueprint_row(conn, session_id)
     phase = _fetchone(conn, "SELECT agent_name, status FROM phases WHERE session_id=? ORDER BY started_at DESC LIMIT 1", (session_id,))
-    score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1", (session_id,))
+    score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC, created_at DESC LIMIT 1", (session_id,))
     status = _row_get(row, "status")
     next_action = {
         "draft": "Resume draft",
@@ -1981,8 +1986,8 @@ def compare_sessions(session_id: str, other_session_id: str):
             return _not_found()
         left_bp = _blueprint_content(_blueprint_row(conn, session_id))
         right_bp = _blueprint_content(_blueprint_row(conn, other_session_id))
-        left_score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1", (session_id,))
-        right_score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1", (other_session_id,))
+        left_score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC, created_at DESC LIMIT 1", (session_id,))
+        right_score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC, created_at DESC LIMIT 1", (other_session_id,))
     fields = {
         "topic": (_row_get(left, "topic"), _row_get(right, "topic")),
         "research_type": (_row_get(left, "research_type"), _row_get(right, "research_type")),
@@ -2211,7 +2216,7 @@ def results(session_id: str):
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
-        scores = [_json_loads(json.dumps(dict(row)), {}) if not isinstance(row, dict) else row for row in _fetchall(conn, "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle ASC", (session_id,))]
+        scores = [_json_loads(json.dumps(dict(row)), {}) if not isinstance(row, dict) else row for row in _fetchall(conn, "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle ASC, created_at ASC", (session_id,))]
         deviation_count = _row_get(_fetchone(conn, "SELECT COUNT(*) AS count FROM deviation_register WHERE session_id=?", (session_id,)), "count", 0)
         session = _session_row(conn, session_id)
     artifacts_list = list_artifacts(session_id)
