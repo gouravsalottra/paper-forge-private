@@ -13,7 +13,7 @@ from api.prompts import RESEARCH_ARCHITECT_PROMPT
 
 router = APIRouter()
 
-AZURE_ENDPOINT = "https://goura-mp4b98bg-eastus2.cognitiveservices.azure.com/"
+AZURE_ENDPOINT = "https://thrivarc.openai.azure.com/"
 # MODEL: standardized to gpt-4o per STEP 0 audit
 AZURE_DEPLOYMENT = "gpt-4o"
 AZURE_API_VERSION = "2024-12-01-preview"
