@@ -553,13 +553,13 @@ def _compute_climate_etf_event_study(blueprint: dict[str, Any]) -> dict[str, Any
             ],
             "primary_numbers": {
                 "event_count": 1,
-                "mean_direction_aligned_spread_bps": 30.0,
+                "mean_direction_aligned_spread_points": 0.3,
                 "direction_aligned_t_stat": 1.0,
                 "direction_aligned_p_value": 0.3173,
                 "supportive_event_share": 1.0,
-                "xle_mean_overnight_bps": -10.0,
-                "icln_mean_overnight_bps": 20.0,
-                "return_definition": "open(t) / close(t-1) - 1",
+                "xle_mean_overnight_points": -0.1,
+                "icln_mean_overnight_points": 0.2,
+                "return_definition": "open(t) - close(t-1)",
             },
             "event_file_sha256": blueprint.get("uploaded_event_sha256"),
             "price_result_sha256": "test",
@@ -618,8 +618,8 @@ def _compute_climate_etf_event_study(blueprint: dict[str, Any]) -> dict[str, Any
         if len(previous) == 0:
             continue
         prev_day = previous[-1]
-        xle_ret = float(xle_open.loc[event_day] / xle_close.loc[prev_day] - 1.0)
-        icln_ret = float(icln_open.loc[event_day] / icln_close.loc[prev_day] - 1.0)
+        xle_ret = float(xle_open.loc[event_day] - xle_close.loc[prev_day])
+        icln_ret = float(icln_open.loc[event_day] - icln_close.loc[prev_day])
         spread = icln_ret - xle_ret
         direction = str(event.get("direction") or "").strip().lower()
         aligned = spread if direction == "pro_clean" else -spread if direction == "pro_fossil" else spread
@@ -646,17 +646,17 @@ def _compute_climate_etf_event_study(blueprint: dict[str, Any]) -> dict[str, Any
     late = result_frame[pd.to_datetime(result_frame["event_date"]) >= pd.Timestamp("2020-01-01")]["direction_aligned_spread"]
     primary_numbers = {
         "event_count": int(len(result_frame)),
-        "mean_direction_aligned_spread_bps": _round_number(aligned.mean() * 10000, 2),
-        "median_direction_aligned_spread_bps": _round_number(aligned.median() * 10000, 2),
+        "mean_direction_aligned_spread_points": _round_number(aligned.mean(), 4),
+        "median_direction_aligned_spread_points": _round_number(aligned.median(), 4),
         "direction_aligned_t_stat": _round_number(t_stat, 3),
         "direction_aligned_p_value": _round_number(p_value, 4),
         "supportive_event_share": _round_number((aligned > 0).mean(), 4),
-        "xle_mean_overnight_bps": _round_number(result_frame["xle_overnight_return"].mean() * 10000, 2),
-        "icln_mean_overnight_bps": _round_number(result_frame["icln_overnight_return"].mean() * 10000, 2),
-        "clean_minus_fossil_mean_bps": _round_number(result_frame["clean_minus_fossil_spread"].mean() * 10000, 2),
-        "early_post_paris_aligned_spread_bps": _round_number(early.mean() * 10000, 2) if not early.empty else None,
-        "later_post_paris_aligned_spread_bps": _round_number(late.mean() * 10000, 2) if not late.empty else None,
-        "return_definition": "open(t) / close(t-1) - 1",
+        "xle_mean_overnight_points": _round_number(result_frame["xle_overnight_return"].mean(), 4),
+        "icln_mean_overnight_points": _round_number(result_frame["icln_overnight_return"].mean(), 4),
+        "clean_minus_fossil_mean_points": _round_number(result_frame["clean_minus_fossil_spread"].mean(), 4),
+        "early_post_paris_aligned_spread_points": _round_number(early.mean(), 4) if not early.empty else None,
+        "later_post_paris_aligned_spread_points": _round_number(late.mean(), 4) if not late.empty else None,
+        "return_definition": "open(t) - close(t-1)",
     }
     encoded_results = result_frame.to_json(orient="records", date_format="iso").encode("utf-8")
     return {
@@ -688,20 +688,20 @@ def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
             "event_file": blueprint.get("event_file"),
             "event_file_sha256": climate["event_file_sha256"],
             "price_result_sha256": climate["price_result_sha256"],
-            "return_definition": "open(t) / close(t-1) - 1",
+            "return_definition": "open(t) - close(t-1)",
             "event_window": "overnight_event_open",
             "event_results": climate["event_rows"],
             "primary_numbers": primary_numbers,
             "robustness": [
                 {"check": "direction-aligned sign test", "passes": primary_numbers["supportive_event_share"] >= 0.5},
-                {"check": "early versus later post-Paris split reported", "passes": primary_numbers.get("later_post_paris_aligned_spread_bps") is not None},
+                {"check": "early versus later post-Paris split reported", "passes": primary_numbers.get("later_post_paris_aligned_spread_points") is not None},
                 {"check": "locked event-file SHA verified", "passes": climate["event_file_sha256"] == blueprint.get("uploaded_event_sha256")},
             ],
         }
         summary = (
             "Using the locked 10-event climate policy file and yfinance XLE/ICLN open and previous-close prices, "
             f"the direction-aligned clean-minus-fossil overnight spread averaged "
-            f"{primary_numbers['mean_direction_aligned_spread_bps']} bps "
+            f"{primary_numbers['mean_direction_aligned_spread_points']} price points "
             f"(t={primary_numbers['direction_aligned_t_stat']}, p={primary_numbers['direction_aligned_p_value']}). "
             "The result is reported as an event-study association, not causal proof."
         )
@@ -1221,7 +1221,7 @@ def _analysis_code_contract(blueprint: dict[str, Any], profile: dict[str, Any]) 
             "    prev_day = prices.index[prices.index < event_trading_day][-1]",
             "    prev_close = float(prices.loc[prev_day, ('Close', ticker)])",
             "    event_open = float(prices.loc[event_trading_day, ('Open', ticker)])",
-            "    overnight_return = event_open / prev_close - 1.0",
+            "    overnight_return = event_open - prev_close",
             "    return overnight_return",
             "",
             "def build_event_universe():",

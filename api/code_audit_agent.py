@@ -51,10 +51,12 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
     window = blueprint.get("inferred_window", {}) if isinstance(blueprint.get("inferred_window"), dict) else {}
     locked_tickers = [str(item) for item in blueprint.get("inferred_identifiers", [])]
     code_tickers = _locked_list("TICKERS", analysis_code)
-    code_uses_overnight = "overnight_return = event_open / prev_close - 1.0" in analysis_code
+    code_uses_overnight = "overnight_return = event_open - prev_close" in analysis_code
     code_window_matches = bool(window.get("start") in analysis_code and window.get("end") in analysis_code)
     code_universe_matches = bool(code_tickers == locked_tickers and locked_tickers)
     code_has_event_window = "EVENT_WINDOW = 'overnight_event_open'" in analysis_code
+    expected_event_sha = blueprint.get("uploaded_event_sha256") or blueprint.get("event_file_sha256")
+    code_event_sha_matches = bool(expected_event_sha and f"EVENT_FILE_SHA256 = '{expected_event_sha}'" in analysis_code)
 
     kept = []
     removed = []
@@ -65,6 +67,7 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
             or (violation_type == "universe_mismatch" and code_universe_matches)
             or (violation_type == "date_range_mismatch" and code_window_matches)
             or (violation_type == "window_mismatch" and code_has_event_window)
+            or (violation_type == "event_file_integrity" and code_event_sha_matches)
         )
         if contradicted:
             removed.append({**violation, "removed_reason": "Contradicted by locked analysis contract."})

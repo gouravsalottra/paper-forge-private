@@ -270,6 +270,7 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
     blueprint = {
         "inferred_identifiers": ["XLE", "ICLN"],
         "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+        "uploaded_event_sha256": "bad8c8703accc78afab28bcc2cd657eb3a1a417d956162e065e408fb3edf68d9",
     }
     analysis_code = "\n".join(
         [
@@ -278,7 +279,8 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
             "WINDOW_START = '2015-01-01'",
             "WINDOW_END = '2024-12-31'",
             "EVENT_WINDOW = 'overnight_event_open'",
-            "overnight_return = event_open / prev_close - 1.0",
+            "EVENT_FILE_SHA256 = 'bad8c8703accc78afab28bcc2cd657eb3a1a417d956162e065e408fb3edf68d9'",
+            "overnight_return = event_open - prev_close",
         ]
     )
     result = {
@@ -287,13 +289,14 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
         "violations": [
             {"severity": "fatal", "violation_type": "return_definition"},
             {"severity": "fatal", "violation_type": "universe_mismatch"},
+            {"severity": "fatal", "violation_type": "event_file_integrity"},
             {"severity": "major", "violation_type": "multiple_testing"},
         ],
     }
 
     cleaned = _remove_contradicted_violations(blueprint, analysis_code, result)
     assert [item["violation_type"] for item in cleaned["violations"]] == ["multiple_testing"]
-    assert len(cleaned["llm_audit_overrides"]) == 2
+    assert len(cleaned["llm_audit_overrides"]) == 3
 
 
 def test_post_resume_reruns_failed_resumable_session(tmp_path: Path, monkeypatch) -> None:
