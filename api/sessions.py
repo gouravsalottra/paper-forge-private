@@ -1320,7 +1320,8 @@ def _agent_blueprint(blueprint: dict[str, Any], profile: dict[str, Any]) -> dict
 def _analysis_code_contract(blueprint: dict[str, Any], profile: dict[str, Any]) -> str:
     window = blueprint.get("inferred_window") if isinstance(blueprint.get("inferred_window"), dict) else {}
     tickers = [str(item) for item in blueprint.get("inferred_identifiers", [])]
-    controls = [str(item) for item in blueprint.get("control_variables", [])]
+    compute_controls = profile.get("compute", {}).get("controls", [])
+    controls = [str(item) for item in compute_controls] if isinstance(compute_controls, list) else [str(item) for item in blueprint.get("control_variables", [])]
     event_file = blueprint.get("event_file") or blueprint.get("uploaded_event_file")
     event_sha = blueprint.get("uploaded_event_sha256") or blueprint.get("event_file_sha256")
     return "\n".join(
@@ -1334,6 +1335,12 @@ def _analysis_code_contract(blueprint: dict[str, Any], profile: dict[str, Any]) 
             "EVENT_WINDOW = 'overnight_event_open'",
             f"EVENT_FILE = {event_file!r}",
             f"EVENT_FILE_SHA256 = {event_sha!r}",
+            "",
+            "def verify_event_file(event_bytes):",
+            "    from hashlib import sha256",
+            "    computed_sha = sha256(event_bytes).hexdigest()",
+            "    assert computed_sha == EVENT_FILE_SHA256",
+            "    return computed_sha",
             "",
             "def compute_overnight_return(prices, event_trading_day, ticker):",
             "    prev_day = prices.index[prices.index < event_trading_day][-1]",

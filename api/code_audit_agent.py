@@ -62,12 +62,20 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
     removed = []
     for violation in result.get("violations", []):
         violation_type = violation.get("violation_type")
+        description = str(violation.get("description") or "").lower()
+        location = str(violation.get("location") or "").lower()
         contradicted = (
             (violation_type == "return_definition" and code_uses_overnight)
             or (violation_type == "universe_mismatch" and code_universe_matches)
             or (violation_type == "date_range_mismatch" and code_window_matches)
             or (violation_type == "window_mismatch" and code_has_event_window)
             or (violation_type == "event_file_integrity" and code_event_sha_matches)
+            or (
+                violation_type == "hardcoded_results"
+                and code_event_sha_matches
+                and "event_file_sha256" in analysis_code.lower()
+                and ("sha" in description or "sha" in location or "event file" in description)
+            )
         )
         if contradicted:
             removed.append({**violation, "removed_reason": "Contradicted by locked analysis contract."})

@@ -290,13 +290,14 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
             {"severity": "fatal", "violation_type": "return_definition"},
             {"severity": "fatal", "violation_type": "universe_mismatch"},
             {"severity": "fatal", "violation_type": "event_file_integrity"},
+            {"severity": "fatal", "violation_type": "hardcoded_results", "description": "EVENT_FILE_SHA256 is hardcoded."},
             {"severity": "major", "violation_type": "multiple_testing"},
         ],
     }
 
     cleaned = _remove_contradicted_violations(blueprint, analysis_code, result)
     assert [item["violation_type"] for item in cleaned["violations"]] == ["multiple_testing"]
-    assert len(cleaned["llm_audit_overrides"]) == 3
+    assert len(cleaned["llm_audit_overrides"]) == 4
 
 
 def test_post_resume_reruns_failed_resumable_session(tmp_path: Path, monkeypatch) -> None:
@@ -371,6 +372,27 @@ def test_defensible_null_calibration_requires_real_robustness() -> None:
     assert calibrated["average_score"] >= 7.0
     assert calibrated["floor_failed"] == []
     assert "null-result" in calibrated["findings"]["summary"]
+
+
+def test_analysis_code_contract_uses_compute_controls_not_stale_blueprint_controls() -> None:
+    from api.sessions import _analysis_code_contract
+
+    blueprint = {
+        "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+        "inferred_identifiers": ["XLE", "ICLN"],
+        "control_variables": ["SPY overnight return", "VIX level", "sector momentum"],
+        "event_file": "sessions/staged-upload/uploads/events_climate_etf.csv",
+        "uploaded_event_sha256": "bad8c8703accc78afab28bcc2cd657eb3a1a417d956162e065e408fb3edf68d9",
+    }
+    profile = {
+        "method_family": "event_study",
+        "compute": {"controls": ["SPY overnight return", "VIX level"]},
+    }
+
+    contract = _analysis_code_contract(blueprint, profile)
+    assert "sector momentum" not in contract
+    assert "verify_event_file" in contract
+    assert "computed_sha == EVENT_FILE_SHA256" in contract
 
 
 def test_repair_approval_reruns_from_paper_locked_state(tmp_path: Path, monkeypatch) -> None:
