@@ -415,6 +415,19 @@ ACTUAL RESULTS:
 Score this research on 7 dimensions. Each score is 1.0 to 10.0.
 Gate threshold: average >= 7.0 AND no single dimension < 6.0.
 
+Important reviewer rule:
+- Do not require a positive or statistically significant result for the
+  Writer gate. A confirmatory study may earn the paper if it faithfully
+  reports that the locked hypothesis is not supported.
+- Score economic_significance on whether the magnitude is measured against
+  a pre-specified benchmark and interpreted honestly, not on whether the
+  effect is large.
+- Score robustness_burden on whether the required placebo, sensitivity,
+  subsample, and outlier checks were actually run and reported.
+- Penalize only overclaiming, missing diagnostics, invalid data, invalid
+  identification, or unsupported causal language. Do not penalize a null
+  finding that is transparently documented and scoped.
+
 Return ONLY JSON:
 
 {{

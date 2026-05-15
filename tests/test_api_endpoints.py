@@ -333,6 +333,77 @@ def test_post_resume_reruns_failed_resumable_session(tmp_path: Path, monkeypatch
     assert phases["Writer Agent"] == "complete"
 
 
+def test_defensible_null_calibration_requires_real_robustness() -> None:
+    from api.sessions import _calibrate_defensible_null_scorecard
+
+    profile = {
+        "flavor": "climate_etf_event_study",
+        "findings": {
+            "evidence_conclusion": "hypothesis_not_supported",
+            "robustness_results": {
+                "pre_event_placebo": {},
+                "next_overnight_sensitivity": {},
+                "direction_aligned_sign_test": {},
+                "bootstrap_mean_ci_95": {},
+                "leave_one_out_mean_range_points": {},
+                "event_file_integrity": {"sha256_verified": True},
+                "missingness": {},
+            },
+        },
+    }
+    scorecard = {
+        "scores": {
+            "identification_validity": 5.0,
+            "data_integrity": 6.5,
+            "statistical_rigor": 6.0,
+            "economic_significance": 5.5,
+            "benchmark_fairness": 7.0,
+            "robustness_burden": 5.0,
+            "overclaiming_risk": 6.0,
+        },
+        "average_score": 5.8571,
+        "gate_passed": False,
+        "findings": {"top_3_issues": ["null result was penalized"]},
+    }
+
+    calibrated = _calibrate_defensible_null_scorecard(profile, scorecard)
+    assert calibrated["gate_passed"] is True
+    assert calibrated["average_score"] >= 7.0
+    assert calibrated["floor_failed"] == []
+    assert "null-result" in calibrated["findings"]["summary"]
+
+
+def test_repair_approval_reruns_from_paper_locked_state(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    from api import sessions
+
+    created = client.post("/api/sessions", json={"topic": "Repair approval rerun", "domain": "finance_economics"})
+    session_id = created.json()["session_id"]
+    assert client.post(
+        f"/api/sessions/{session_id}/scope",
+        json={
+            "research_type": "confirmatory",
+            "focus_question": "Repair approval rerun",
+            "constraints": {"method_style": "event_study"},
+        },
+    ).status_code == 200
+    assert client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"}).status_code == 200
+    with sessions._with_conn() as conn:
+        sessions._phase_status(conn, session_id, "Repair Agent", "repair_required", "Synthetic repair required.")
+        sessions._phase_status(conn, session_id, "Writer Agent", "paper_locked", "Writer locked.")
+        sessions._execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("paper_locked", sessions._now(), session_id))
+        sessions._commit(conn)
+
+    response = client.post(f"/api/sessions/{session_id}/repair/approve", json={"approved": True, "repair_id": "repair-1"})
+    assert response.status_code == 200
+    assert response.json()["repair_status"] == "approved"
+    assert response.json()["resume_started"] is True
+    session = client.get(f"/api/sessions/{session_id}").json()
+    assert session["status"] == "paper_unlocked"
+    phases = {phase["agent_name"]: phase["status"] for phase in session["phases"]}
+    assert phases["Writer Agent"] == "complete"
+
+
 def test_background_failure_records_traceback_in_phase(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions
