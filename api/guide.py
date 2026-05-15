@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from openai import AzureOpenAI
 
 from api.method_registry import infer_evidence_route, infer_method_family, method_definition, method_families
+from api.prompts import RESEARCH_ARCHITECT_PROMPT
 
 router = APIRouter()
 
@@ -262,59 +263,12 @@ def _llm_infer_blueprint_fields(
     to keyword rules.
     Never raises. Never logs the payload content.
     """
-    method_options = ", ".join(sorted(VALID_METHOD_FAMILIES))
-    system = (
-        "You are a research design classifier for empirical finance and economics.\n"
-        f"Valid method_family values: {method_options}.\n"
-        "\n"
-        "Given a research brief, return a JSON object with exactly four fields. "
-        "No prose. No markdown. Only JSON.\n"
-        "\n"
-        "RULES:\n"
-        "\n"
-        "research_stance:\n"
-        '- \"confirmatory\" if the question is directional and falsifiable. '
-        "Signs: does X cause Y, does X outperform Z, does X amplify Y relative to Z, "
-        "does X reduce Y, is X greater than Y, does X predict Z.\n"
-        '- \"exploratory\" only if the researcher is discovering what exists or '
-        "what patterns might be interesting, with no prior directional claim.\n"
-        "\n"
-        "method_family — choose the PRIMARY method that actually answers the question. "
-        "Do not default to descriptive:\n"
-        "- backtest: trading strategies, factor portfolios, rebalancing, rotation, allocation rules\n"
-        "- event_study: corporate events, announcements, regulatory changes, macro surprises\n"
-        "- regression: factor models, cross-sectional predictability, time-series forecasting, panel data\n"
-        "- simulation: any study that generates synthetic data to test a mechanism or hypothesis\n"
-        "- agent_based_model: multi-agent systems, emergent market behaviour, microstructure simulation\n"
-        "- network_analysis: systemic risk, contagion, interconnectedness, graph-based studies\n"
-        "- text_analysis: earnings calls, filings, transcripts, sentiment, NLP on financial text\n"
-        "- causal_identification: diff-in-diff, RDD, IV, natural experiments, quasi-experiments\n"
-        "- meta_analysis: synthesis of existing literature, pooled effect sizes, publication bias\n"
-        "- descriptive: ONLY if no causal, predictive, or comparative claim is made\n"
-        "\n"
-        "evidence_route — where does the data come from:\n"
-        "- simulation_generated: study generates its own data\n"
-        "- upload: researcher provides proprietary data\n"
-        "- edgar_yfinance: SEC filings plus market prices\n"
-        "- text_corpus: earnings calls, transcripts, news text\n"
-        "- yfinance: public market prices only\n"
-        "- fred_yfinance: macro series plus market prices\n"
-        "- public_fallback: public data, source TBD\n"
-        "- manual_connector_request: requires institutional access\n"
-        "\n"
-        "confirmatory_rationale: one sentence explaining why the study is or is not confirmatory.\n"
-        "\n"
-        "Return ONLY:\n"
-        '{\n  \"research_stance\": \"confirmatory\" or \"exploratory\",\n'
-        '  \"method_family\": one value from the list above,\n'
-        '  \"evidence_route\": one value from the list above,\n'
-        '  \"confirmatory_rationale\": \"one sentence\"\n}'
-    )
     raw_text, _ = _payload_text(payload)
     if not raw_text.strip():
         return {}
+    prompt = RESEARCH_ARCHITECT_PROMPT.format(research_question=raw_text)
     try:
-        result = _json_call(system, {"brief": raw_text})
+        result = _json_call(prompt, {"brief": raw_text})
         # Validate all four fields present and values valid
         if not isinstance(result, dict):
             return {}
@@ -849,18 +803,18 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
 
     # Build canonical agent_stack_preview — always uses AZURE_DEPLOYMENT (gpt-4o).
     # Defending against hallucinated model names from LLM.
-    _LLM_AGENT_PHASES = {"LITERATURE", "CODEAUDIT", "REVIEWER"}
+    _LLM_AGENT_PHASES = {"LITERATURE", "DATAPULL", "PREREGISTER", "COMPUTE", "STATSRUN", "CODEAUDIT", "REVIEWER", "WRITER"}
     canonical_stack = [
         {"phase": "LITERATURE", "label": "Context scan", "engine": AZURE_DEPLOYMENT, "skill": "Search and synthesize prior evidence", "reads": "research brief", "produces": "literature_map.md", "why_now": "Ground the study before execution."},
-        {"phase": "DATAPULL", "label": "Evidence pull", "engine": "Thrivarc evidence connector", "skill": "Fetch or ingest the dataset", "reads": "RunSpec.datapull", "produces": "data preview and certificate", "why_now": "Evidence must be inspected before compute."},
-        {"phase": "COMPUTE", "label": "Method engine", "engine": "Thrivarc compute adapter", "skill": f"Run {method}", "reads": "certified data", "produces": "method outputs", "why_now": "Execute the approved design."},
-        {"phase": "STATSRUN", "label": "Statistical battery", "engine": "existing stats agents", "skill": "Validate primary findings", "reads": "compute outputs", "produces": "test tables", "why_now": "Quantify evidence strength."},
+        {"phase": "DATAPULL", "label": "Evidence pull", "engine": AZURE_DEPLOYMENT, "skill": "Fetch or ingest the dataset", "reads": "RunSpec.datapull", "produces": "data preview and certificate", "why_now": "Evidence must be inspected before compute."},
+        {"phase": "COMPUTE", "label": "Method engine", "engine": AZURE_DEPLOYMENT, "skill": f"Run {method}", "reads": "certified data", "produces": "method outputs", "why_now": "Execute the approved design."},
+        {"phase": "STATSRUN", "label": "Statistical battery", "engine": AZURE_DEPLOYMENT, "skill": "Validate primary findings", "reads": "compute outputs", "produces": "test tables", "why_now": "Quantify evidence strength."},
         {"phase": "CODEAUDIT", "label": "Code audit", "engine": AZURE_DEPLOYMENT, "skill": "Check code/spec alignment", "reads": "RunSpec and outputs", "produces": "audit report", "why_now": "Catch mismatches before review."},
         {"phase": "REVIEWER", "label": "Hostile reviewer", "engine": AZURE_DEPLOYMENT, "skill": "Pressure-test the full study", "reads": "all phase outputs", "produces": "reviewer report", "why_now": "Force defensibility before writing."},
-        {"phase": "WRITER", "label": "Paper workspace", "engine": "existing writer", "skill": "Draft verified paper sections", "reads": "approved evidence", "produces": "paper draft", "why_now": "Write only after review passes."},
+        {"phase": "WRITER", "label": "Paper workspace", "engine": AZURE_DEPLOYMENT, "skill": "Draft verified paper sections", "reads": "approved evidence", "produces": "paper draft", "why_now": "Write only after review passes."},
     ]
     if confirmatory:
-        canonical_stack.insert(2, {"phase": "PREREGISTER", "label": "Claim lock", "engine": "existing preregistration agent", "skill": "Lock hypothesis", "reads": "research claim", "produces": "PAP lock", "why_now": "Confirmatory claims must be locked before results."})
+        canonical_stack.insert(2, {"phase": "PREREGISTER", "label": "Claim lock", "engine": AZURE_DEPLOYMENT, "skill": "Lock hypothesis", "reads": "research claim", "produces": "PAP lock", "why_now": "Confirmatory claims must be locked before results."})
     summary.setdefault("agent_stack_preview", canonical_stack)
 
     # Sanitize: if the LLM returned agent_stack_preview with wrong engine names,
@@ -902,15 +856,15 @@ def _fallback_blueprint(payload: dict[str, Any]) -> dict[str, Any]:
     stats_policy = _statistical_battery(method)
     agent_stack = [
         {"phase": "LITERATURE", "label": "Context scan", "engine": AZURE_DEPLOYMENT, "skill": "Search and synthesize prior evidence", "reads": "research brief", "produces": "literature_map.md", "why_now": "Ground the study before execution."},
-        {"phase": "DATAPULL", "label": "Evidence pull", "engine": "Thrivarc evidence connector", "skill": "Fetch or ingest the dataset", "reads": "RunSpec.datapull", "produces": "data preview and certificate", "why_now": "Evidence must be inspected before compute."},
-        {"phase": "COMPUTE", "label": "Method engine", "engine": "Thrivarc compute adapter", "skill": f"Run {method}", "reads": "certified data", "produces": "method outputs", "why_now": "Execute the approved design."},
-        {"phase": "STATSRUN", "label": "Statistical battery", "engine": "existing stats agents", "skill": "Validate primary findings", "reads": "compute outputs", "produces": "test tables", "why_now": "Quantify evidence strength."},
+        {"phase": "DATAPULL", "label": "Evidence pull", "engine": AZURE_DEPLOYMENT, "skill": "Fetch or ingest the dataset", "reads": "RunSpec.datapull", "produces": "data preview and certificate", "why_now": "Evidence must be inspected before compute."},
+        {"phase": "COMPUTE", "label": "Method engine", "engine": AZURE_DEPLOYMENT, "skill": f"Run {method}", "reads": "certified data", "produces": "method outputs", "why_now": "Execute the approved design."},
+        {"phase": "STATSRUN", "label": "Statistical battery", "engine": AZURE_DEPLOYMENT, "skill": "Validate primary findings", "reads": "compute outputs", "produces": "test tables", "why_now": "Quantify evidence strength."},
         {"phase": "CODEAUDIT", "label": "Code audit", "engine": AZURE_DEPLOYMENT, "skill": "Check code/spec alignment", "reads": "RunSpec and outputs", "produces": "audit report", "why_now": "Catch mismatches before review."},
         {"phase": "REVIEWER", "label": "Hostile reviewer", "engine": AZURE_DEPLOYMENT, "skill": "Pressure-test the full study", "reads": "all phase outputs", "produces": "reviewer report", "why_now": "Force defensibility before writing."},
-        {"phase": "WRITER", "label": "Paper workspace", "engine": "existing writer", "skill": "Draft verified paper sections", "reads": "approved evidence", "produces": "paper draft", "why_now": "Write only after review passes."},
+        {"phase": "WRITER", "label": "Paper workspace", "engine": AZURE_DEPLOYMENT, "skill": "Draft verified paper sections", "reads": "approved evidence", "produces": "paper draft", "why_now": "Write only after review passes."},
     ]
     if confirmatory:
-        agent_stack.insert(2, {"phase": "PREREGISTER", "label": "Claim lock", "engine": "existing preregistration agent", "skill": "Lock hypothesis", "reads": "research claim", "produces": "PAP lock", "why_now": "Confirmatory claims must be locked before results."})
+        agent_stack.insert(2, {"phase": "PREREGISTER", "label": "Claim lock", "engine": AZURE_DEPLOYMENT, "skill": "Lock hypothesis", "reads": "research claim", "produces": "PAP lock", "why_now": "Confirmatory claims must be locked before results."})
     return _normalize_contract({
         "validated": not clarifications,
         "error": None if not clarifications else "Brief is too vague to plan without clarification.",
