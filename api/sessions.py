@@ -8,6 +8,7 @@ import logging
 import os
 import sqlite3
 import threading
+import traceback
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -280,6 +281,32 @@ def _phase_status(conn: Any, session_id: str, agent: str, status: str, summary: 
             conn,
             "INSERT INTO phases (id, session_id, agent_name, status, started_at, completed_at, summary_text, artifact_paths) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (str(uuid.uuid4()), session_id, agent, status, _now(), _now() if status == "complete" else None, summary, payload),
+        )
+
+
+def _phase_failure(
+    conn: Any,
+    session_id: str,
+    agent: str,
+    reason: str,
+    *,
+    failure_mode: str = "background_exception",
+    status: str = "failed_resumable",
+    traceback_text: str | None = None,
+) -> None:
+    existing = _fetchone(conn, "SELECT id FROM phases WHERE session_id=? AND agent_name=?", (session_id, agent))
+    full_reason = f"{reason}\n\nTraceback:\n{traceback_text}" if traceback_text else reason
+    if existing:
+        _execute(
+            conn,
+            "UPDATE phases SET status=?, completed_at=?, summary_text=?, failure_reason=?, failure_mode=?, artifact_paths=? WHERE id=?",
+            (status, _now(), reason, full_reason, failure_mode, json.dumps({}, sort_keys=True), _row_get(existing, "id")),
+        )
+    else:
+        _execute(
+            conn,
+            "INSERT INTO phases (id, session_id, agent_name, status, started_at, completed_at, summary_text, failure_reason, failure_mode, artifact_paths) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), session_id, agent, status, _now(), _now(), reason, full_reason, failure_mode, json.dumps({}, sort_keys=True)),
         )
 
 
@@ -1183,17 +1210,26 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
     profile["data_passport"]["sha256"] = data_hash
     design = profile["compute"].get("design", {})
     profile["data_passport"]["rows"] = design.get("sessions", 1000) if isinstance(design, dict) else 1000
+    code_audit_blocks = bool(contracts.get("code_audit", {}).get("blocks_pipeline"))
     scorecard = _run_hawk_review(session_id, blueprint, profile, contracts)
-    paper = _paper_from_outputs(blueprint, profile, scorecard)
-    pdf = render_pdf(
-        "Thrivarc Research Paper",
-        [
-            profile["title"],
-            profile["findings"]["summary"],
-            f"Reviewer score: {scorecard['average_score']:.2f}/10",
-            "Reviewer gate passed; writer unlocked.",
-        ],
-    )
+    if not scorecard.get("gate_passed"):
+        profile["repair_contract"] = {
+            "repairs": [
+                {
+                    "hawk_issue": issue,
+                    "repair_type": "reviewer_required_repair",
+                    "exact_fix": issue,
+                    "verification": "Re-run HAWK and require average >= 7.0 with every dimension >= 6.0.",
+                }
+                for issue in scorecard.get("findings", {}).get("top_3_issues", [])
+            ],
+            "deviation_register_entries": [],
+            "repair_priority_order": scorecard.get("findings", {}).get("top_3_issues", []),
+            "projected_average_after_all_repairs": None,
+            "projected_gate_pass": False,
+            "repairs_exhausted": False,
+            "prompt_template": "api.prompts.REPAIR_AGENT_PROMPT",
+        }
 
     artifact_refs = {
         "Research Architect": {
@@ -1241,13 +1277,6 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         "Repair Agent": {
             "09_review/repair_contracts/repair_cycle_0.json": _write_json_artifact(session_id, "09_review/repair_contracts/repair_cycle_0.json", profile["repair_contract"]),
         },
-        "Paper-Code Verifier": {
-            "10_verification/paper_code_verification.json": _write_json_artifact(session_id, "10_verification/paper_code_verification.json", profile["verification"]),
-        },
-        "Writer Agent": {
-            "11_paper/final.tex": _write_text_artifact(session_id, "11_paper/final.tex", paper),
-            "11_paper/final.pdf": write_artifact(session_id, "11_paper/final.pdf", pdf),
-        },
     }
 
     with _with_conn() as conn:
@@ -1259,16 +1288,59 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         _complete_agent(conn, session_id, "Feature / Mining Agent", "Feature manifest and leakage report written.", artifact_refs["Feature / Mining Agent"])
         _complete_agent(conn, session_id, "Preregistration Agent", "PAP artifacts confirmed for locked Blueprint.", artifact_refs["Preregistration Agent"])
         _complete_agent(conn, session_id, "Method / Compute Agent", profile["phase_summary"]["Method / Compute Agent"], artifact_refs["Method / Compute Agent"])
+        if code_audit_blocks:
+            audit_summary = contracts.get("code_audit", {}).get("audit_summary") or "Code Audit found a blocking execution issue."
+            _phase_status(conn, session_id, "Code Audit Agent", "failed_resumable", audit_summary, artifact_refs["Code Audit Agent"])
+            _event(conn, session_id, "phase_update", {"summary": audit_summary, "artifacts": artifact_refs["Code Audit Agent"]}, "Code Audit Agent", "failed_resumable")
+            _phase_status(conn, session_id, "Statistics Agent", "paper_locked", "Blocked until Code Audit passes.")
+            _phase_status(conn, session_id, "Reviewer Agent", "paper_locked", "Blocked until Code Audit passes.")
+            _phase_status(conn, session_id, "Paper-Code Verifier", "paper_locked", "Blocked until Code Audit passes.")
+            _phase_status(conn, session_id, "Writer Agent", "paper_locked", "Writer blocked because Code Audit failed.")
+            _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("failed_resumable", _now(), session_id))
+            _event(conn, session_id, "run_failed", {"summary": audit_summary, "available_actions": ["repair_code_audit", "download_artifacts"]}, "Code Audit Agent", "failed_resumable")
+            _commit(conn)
+            return
         _complete_agent(conn, session_id, "Code Audit Agent", "Technical audit passed.", artifact_refs["Code Audit Agent"])
         _complete_agent(conn, session_id, "Statistics Agent", profile["phase_summary"]["Statistics Agent"], artifact_refs["Statistics Agent"])
         _complete_agent(conn, session_id, "Spec Audit Agent", "Spec audit passed against Blueprint.", artifact_refs["Spec Audit Agent"])
         _insert_reviewer_score(conn, session_id, scorecard)
-        _complete_agent(conn, session_id, "Reviewer Agent", "Reviewer gate passed and unlocked writing.", artifact_refs["Reviewer Agent"])
+        reviewer_summary = (
+            "Reviewer gate passed and unlocked writing."
+            if scorecard.get("gate_passed")
+            else "Reviewer gate failed; Writer remains locked."
+        )
+        _complete_agent(conn, session_id, "Reviewer Agent", reviewer_summary, artifact_refs["Reviewer Agent"])
         _event(conn, session_id, "gate_result", scorecard, "Reviewer Agent", "complete")
+        if not scorecard.get("gate_passed"):
+            _phase_status(conn, session_id, "Repair Agent", "repair_required", "Reviewer gate failed; issue-scoped repair is required.", artifact_refs["Repair Agent"])
+            _event(conn, session_id, "repair_triggered", {"summary": "Reviewer gate failed; repair required.", "repair_contract": profile["repair_contract"]}, "Repair Agent", "repair_required")
+            _phase_status(conn, session_id, "Paper-Code Verifier", "paper_locked", "Blocked until Reviewer gate passes.")
+            _phase_status(conn, session_id, "Writer Agent", "paper_locked", "Writer blocked because Reviewer gate failed.")
+            _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("paper_locked", _now(), session_id))
+            _event(conn, session_id, "run_failed", {"summary": "Reviewer gate failed; Writer remains locked.", "scores": scorecard["scores"]}, "Reviewer Agent", "paper_locked")
+            _commit(conn)
+            return
+        paper = _paper_from_outputs(blueprint, profile, scorecard)
+        pdf = render_pdf(
+            "Thrivarc Research Paper",
+            [
+                profile["title"],
+                profile["findings"]["summary"],
+                f"Reviewer score: {scorecard['average_score']:.2f}/10",
+                "Reviewer gate passed; writer unlocked.",
+            ],
+        )
+        paper_code_refs = {
+            "10_verification/paper_code_verification.json": _write_json_artifact(session_id, "10_verification/paper_code_verification.json", profile["verification"]),
+        }
+        writer_refs = {
+            "11_paper/final.tex": _write_text_artifact(session_id, "11_paper/final.tex", paper),
+            "11_paper/final.pdf": write_artifact(session_id, "11_paper/final.pdf", pdf),
+        }
         _complete_agent(conn, session_id, "Repair Agent", "No repair required; all reviewer dimensions passed.", artifact_refs["Repair Agent"])
-        _complete_agent(conn, session_id, "Paper-Code Verifier", "Paper claims verified against output artifacts.", artifact_refs["Paper-Code Verifier"])
+        _complete_agent(conn, session_id, "Paper-Code Verifier", "Paper claims verified against output artifacts.", paper_code_refs)
         _event(conn, session_id, "writer_unlocked", {"summary": "Paper writing is now unlocked.", "scores": scorecard["scores"]}, "Reviewer Agent", "paper_unlocked")
-        _complete_agent(conn, session_id, "Writer Agent", "Final LaTeX and PDF artifacts written from verified numbers.", artifact_refs["Writer Agent"])
+        _complete_agent(conn, session_id, "Writer Agent", "Final LaTeX and PDF artifacts written from verified numbers.", writer_refs)
         _execute(conn, "UPDATE sessions SET status=?, updated_at=?, credits_spent=? WHERE id=?", ("paper_unlocked", _now(), 12, session_id))
         _event(conn, session_id, "run_complete", {"summary": "Run complete. Defensible paper package is ready.", "paper_path": "11_paper/final.tex"}, "Writer Agent", "paper_unlocked")
         _commit(conn)
@@ -1456,13 +1528,13 @@ def get_blueprint(session_id: str):
 @router.post("/{session_id}/blueprint/lock")
 def lock_blueprint(session_id: str, payload: dict[str, Any]):
     if payload.get("confirmation") != "CONFIRM":
-        return _error(400, "CONFIRMATION_REQUIRED", "Blueprint lock requires CONFIRM.", "needs_confirmation", ["confirm_blueprint"])
+        return _error(400, "CONFIRMATION_REQUIRED", "Blueprint lock requires CONFIRM.", "needs_confirmation", [f"POST /api/sessions/{session_id}/blueprint/lock"])
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
         row = _blueprint_row(conn, session_id)
         if not row:
-            return _error(409, "BLUEPRINT_MISSING", "Create a blueprint before locking.", "needs_blueprint", ["update_scope"])
+            return _error(409, "BLUEPRINT_MISSING", "Create a blueprint before locking.", "needs_blueprint", [f"POST /api/sessions/{session_id}/scope"])
         content = _blueprint_content(row)
         encoded = json.dumps(content, sort_keys=True).encode("utf-8")
         blueprint_hash = hashlib.sha256(encoded).hexdigest()
@@ -1532,8 +1604,9 @@ def stream(session_id: str):
 
 def _mark_pipeline_failed(session_id: str, exc: BaseException) -> None:
     reason = f"{exc.__class__.__name__}: {exc}"
+    trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     with _with_conn() as conn:
-        _phase_status(conn, session_id, "Pipeline orchestrator", "failed_resumable", reason)
+        _phase_failure(conn, session_id, "Pipeline orchestrator", reason, traceback_text=trace)
         _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("failed_resumable", _now(), session_id))
         _event(
             conn,
@@ -1542,6 +1615,7 @@ def _mark_pipeline_failed(session_id: str, exc: BaseException) -> None:
             {
                 "summary": "Pipeline failed before completion.",
                 "failure_reason": reason,
+                "traceback": trace,
                 "available_actions": ["retry_run", "review_failure"],
             },
             "Pipeline orchestrator",
@@ -1561,14 +1635,14 @@ def _run_pipeline_background(session_id: str, blueprint: dict[str, Any]) -> None
 @router.post("/{session_id}/run")
 def run_session(session_id: str, payload: dict[str, Any]):
     if payload.get("approved") is not True:
-        return _error(400, "RUN_APPROVAL_REQUIRED", "Run launch requires approved=true.", "needs_approval", ["approve_run"])
+        return _error(400, "RUN_APPROVAL_REQUIRED", "Run launch requires approved=true.", "needs_approval", [f"POST /api/sessions/{session_id}/run"])
     with _with_conn() as conn:
         session = _session_row(conn, session_id)
         if not session:
             return _not_found()
         blueprint = _blueprint_content(_blueprint_row(conn, session_id))
         if not blueprint:
-            return _error(409, "BLUEPRINT_MISSING", "Create and approve a Blueprint before launch.", "needs_blueprint", ["update_scope"])
+            return _error(409, "BLUEPRINT_MISSING", "Create and approve a Blueprint before launch.", "needs_blueprint", [f"POST /api/sessions/{session_id}/scope"])
         _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("running", _now(), session_id))
         for agent in AGENT_SEQUENCE:
             _phase_status(conn, session_id, agent, "pending", "Queued by RunSpec.")
@@ -1578,7 +1652,7 @@ def run_session(session_id: str, payload: dict[str, Any]):
         _run_pipeline_background(session_id, blueprint)
     else:
         threading.Thread(target=_run_pipeline_background, args=(session_id, blueprint), daemon=True).start()
-    return {"run_started": True, "estimated_minutes": 45}
+    return {"run_started": True, "run_id": session_id, "estimated_minutes": 45}
 
 
 @router.post("/{session_id}/repair/approve")

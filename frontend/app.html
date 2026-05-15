@@ -2237,7 +2237,7 @@ async function commitRunsFromBuild(){
 function phaseState(st, phase){
   if((st.phases_completed||[]).includes(phase)) return 'done';
   if(st.status==='running' && st.current_phase===phase) return 'running';
-  if(st.status==='failed' && st.current_phase===phase) return 'failed';
+  if(['failed','failed_resumable','failed_terminal','paper_locked'].includes(st.status) && st.current_phase===phase) return 'failed';
   return 'waiting';
 }
 
@@ -2253,6 +2253,7 @@ async function renderResearch(id){
     const researchActive = st.status==='running' || st.status==='queued';
     const findingsPayload = researchDone ? await api(`/runs/${id}/findings`).catch(()=>({findings:{}})) : {findings:{}};
     const reviewerPayload = await api(`/runs/${id}/reviewer_report`).catch(()=>({strengths:[], weaknesses:[]}));
+    const researchReviewed = researchDone || st.status==='paper_locked' || !!reviewerPayload.score;
     const findingPreviewPayload = await api(`/runs/${id}/findings_preview`).catch(()=>({preview:null}));
     const chartsPayload = researchDone ? await api(`/runs/${id}/charts`).catch(()=>({charts:[]})) : {charts:[]};
     const tablesPayload = researchDone ? await api(`/runs/${id}/tables`).catch(()=>({tables:[]})) : {tables:[]};
@@ -2274,7 +2275,7 @@ async function renderResearch(id){
       return `<div class="phase-step" data-phase-state="${s}" data-truth-source="phases.status"><div class="phase-rail"><div class="phase-dot"></div><div class="phase-line"></div></div><div class="phase-body"><div class="phase-head">${svgIcon(PHASE_ICONS[p] || 'doc')} <strong><span data-step-label="${i}">${esc(stepLabel)}</span></strong> <span class="pill ${s==='done'?'ok':s==='running'?'warn':s==='failed'?'bad':'muted'}">${s}</span></div>${hookHtml}${s==='running'?`<p class="muted">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'In progress...')}</p>`:''}${detailHtml}${learningHtml}</div></div>`;
     }).join('');
 
-    const seedTable = getConfig('showSeedNumbers') && (st.phases_completed||[]).includes('STATSRUN') ? `<div class="card"><h3>Seed consistency snapshot</h3><table><tbody><tr><td>Seed 42</td><td>p=0.018</td><td>significant=true</td></tr><tr><td>Seed 1337</td><td>p=0.024</td><td>significant=true</td></tr><tr><td>Seed 9999</td><td>p=0.031</td><td>significant=true</td></tr><tr><td><strong>Consensus</strong></td><td colspan="2"><strong>CONSISTENT ✓</strong></td></tr></tbody></table></div>` : '';
+    const seedTable = '';
     const replay = researchDone ? `<div class="card"><h3>Research Replay</h3><div class="replay"><span id="replaybar"></span></div><div class="row" style="margin-top:8px"><button id="replay" class="btn">Replay (10s)</button><input id="scrub" type="range" min="0" max="100" value="0" style="max-width:240px"></div></div>` : '';
     const share = researchDone ? `<div class="card"><h3>Shareable Research Card</h3><button id="copy-share" class="btn">Copy shareable card</button></div>` : '';
 
@@ -2324,10 +2325,16 @@ async function renderResearch(id){
       const text = getConfig('mode') === 'technical' ? (s.technical || '') : (s.plain || '');
       return `<li>${esc(text)}</li>`;
     }).join('');
-    const reviewerCard = researchDone ? `
+    const reviewerDims = Array.isArray(reviewerPayload.dimensions) ? reviewerPayload.dimensions : [];
+    const reviewerDimensionGrid = reviewerDims.length ? `
+      <div class="gate-dims" style="margin-top:10px">
+        ${reviewerDims.map(d=>`<div class="gate-dim"><strong>${esc(d.label || d.key || 'Reviewer dimension')}</strong><div class="mini">Score: ${esc(String(d.score ?? '—'))}</div><div class="mini">${esc(d.rationale || '')}</div></div>`).join('')}
+      </div>` : '';
+    const reviewerCard = researchReviewed ? `
       <div class="card" style="margin-bottom:12px" data-truth-source="reviewer_scores"><h3>What the reviewer says</h3>
       <p class="muted">${esc(reviewerPayload.reviewer_narrative || 'Reviewer summary will appear here.')}</p>
-      <p><strong>Score:</strong> ${esc(String(reviewerPayload.score || '—'))} / 10 · <strong>Target:</strong> ${esc(reviewerPayload.target_standard || 'Finance standard')}</p>
+      <p><strong>Score:</strong> ${esc(String(reviewerPayload.score || '—'))} / 10 · <strong>Gate passed:</strong> ${reviewerPayload.gate_passed === true ? 'Yes' : 'No'} · <strong>Target:</strong> ${esc(reviewerPayload.target_standard || 'Finance standard')}</p>
+      ${reviewerDimensionGrid}
       <h4>Strengths</h4><ul>${strengthsCards || '<li>No strengths available.</li>'}</ul>
       <h4>Weaknesses</h4>${weaknessCards || '<p class="muted">No weaknesses reported.</p>'}
       </div>` : '';

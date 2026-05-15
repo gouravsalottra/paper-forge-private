@@ -151,6 +151,93 @@ def test_session_scope_post_saves_climate_etf_blueprint(tmp_path: Path, monkeypa
     assert {phase["status"] for phase in session["phases"]} <= {"pending", "running", "complete"}
 
 
+def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    from api import sessions
+
+    def failing_hawk(session_id: str, blueprint: dict, profile: dict, contracts: dict) -> dict:
+        scores = {
+            "identification_validity": 5.5,
+            "data_integrity": 7.4,
+            "statistical_rigor": 6.8,
+            "economic_significance": 6.7,
+            "benchmark_fairness": 6.6,
+            "robustness_burden": 6.4,
+            "overclaiming_risk": 5.8,
+        }
+        return {
+            "session_id": session_id,
+            "cycle": 1,
+            "scores": scores,
+            "average_score": round(sum(scores.values()) / len(scores), 4),
+            "floor_failed": ["identification_validity", "overclaiming_risk"],
+            "gate_passed": False,
+            "thresholds": {"average_minimum": 7.0, "dimension_floor": 6.0, "max_cycles": 3},
+            "findings": {"top_3_issues": ["Identification is too weak.", "Claims overreach the evidence."]},
+        }
+
+    monkeypatch.setattr(sessions, "_run_hawk_review", failing_hawk)
+
+    created = client.post("/api/sessions", json={"topic": "Climate ETF event study", "domain": "finance_economics"})
+    session_id = created.json()["session_id"]
+    scoped = client.post(
+        f"/api/sessions/{session_id}/scope",
+        json={
+            "research_type": "confirmatory",
+            "focus_question": "Do energy transition policy announcements move XLE and ICLN overnight returns in opposite directions?",
+            "hypothesis": "Policy announcements create opposite-sign overnight returns for XLE and ICLN.",
+            "constraints": {
+                "method_style": "event_study",
+                "evidence_route": "yfinance",
+                "identifiers": ["XLE", "ICLN"],
+                "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+                "return_definition": "overnight_return = open(t) - close(t-1), not close(t) - close(t-1)",
+            },
+            "target_outcome": "paper",
+        },
+    )
+    assert scoped.status_code == 200
+    assert client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"}).status_code == 200
+    assert client.post(f"/api/sessions/{session_id}/run", json={"approved": True}).status_code == 200
+
+    session = client.get(f"/api/sessions/{session_id}").json()
+    phases = {phase["agent_name"]: phase["status"] for phase in session["phases"]}
+    assert session["status"] == "paper_locked"
+    assert phases["Reviewer Agent"] == "complete"
+    assert phases["Repair Agent"] == "repair_required"
+    assert phases["Paper-Code Verifier"] == "paper_locked"
+    assert phases["Writer Agent"] == "paper_locked"
+
+    results = client.get(f"/api/sessions/{session_id}/results").json()
+    assert results["reviewer_scores"][0]["gate_passed"] in (False, 0)
+    assert results["paper_url"] is None
+    artifacts = client.get(f"/api/sessions/{session_id}/artifacts").json()["artifacts"]
+    assert not any(item["path"].endswith("11_paper/final.tex") for item in artifacts)
+
+
+def test_background_failure_records_traceback_in_phase(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    from api import sessions
+
+    created = client.post("/api/sessions", json={"topic": "Failure visibility test", "domain": "finance_economics"})
+    session_id = created.json()["session_id"]
+
+    try:
+        raise RuntimeError("synthetic background boom")
+    except RuntimeError as exc:
+        sessions._mark_pipeline_failed(session_id, exc)
+
+    with sessions._with_conn() as conn:
+        phase = sessions._fetchone(conn, "SELECT status, failure_reason, failure_mode FROM phases WHERE session_id=? AND agent_name=?", (session_id, "Pipeline orchestrator"))
+        session = sessions._session_row(conn, session_id)
+
+    assert phase["status"] == "failed_resumable"
+    assert phase["failure_mode"] == "background_exception"
+    assert "RuntimeError: synthetic background boom" in phase["failure_reason"]
+    assert "Traceback:" in phase["failure_reason"]
+    assert session["status"] == "failed_resumable"
+
+
 def test_api_guide_and_data_aliases_exist(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 

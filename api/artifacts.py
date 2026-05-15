@@ -95,16 +95,41 @@ def reviewer_report(run_id: str) -> dict[str, Any]:
         with sessions._with_conn() as conn:
             row = sessions._fetchone(
                 conn,
-                "SELECT average_score, findings FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1",
+                "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1",
                 (run_id,),
             )
         findings_payload = sessions._json_loads(sessions._row_get(row, "findings"), {}) if row else {}
+        dimensions = [
+            "identification_validity",
+            "data_integrity",
+            "statistical_rigor",
+            "economic_significance",
+            "benchmark_fairness",
+            "robustness_burden",
+            "overclaiming_risk",
+        ]
         weaknesses = []
-        if findings_payload.get("overclaiming_risk"):
+        for dimension in dimensions:
+            rationale = findings_payload.get(dimension)
+            score = sessions._row_get(row, dimension)
+            if score is not None and float(score) < 6.0:
+                weaknesses.append(
+                    {
+                        "technical": rationale or f"{dimension.replace('_', ' ').title()} is below the HAWK floor.",
+                        "plain": rationale or f"{dimension.replace('_', ' ').title()} needs repair before Writer can unlock.",
+                        "priority": "high",
+                        "status": "open",
+                        "owner_phase": "Reviewer Agent",
+                        "estimated_minutes": 20,
+                        "estimated_cost_usd": 1.0,
+                        "action_label": "Review repair contract",
+                    }
+                )
+        if findings_payload.get("overclaiming_risk") and not weaknesses:
             weaknesses.append(
                 {
                     "technical": findings_payload["overclaiming_risk"],
-                    "plain": "Treat this as simulation evidence until external order-book validation is added.",
+                    "plain": findings_payload["overclaiming_risk"],
                     "priority": "medium",
                     "status": "open",
                     "owner_phase": "Reviewer Agent",
@@ -115,11 +140,21 @@ def reviewer_report(run_id: str) -> dict[str, Any]:
             )
         return {
             "score": sessions._row_get(row, "average_score"),
+            "gate_passed": bool(sessions._row_get(row, "gate_passed")) if row else False,
+            "dimensions": [
+                {
+                    "key": dimension,
+                    "label": dimension.replace("_", " ").title(),
+                    "score": sessions._row_get(row, dimension),
+                    "rationale": findings_payload.get(dimension, ""),
+                }
+                for dimension in dimensions
+            ],
             "target_standard": "Reviewer gate >= 7.0 average and every dimension >= 6.0",
             "reviewer_narrative": findings_payload.get("summary", "Reviewer scorecard is available."),
             "strengths": [
                 {"technical": findings_payload.get("identification_validity", ""), "plain": "The comparison is defined before compute."},
-                {"technical": findings_payload.get("statistical_rigor", ""), "plain": "The simulation outputs have robustness checks."},
+                {"technical": findings_payload.get("statistical_rigor", ""), "plain": findings_payload.get("statistical_rigor", "Reviewer diagnostics are available.")},
             ],
             "weaknesses": weaknesses,
         }

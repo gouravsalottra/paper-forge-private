@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 
 from db.connection import get_db_connection
 from init_db import init_db
-from storage.blob import list_artifacts, write_artifact
+from storage.blob import list_artifacts, read_artifact, write_artifact
 
 router = APIRouter()
 
@@ -94,9 +94,14 @@ def _canonical_run_object(run_id: str) -> dict[str, Any] | None:
         )
         score = sessions._fetchone(
             conn,
-            "SELECT average_score, gate_passed FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1",
+            "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1",
             (run_id,),
         )
+    data_passport: dict[str, Any] = {}
+    try:
+        data_passport = json.loads(read_artifact(run_id, "03_data/data_passport.json").decode("utf-8"))
+    except Exception:
+        data_passport = {}
     completed = [
         SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
         for phase in phases
@@ -111,8 +116,22 @@ def _canonical_run_object(run_id: str) -> dict[str, Any] | None:
         ),
         None,
     )
+    if current is None:
+        current = next(
+            (
+                SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
+                for phase in phases
+                if sessions._row_get(phase, "status") in {"failed_resumable", "failed_terminal", "repair_required", "paper_locked"}
+            ),
+            None,
+        )
     status = sessions._row_get(row, "status")
     gate_passed = bool(sessions._row_get(score, "gate_passed")) if score else False
+    data_sha = (
+        blueprint.get("uploaded_event_sha256")
+        or blueprint.get("data_preview_sha256")
+        or data_passport.get("sha256")
+    )
     return {
         "run_id": run_id,
         "topic": sessions._row_get(row, "topic"),
@@ -126,7 +145,9 @@ def _canonical_run_object(run_id: str) -> dict[str, Any] | None:
         "research_type": sessions._row_get(row, "research_type") or "unknown",
         "research_state": sessions._row_get(row, "research_type") or "unknown",
         "finding_valid": gate_passed if score else None,
-        "data_preview_sha256": None,
+        "data_preview_sha256": data_sha,
+        "data_sha256": data_sha,
+        "data_passport": data_passport,
         "parent_run_id": sessions._row_get(row, "parent_run_id"),
         "hypothesis_id": None,
         "plan": blueprint,
