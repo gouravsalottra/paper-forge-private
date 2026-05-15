@@ -131,3 +131,29 @@ def test_blueprint_changing_repair_requires_approval_and_deviation(tmp_path: Pat
     assert repair["deviation_registered"] == 1
     assert deviation["field_changed"] == "benchmark"
     assert deviation["requires_researcher_approval"] == 1
+
+
+def test_session_reviewer_score_insert_binds_boolean_gate_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    from api import sessions
+
+    captured: dict[str, object] = {}
+
+    def fake_execute(_conn, statement, params=()):
+        if "INSERT INTO reviewer_scores" in statement:
+            captured["gate_passed"] = tuple(params)[11]
+
+    monkeypatch.setattr(sessions, "_execute", fake_execute)
+
+    sessions._insert_reviewer_score(
+        object(),
+        "session-bool",
+        {
+            "cycle": 1,
+            "scores": _scores(7.5),
+            "average_score": 7.5,
+            "gate_passed": True,
+            "findings": {"summary": "passes"},
+        },
+    )
+
+    assert captured["gate_passed"] is True

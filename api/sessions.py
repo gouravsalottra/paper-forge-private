@@ -1106,7 +1106,7 @@ def _insert_reviewer_score(conn: Any, session_id: str, scorecard: dict[str, Any]
             scores["robustness_burden"],
             scores["overclaiming_risk"],
             scorecard["average_score"],
-            1,
+            bool(scorecard.get("gate_passed")),
             json.dumps(scorecard["findings"], sort_keys=True),
             _now(),
         ),
