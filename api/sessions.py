@@ -1531,6 +1531,8 @@ def get_blueprint(session_id: str):
         content["reviewer_gate"] = _normalized_reviewer_gate(content.get("reviewer_gate"))
         content.setdefault("repair_contract_template", _repair_contract_template())
         content["status"] = _row_get(row, "status", "draft")
+        content["blueprint_hash"] = _row_get(row, "blueprint_hash")
+        content["locked_at"] = _row_get(row, "locked_at")
         return content
 
 

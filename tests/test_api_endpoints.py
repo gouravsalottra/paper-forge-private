@@ -141,6 +141,9 @@ def test_session_scope_post_saves_climate_etf_blueprint(tmp_path: Path, monkeypa
     locked = client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"})
     assert locked.status_code == 200
     assert locked.json()["blueprint_hash"]
+    locked_blueprint = client.get(f"/api/sessions/{session_id}/blueprint").json()
+    assert locked_blueprint["blueprint_hash"] == locked.json()["blueprint_hash"]
+    assert locked_blueprint["locked_at"] == locked.json()["locked_at"]
 
     launched = client.post(f"/api/sessions/{session_id}/run", json={"approved": True})
     assert launched.status_code == 200
