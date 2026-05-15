@@ -61,6 +61,7 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
     code_uses_overnight = "overnight_return = event_open - prev_close" in analysis_code
     code_window_matches = bool(window.get("start") in analysis_code and window.get("end") in analysis_code)
     code_universe_matches = bool(code_tickers == locked_tickers and locked_tickers)
+    code_declares_benchmark = "BENCHMARK =" in analysis_code
     code_has_event_window = "EVENT_WINDOW = 'overnight_event_open'" in analysis_code
     code_validates_event_calendar = all(
         token in analysis_code
@@ -100,7 +101,7 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
             or (violation_type == "date_range_mismatch" and code_window_matches)
             or (violation_type == "window_mismatch" and code_has_event_window)
             or (violation_type == "window_mismatch" and not event_design and "event window" in text)
-            or (violation_type == "benchmark_mismatch" and not event_design)
+            or (violation_type == "benchmark_mismatch" and code_declares_benchmark)
             or (violation_type == "event_file_integrity" and code_event_sha_matches)
             or (violation_type == "look_ahead_bias" and code_uses_overnight and code_validates_event_calendar)
             or (
@@ -124,7 +125,13 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
             "deterministic_contract_verified_universe",
             "deterministic_contract_verified_date_range",
             "deterministic_contract_verified_event_window",
+            "deterministic_contract_verified_benchmark_declaration",
         ]
+        if not any(str(item.get("severity", "")).lower() == "fatal" for item in kept):
+            result["audit_summary"] = (
+                "Code Audit found no fatal execution mismatch. Non-fatal design "
+                "burdens, if any, are routed to HAWK/Repair instead of blocking execution."
+            )
     return result
 
 

@@ -319,6 +319,7 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
             "TICKERS = ['XLE', 'ICLN']",
             "WINDOW_START = '2015-01-01'",
             "WINDOW_END = '2024-12-31'",
+            "BENCHMARK = 'locked event-time comparison set'",
             "EVENT_WINDOW = 'overnight_event_open'",
             "EVENT_FILE_SHA256 = 'bad8c8703accc78afab28bcc2cd657eb3a1a417d956162e065e408fb3edf68d9'",
             "assert event_trading_day in prices.index",
@@ -336,13 +337,14 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
             {"severity": "fatal", "violation_type": "event_file_integrity"},
             {"severity": "fatal", "violation_type": "look_ahead_bias"},
             {"severity": "fatal", "violation_type": "hardcoded_results", "description": "EVENT_FILE_SHA256 is hardcoded."},
+            {"severity": "fatal", "violation_type": "benchmark_mismatch", "description": "Benchmark was not declared."},
             {"severity": "major", "violation_type": "multiple_testing"},
         ],
     }
 
     cleaned = _remove_contradicted_violations(blueprint, analysis_code, result)
     assert [item["violation_type"] for item in cleaned["violations"]] == ["multiple_testing"]
-    assert len(cleaned["llm_audit_overrides"]) == 5
+    assert len(cleaned["llm_audit_overrides"]) == 6
 
 
 def test_code_audit_contract_does_not_block_non_event_design_burdens() -> None:
@@ -359,6 +361,7 @@ def test_code_audit_contract_does_not_block_non_event_design_burdens() -> None:
             "TICKERS = ['SPY', 'VIX']",
             "WINDOW_START = '2015-01-01'",
             "WINDOW_END = '2024-12-31'",
+            "BENCHMARK = 'locked comparison set'",
             "overnight_return = event_open - prev_close",
         ]
     )

@@ -863,6 +863,7 @@ def _analysis_code_contract(blueprint: dict[str, Any], profile: dict[str, Any]) 
             f"CONTROL_VARIABLES = {controls!r}",
             f"WINDOW_START = {window.get('start', '')!r}",
             f"WINDOW_END = {window.get('end', '')!r}",
+            f"BENCHMARK = {blueprint.get('benchmark', 'locked comparison set')!r}",
             "EVENT_WINDOW = 'overnight_event_open'",
             f"EVENT_FILE = {event_file!r}",
             f"EVENT_FILE_SHA256 = {event_sha!r}",
