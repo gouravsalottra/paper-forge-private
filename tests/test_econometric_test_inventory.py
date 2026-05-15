@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from api.guide import _statistical_battery
+from api.guide import _architecture_defaults, _statistical_battery
 from api.method_registry import method_definition
 from api.sessions import _execution_profile
 from api.econometric_inventory import (
@@ -150,6 +150,33 @@ def test_research_architect_exposes_models_and_tests_as_separate_contracts() -> 
     assert "evaluation_tests" in spec
     assert "DeLong's Test" in spec["statistical_tests"]
     assert "Gradient Boosting Models (XGBoost/LightGBM)" in spec["modeling_frameworks"]
+
+
+def test_architecture_defaults_replaces_stale_llm_methodology_contract() -> None:
+    stale_llm_result = {
+        "validated": True,
+        "research_state": "confirmatory_pap",
+        "clarifications": [],
+        "blueprint_summary": {
+            "method_style": "regression",
+            "statistical_battery": {"method": "regression", "tests": ["newey_west"]},
+        },
+    }
+
+    normalized = _architecture_defaults(
+        stale_llm_result,
+        {
+            "topic": "Do Fama-French factor exposures explain sector ETF alpha after controlling for momentum and quality factors?",
+        },
+    )
+    summary = normalized["blueprint_summary"]
+    battery = summary["statistical_battery"]
+
+    assert summary["method_style"] == "factor_model"
+    assert battery["analytical_domain"] == "Quantitative Finance & Asset Pricing"
+    assert "Capital Asset Pricing Model (CAPM)" in battery["modeling_frameworks"]
+    assert "Gibbons-Ross-Shanken (GRS) Test" in battery["statistical_tests"]
+    assert "Capital Asset Pricing Model (CAPM)" not in battery["statistical_tests"]
 
 
 def test_execution_profile_gives_compute_and_statistics_agents_distinct_roles() -> None:

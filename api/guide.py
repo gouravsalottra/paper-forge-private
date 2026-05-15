@@ -784,11 +784,16 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
             "relative to", "compared to", "higher than", "lower than",
         ]
     )
-    method = str(
-        summary.get("method_style")
-        or (method_from_llm if method_from_llm in VALID_METHOD_FAMILIES else "")
-        or _infer_method_style(text, confirmatory)
-    )
+    inferred_method = _infer_method_style(text, confirmatory)
+    summary_method = str(summary.get("method_style") or "")
+    if raw_text.strip() and inferred_method not in {"regression", "descriptive"}:
+        method = inferred_method
+    elif method_from_llm in VALID_METHOD_FAMILIES:
+        method = str(method_from_llm)
+    elif summary_method in VALID_METHOD_FAMILIES:
+        method = summary_method
+    else:
+        method = inferred_method
     evidence = str(
         summary.get("evidence_source")
         or (evidence_from_llm if evidence_from_llm in VALID_EVIDENCE_ROUTES else "")
@@ -811,9 +816,9 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
     summary.setdefault("architect_summary", f"Thrivarc reads this as a {'confirmatory' if confirmatory else 'exploratory'} empirical finance study.")
     summary.setdefault("research_stance", "confirmatory_pap" if confirmatory else "exploratory")
     summary.setdefault("why_this_stance", "The brief contains a directional testable claim." if confirmatory else "The brief asks to explore evidence before locking a claim.")
-    summary.setdefault("evidence_source", evidence)
+    summary["evidence_source"] = evidence
     summary.setdefault("why_this_evidence_route", "The brief requires uploaded evidence." if evidence == "upload" else "Public or researcher-provided evidence can support the first pass.")
-    summary.setdefault("method_style", method)
+    summary["method_style"] = method
     summary.setdefault("why_this_method", f"The question maps naturally to {method}.")
     summary.setdefault("recommended_frequency", frequency)
     summary.setdefault("cadence_role", "design_variable" if method == "backtest" else "event_window" if method == "event_study" else "default_market_sampling")
@@ -825,17 +830,17 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
     summary.setdefault("evidence_readiness", "Evidence must be previewed and fingerprinted before launch.")
     summary.setdefault("output_plan", package["label"])
     summary.setdefault("research_package", package)
-    summary.setdefault("reviewer_gate", _reviewer_gate(confirmatory, method))
-    summary.setdefault("repair_contract_template", _repair_contract_template())
-    summary.setdefault("integrity_artifacts", _integrity_artifacts(confirmatory))
+    summary["reviewer_gate"] = _reviewer_gate(confirmatory, method)
+    summary["repair_contract_template"] = _repair_contract_template()
+    summary["integrity_artifacts"] = _integrity_artifacts(confirmatory)
     summary["clarification_policy"] = _clarification_policy(topic, method, evidence, identifiers, window, frequency, confirmatory, clarifications)
-    summary.setdefault("audit_boundary", _audit_boundary())
-    summary.setdefault("paper_code_verifier", _paper_code_verifier_policy())
-    summary.setdefault("data_quality_policy", _data_quality_policy(evidence))
-    summary.setdefault("leakage_policy", _leakage_policy(method))
-    summary.setdefault("statistical_battery", _statistical_battery(method))
-    summary.setdefault("economic_significance", _economic_significance(method))
-    summary.setdefault("data_fallback_policy", _data_fallback_policy(evidence))
+    summary["audit_boundary"] = _audit_boundary()
+    summary["paper_code_verifier"] = _paper_code_verifier_policy()
+    summary["data_quality_policy"] = _data_quality_policy(evidence)
+    summary["leakage_policy"] = _leakage_policy(method)
+    summary["statistical_battery"] = _statistical_battery(method)
+    summary["economic_significance"] = _economic_significance(method)
+    summary["data_fallback_policy"] = _data_fallback_policy(evidence)
     summary.setdefault("inferred_identifiers", identifiers)
     summary.setdefault("inferred_window", window)
     summary.setdefault("working_assumptions", ["The comparison frame will be finalized before data preview.", "The method must match the approved blueprint."])
