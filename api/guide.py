@@ -40,6 +40,7 @@ def _client() -> AzureOpenAI:
         azure_endpoint=AZURE_ENDPOINT,
         api_key=os.environ["OPENAI_API_KEY"],
         api_version=AZURE_API_VERSION,
+        timeout=45.0,
     )
 
 

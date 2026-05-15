@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 AZURE_DEPLOYMENT = "gpt-4o"
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 2
+REQUEST_TIMEOUT_SECONDS = 45
 
 
 def _extract_json(text: str) -> Optional[dict]:
@@ -95,6 +96,7 @@ async def call_agent_llm(
                 max_tokens=max_tokens,
                 temperature=0.1,
                 response_format={"type": "json_object"},
+                timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response = await response_or_coro if inspect.isawaitable(response_or_coro) else response_or_coro
 
