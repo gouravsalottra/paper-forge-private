@@ -49,6 +49,13 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
         return result
 
     window = blueprint.get("inferred_window", {}) if isinstance(blueprint.get("inferred_window"), dict) else {}
+    method_family = str(blueprint.get("method_family") or "").strip().lower()
+    event_design = method_family == "event_study" or bool(
+        blueprint.get("event_file")
+        or blueprint.get("uploaded_event_file")
+        or blueprint.get("event_file_sha256")
+        or blueprint.get("uploaded_event_sha256")
+    )
     locked_tickers = [str(item) for item in blueprint.get("inferred_identifiers", [])]
     code_tickers = _locked_list("TICKERS", analysis_code)
     code_uses_overnight = "overnight_return = event_open - prev_close" in analysis_code
@@ -69,14 +76,31 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
     kept = []
     removed = []
     for violation in result.get("violations", []):
-        violation_type = violation.get("violation_type")
+        violation_type = str(violation.get("violation_type") or "").strip().lower()
         description = str(violation.get("description") or "").lower()
         location = str(violation.get("location") or "").lower()
+        text = f"{description} {location}"
+
+        if violation_type == "multiple_testing":
+            kept.append(
+                {
+                    **violation,
+                    "severity": "major",
+                    "downgraded_reason": (
+                        "Multiple-testing adequacy is reviewed by HAWK/Repair; "
+                        "it is not a fatal Code Audit execution mismatch."
+                    ),
+                }
+            )
+            continue
+
         contradicted = (
             (violation_type == "return_definition" and code_uses_overnight)
             or (violation_type == "universe_mismatch" and code_universe_matches)
             or (violation_type == "date_range_mismatch" and code_window_matches)
             or (violation_type == "window_mismatch" and code_has_event_window)
+            or (violation_type == "window_mismatch" and not event_design and "event window" in text)
+            or (violation_type == "benchmark_mismatch" and not event_design)
             or (violation_type == "event_file_integrity" and code_event_sha_matches)
             or (violation_type == "look_ahead_bias" and code_uses_overnight and code_validates_event_calendar)
             or (

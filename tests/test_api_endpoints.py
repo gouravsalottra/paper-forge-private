@@ -345,6 +345,49 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
     assert len(cleaned["llm_audit_overrides"]) == 5
 
 
+def test_code_audit_contract_does_not_block_non_event_design_burdens() -> None:
+    from api.code_audit_agent import _remove_contradicted_violations
+
+    blueprint = {
+        "method_family": "time_series",
+        "inferred_identifiers": ["SPY", "VIX"],
+        "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+    }
+    analysis_code = "\n".join(
+        [
+            "THRIVARC_LOCKED_ANALYSIS_CONTRACT = True",
+            "TICKERS = ['SPY', 'VIX']",
+            "WINDOW_START = '2015-01-01'",
+            "WINDOW_END = '2024-12-31'",
+            "overnight_return = event_open - prev_close",
+        ]
+    )
+    result = {
+        "audit_passed": False,
+        "blocks_pipeline": True,
+        "violations": [
+            {"severity": "fatal", "violation_type": "return_definition"},
+            {
+                "severity": "fatal",
+                "violation_type": "benchmark_mismatch",
+                "description": "No market-model benchmark was specified.",
+            },
+            {
+                "severity": "fatal",
+                "violation_type": "window_mismatch",
+                "description": "No event window is present for this time-series design.",
+            },
+            {"severity": "fatal", "violation_type": "multiple_testing"},
+        ],
+    }
+
+    cleaned = _remove_contradicted_violations(blueprint, analysis_code, result)
+
+    assert [item["violation_type"] for item in cleaned["violations"]] == ["multiple_testing"]
+    assert cleaned["violations"][0]["severity"] == "major"
+    assert len(cleaned["llm_audit_overrides"]) == 3
+
+
 def test_post_resume_reruns_failed_resumable_session(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions
