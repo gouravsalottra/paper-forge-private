@@ -106,7 +106,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     hawk = context.get("hawk_scorecard", {})
     csv_artifacts = context.get("all_csv_artifacts", {})
     keys = _citation_keys(bibliography_bib)
-    citation_sentence = ", ".join(rf"\citep{{{_latex_escape(key)}}}" for key in keys[:8]) if keys else "the retrieved bibliography"
+    citation_sentence = ", ".join(rf"\citep{{{_latex_escape(key)}}}" for key in keys[:12]) if keys else "the retrieved bibliography"
     primary_numbers = stats_results.get("primary_numbers") or stats_results.get("primary_numbers", {})
     if not primary_numbers and isinstance(stats_results.get("findings"), dict):
         primary_numbers = stats_results["findings"].get("primary_numbers", {})
