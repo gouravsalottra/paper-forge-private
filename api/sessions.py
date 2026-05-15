@@ -6,6 +6,7 @@ import asyncio
 import io
 import json
 import logging
+import mimetypes
 import os
 import sqlite3
 import threading
@@ -2203,12 +2204,47 @@ def approve_repair(session_id: str, payload: dict[str, Any]):
     return {"repair_status": status, "resume_started": should_resume}
 
 
+@router.get("/{session_id}/artifacts/download")
+def download_artifact(session_id: str, path: str):
+    prefix = f"sessions/{session_id}/"
+    clean_path = str(path or "").strip().strip("/")
+    if not clean_path.startswith(prefix):
+        return _error(
+            403,
+            "ARTIFACT_PATH_FORBIDDEN",
+            "Artifact path must belong to this session.",
+            "forbidden",
+            [f"GET /api/sessions/{session_id}/artifacts"],
+        )
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+    try:
+        data = read_artifact(session_id, clean_path)
+    except BlobStorageUnavailableError:
+        return _error(
+            404,
+            "ARTIFACT_NOT_FOUND",
+            "Artifact could not be downloaded from storage.",
+            "artifact_unavailable",
+            [f"GET /api/sessions/{session_id}/artifacts"],
+        )
+    filename = clean_path.rsplit("/", 1)[-1] or "artifact"
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(io.BytesIO(data), media_type=content_type, headers=headers)
+
+
 @router.get("/{session_id}/artifacts")
 def artifacts(session_id: str):
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
-    return {"artifacts": list_artifacts(session_id)}
+    artifacts_list = list_artifacts(session_id)
+    for item in artifacts_list:
+        item.setdefault("download_url", item.get("url"))
+        item["direct_download_url"] = f"/api/sessions/{session_id}/artifacts/download?path={item['path']}"
+    return {"artifacts": artifacts_list}
 
 
 @router.get("/{session_id}/results")

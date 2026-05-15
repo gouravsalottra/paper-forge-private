@@ -42,6 +42,25 @@ def test_get_artifact_url_returns_one_hour_signed_url(monkeypatch: pytest.Monkey
     assert 3500 <= remaining <= 3700
 
 
+def test_get_download_url_returns_user_facing_signed_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "test")
+
+    from storage import blob
+
+    blob.reset_mock_storage()
+    blob_path = "sessions/session-2/11_paper/final.pdf"
+    url = blob.get_download_url(blob_path, expiry_hours=24)
+    assert url is not None
+
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+
+    assert parsed.scheme == "https"
+    assert parsed.path.endswith("/sessions/session-2/11_paper/final.pdf")
+    assert "se" in params
+    assert params["sig"] == ["mock"]
+
+
 def test_write_artifact_fails_gracefully(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENVIRONMENT", "test")
 

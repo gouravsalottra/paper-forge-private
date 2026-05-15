@@ -76,7 +76,17 @@ def test_session_api_create_scope_lock_run_results_and_fork(tmp_path: Path, monk
 
     artifacts = client.get(f"/api/sessions/{session_id}/artifacts")
     assert artifacts.status_code == 200
-    assert any(item["path"].endswith("truth_contract.json") for item in artifacts.json()["artifacts"])
+    artifact_items = artifacts.json()["artifacts"]
+    assert any(item["path"].endswith("truth_contract.json") for item in artifact_items)
+    assert all("download_url" in item for item in artifact_items)
+    assert all("direct_download_url" in item for item in artifact_items)
+
+    paper_artifact = next(item for item in artifact_items if item["path"].endswith("11_paper/final.pdf"))
+    downloaded = client.get(paper_artifact["direct_download_url"])
+    assert downloaded.status_code == 200
+    assert downloaded.headers["content-type"].startswith("application/pdf")
+    assert "final.pdf" in downloaded.headers["content-disposition"]
+    assert downloaded.content.startswith(b"%PDF")
 
     results = client.get(f"/api/sessions/{session_id}/results")
     assert results.status_code == 200

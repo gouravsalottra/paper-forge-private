@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -11,6 +12,7 @@ CONTAINER_NAME = "research-artifacts"
 MOCK_ACCOUNT_URL = "https://mock.blob.local"
 
 _MOCK_BLOBS: dict[str, bytes] = {}
+logger = logging.getLogger(__name__)
 
 
 class BlobStorageUnavailableError(RuntimeError):
@@ -135,32 +137,44 @@ def read_artifact(session_id: str, path: str, *, version: int | None = None) -> 
 def get_artifact_url(session_id: str, path: str, *, version: int | None = None, expires_in_seconds: int = 3600) -> str:
     """Return a one-hour signed URL for an artifact."""
     blob_path = _normalize_path(session_id, path, version=version)
-    expires = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
-    encoded = quote(blob_path)
+    url = get_download_url(blob_path, expiry_hours=max(1, int(expires_in_seconds / 3600)))
+    if not url:
+        raise BlobStorageUnavailableError("Signed artifact URL could not be created.")
+    return url
+
+
+def get_download_url(blob_path: str, expiry_hours: int = 24) -> str | None:
+    """Return a user-delegation SAS URL for a blob path, or None on failure."""
+    clean_path = str(blob_path).strip().strip("/")
+    if not clean_path:
+        return None
+    expiry_hours = max(1, int(expiry_hours or 24))
+    expires = datetime.now(timezone.utc) + timedelta(hours=expiry_hours)
+    encoded = quote(clean_path)
     if _is_mock_backend():
         return f"{MOCK_ACCOUNT_URL}/{CONTAINER_NAME}/{encoded}?{urlencode({'se': expires.isoformat(), 'sig': 'mock'})}"
 
     try:
-        from azure.identity import DefaultAzureCredential
         from azure.storage.blob import BlobSasPermissions, generate_blob_sas
     except Exception as exc:  # pragma: no cover - depends on deployed image packages
-        raise BlobStorageUnavailableError("Azure Blob SDK is unavailable.") from exc
+        logger.warning("Azure Blob SAS SDK unavailable; falling back to streaming download endpoint.")
+        return None
 
     account_name = os.getenv("AZURE_STORAGE_ACCOUNT", "paperforgeartifacts")
-    user_delegation_key = None
     try:
         client = _get_blob_service_client()
         user_delegation_key = client.get_user_delegation_key(datetime.now(timezone.utc), expires)
         sas = generate_blob_sas(
             account_name=account_name,
             container_name=CONTAINER_NAME,
-            blob_name=blob_path,
+            blob_name=clean_path,
             user_delegation_key=user_delegation_key,
             permission=BlobSasPermissions(read=True),
             expiry=expires,
         )
     except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
-        raise BlobStorageUnavailableError("Signed artifact URL could not be created.") from exc
+        logger.warning("Could not create user-delegation SAS for blob path %s", clean_path)
+        return None
     return f"https://{account_name}.blob.core.windows.net/{CONTAINER_NAME}/{encoded}?{sas}"
 
 
@@ -173,11 +187,13 @@ def list_artifacts(session_id: str) -> list[dict[str, Any]]:
             if not blob_path.startswith(prefix):
                 continue
             relative = blob_path[len(prefix) :]
+            download_url = get_download_url(blob_path)
             artifacts.append(
                 {
                     "name": relative.rsplit("/", 1)[-1],
                     "path": blob_path,
-                    "url": get_artifact_url(session_id, relative),
+                    "url": download_url,
+                    "download_url": download_url,
                     "size": len(data),
                 }
             )
@@ -190,10 +206,12 @@ def list_artifacts(session_id: str) -> list[dict[str, Any]]:
             {
                 "name": item.name.rsplit("/", 1)[-1],
                 "path": item.name,
-                "url": get_artifact_url(session_id, item.name[len(prefix) :]),
+                "url": download_url,
+                "download_url": download_url,
                 "size": getattr(item, "size", 0),
             }
             for item in container.list_blobs(name_starts_with=prefix)
+            for download_url in [get_download_url(item.name)]
         ]
     except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
         raise BlobStorageUnavailableError("Artifact list could not be read from storage.") from exc
