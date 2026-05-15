@@ -797,11 +797,8 @@ def _agent_client():
         return None
 
 
-def _run_async_agent(coro):
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
+def _run_async_agent(coro, timeout_seconds: float | None = None):
+    timeout = timeout_seconds or float(os.getenv("THRIVARC_AGENT_TIMEOUT_SECONDS", "90"))
     result: dict[str, Any] = {}
     error: dict[str, BaseException] = {}
 
@@ -813,7 +810,9 @@ def _run_async_agent(coro):
 
     thread = threading.Thread(target=_runner, daemon=True)
     thread.start()
-    thread.join()
+    thread.join(timeout)
+    if thread.is_alive():
+        raise TimeoutError(f"Agent coroutine exceeded {timeout:.0f}s timeout.")
     if error:
         raise error["value"]
     return result.get("value")
@@ -908,9 +907,24 @@ def _build_agent_contracts(session_id: str, blueprint: dict[str, Any], profile: 
         stats_spec = _stats_fallback(agent_blueprint.get("method_family", "descriptive"))
         code_audit = _audit_fallback()
     else:
-        method_spec = _run_async_agent(get_method_spec(blueprint=agent_blueprint, client=client))
-        stats_spec = _run_async_agent(get_stats_spec(blueprint=agent_blueprint, method_spec=method_spec, client=client))
-        code_audit = _run_async_agent(run_code_audit(blueprint=agent_blueprint, analysis_code=analysis_code, client=client))
+        try:
+            method_spec = _run_async_agent(get_method_spec(blueprint=agent_blueprint, client=client))
+        except Exception as exc:
+            logger.warning("METHOD_AGENT timed out or failed; using fallback: %s", exc)
+            method_spec = _method_fallback(agent_blueprint.get("method_family", "descriptive"))
+            method_spec["fallback_reason"] = str(exc)
+        try:
+            stats_spec = _run_async_agent(get_stats_spec(blueprint=agent_blueprint, method_spec=method_spec, client=client))
+        except Exception as exc:
+            logger.warning("STATS_AGENT timed out or failed; using fallback: %s", exc)
+            stats_spec = _stats_fallback(agent_blueprint.get("method_family", "descriptive"))
+            stats_spec["fallback_reason"] = str(exc)
+        try:
+            code_audit = _run_async_agent(run_code_audit(blueprint=agent_blueprint, analysis_code=analysis_code, client=client))
+        except Exception as exc:
+            logger.warning("CODE_AUDIT timed out or failed; using fallback: %s", exc)
+            code_audit = _audit_fallback()
+            code_audit["fallback_reason"] = str(exc)
 
     profile["method_spec"] = method_spec
     profile["stats_spec"] = stats_spec
@@ -1033,15 +1047,19 @@ def _run_hawk_review(session_id: str, blueprint: dict[str, Any], profile: dict[s
         stats_spec_json=json.dumps(contracts["stats_spec"], indent=2, sort_keys=True),
         results_json=json.dumps(review_package, indent=2, sort_keys=True),
     )
-    hawk_result = _run_async_agent(
-        call_agent_llm(
-            agent_name="HAWK",
-            prompt=prompt,
-            client=client,
-            fallback_fn=lambda: _reviewer_scorecard(session_id, profile),
-            max_tokens=4000,
+    try:
+        hawk_result = _run_async_agent(
+            call_agent_llm(
+                agent_name="HAWK",
+                prompt=prompt,
+                client=client,
+                fallback_fn=lambda: _reviewer_scorecard(session_id, profile),
+                max_tokens=4000,
+            )
         )
-    )
+    except Exception as exc:
+        logger.warning("HAWK timed out or failed; using deterministic reviewer fallback: %s", exc)
+        hawk_result = _reviewer_scorecard(session_id, profile)
     return _calibrate_defensible_null_scorecard(profile, _scorecard_from_hawk(session_id, profile, hawk_result))
 
 
@@ -1188,14 +1206,26 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         _event(conn, session_id, "phase_update", {"summary": "Retrieving and ranking external literature for the locked topic."}, "Literature Agent", "running")
         _commit(conn)
 
-    literature = _run_async_agent(
-        run_literature_agent(
-            topic=profile["topic"],
-            method_style=profile["method_family"],
-            blueprint=agent_blueprint,
-            client=_agent_client(),
+    try:
+        literature = _run_async_agent(
+            run_literature_agent(
+                topic=profile["topic"],
+                method_style=profile["method_family"],
+                blueprint=agent_blueprint,
+                client=_agent_client(),
+            )
         )
-    )
+    except Exception as exc:
+        logger.warning("LITERATURE_AGENT timed out or failed; using minimal fallback: %s", exc)
+        literature = {
+            "papers": [],
+            "bibliography_bib": "",
+            "literature_review_md": "Literature retrieval timed out; the paper must treat this run as missing citation coverage.",
+            "literature_map_md": profile.get("literature", {}).get("gap", ""),
+            "source_counts": {},
+            "fallback_used": True,
+            "fallback_reason": str(exc),
+        }
     profile["literature_agent"] = literature
     profile["literature"] = {
         **profile.get("literature", {}),
@@ -1362,7 +1392,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
             "hawk_scorecard": scorecard,
             "all_csv_artifacts": profile.get("csv_outputs", {}),
         }
-        writer_result = _run_async_agent(write_paper_latex(writer_context, client=_agent_client()))
+        writer_result = _run_async_agent(write_paper_latex(writer_context, client=_agent_client()), timeout_seconds=240)
         paper = writer_result.get("latex", "")
         pdf = _render_latex_source_pdf(paper, profile["title"])
         profile["verification"]["writer_numbers_used"] = writer_result.get("numbers_used", [])
