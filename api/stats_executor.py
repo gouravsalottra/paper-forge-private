@@ -6,8 +6,10 @@ import io
 import json
 import logging
 import os
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import timezone, timedelta
 from typing import Any
 
 from storage.blob import read_artifact
@@ -114,6 +116,43 @@ def _synthetic_prices(identifiers: list[str], window: dict[str, str]):
     return pd.concat(frames, axis=1)
 
 
+def _download_yahoo_chart(ticker: str, fetch_start: str, fetch_end: str):
+    import pandas as pd
+
+    start_ts = int(pd.Timestamp(fetch_start, tz=timezone.utc).timestamp())
+    end_ts = int((pd.Timestamp(fetch_end, tz=timezone.utc) + timedelta(days=1)).timestamp())
+    symbol = urllib.parse.quote(ticker, safe="")
+    url = (
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+        f"?period1={start_ts}&period2={end_ts}&interval=1d&events=history&includeAdjustedClose=true"
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": "Thrivarc/1.0"})
+    with urllib.request.urlopen(request, timeout=18) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    result = (payload.get("chart", {}).get("result") or [None])[0]
+    if not result:
+        error = payload.get("chart", {}).get("error")
+        raise RuntimeError(f"Yahoo chart returned no result for {ticker}: {error}")
+    timestamps = result.get("timestamp") or []
+    quote = ((result.get("indicators") or {}).get("quote") or [None])[0] or {}
+    opens = quote.get("open") or []
+    closes = quote.get("close") or []
+    rows = []
+    for ts, open_value, close_value in zip(timestamps, opens, closes):
+        if open_value is None or close_value is None:
+            continue
+        rows.append(
+            {
+                "date": pd.to_datetime(ts, unit="s", utc=True).tz_convert(None).normalize(),
+                "Open": float(open_value),
+                "Close": float(close_value),
+            }
+        )
+    if not rows:
+        raise RuntimeError(f"Yahoo chart returned no usable OHLC rows for {ticker}.")
+    return pd.DataFrame(rows).set_index("date").sort_index()
+
+
 def load_yfinance_context(blueprint: dict[str, Any]) -> ExecutionContext:
     import pandas as pd
 
@@ -129,26 +168,33 @@ def load_yfinance_context(blueprint: dict[str, Any]) -> ExecutionContext:
     if os.getenv("ENVIRONMENT") == "test" or os.getenv("THRIVARC_STORAGE_BACKEND") == "mock":
         prices = _synthetic_prices(identifiers, {"start": fetch_start, "end": fetch_end})
     else:
-        import yfinance as yf
-
-        # Fetch sequentially and retain only the columns needed by the execution
-        # contract. Broad finance topics can include many identifiers; a single
-        # multi-ticker download is memory-spiky in small containers.
         frames = []
         for ticker in identifiers:
             try:
-                single = yf.download(
-                    ticker,
-                    start=fetch_start,
-                    end=fetch_end,
-                    progress=False,
-                    auto_adjust=False,
-                    group_by="column",
-                    threads=False,
-                    timeout=20,
-                )
+                single = _download_yahoo_chart(ticker, fetch_start, fetch_end)
+            except Exception as direct_exc:
+                if os.getenv("THRIVARC_ENABLE_YFINANCE_FALLBACK") != "1":
+                    logger.warning("Skipping identifier %s because direct Yahoo fetch failed: %s", ticker, direct_exc)
+                    continue
+                try:
+                    import yfinance as yf
+
+                    single = yf.download(
+                        ticker,
+                        start=fetch_start,
+                        end=fetch_end,
+                        progress=False,
+                        auto_adjust=False,
+                        group_by="column",
+                        threads=False,
+                        timeout=20,
+                    )
+                except Exception as yf_exc:
+                    logger.warning("Skipping identifier %s because market data fetch failed: %s; yfinance: %s", ticker, direct_exc, yf_exc)
+                    continue
+            try:
                 if single is None or single.empty:
-                    logger.warning("Skipping identifier %s because yfinance returned no rows.", ticker)
+                    logger.warning("Skipping identifier %s because market data returned no rows.", ticker)
                     continue
                 open_series = _price_column(single, "Open", ticker).dropna()
                 close_series = _price_column(single, "Close", ticker).dropna()
@@ -158,7 +204,7 @@ def load_yfinance_context(blueprint: dict[str, Any]) -> ExecutionContext:
                     continue
                 frames.append(pd.DataFrame({("Open", ticker): open_series.reindex(days), ("Close", ticker): close_series.reindex(days)}, index=days))
             except Exception as exc:
-                logger.warning("Skipping identifier %s because yfinance fetch failed: %s", ticker, exc)
+                logger.warning("Skipping identifier %s because OHLC schema inspection failed: %s", ticker, exc)
                 continue
         if not frames:
             raise RuntimeError(f"yfinance returned no prices for identifiers={identifiers}.")
