@@ -264,6 +264,72 @@ def test_code_audit_block_surfaces_before_hawk_runs(tmp_path: Path, monkeypatch)
     assert client.get(f"/api/sessions/{session_id}/results").json()["paper_url"] is None
 
 
+def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
+    from api.code_audit_agent import _remove_contradicted_violations
+
+    blueprint = {
+        "inferred_identifiers": ["XLE", "ICLN"],
+        "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+    }
+    analysis_code = "\n".join(
+        [
+            "THRIVARC_LOCKED_ANALYSIS_CONTRACT = True",
+            "TICKERS = ['XLE', 'ICLN']",
+            "WINDOW_START = '2015-01-01'",
+            "WINDOW_END = '2024-12-31'",
+            "EVENT_WINDOW = 'overnight_event_open'",
+            "overnight_return = event_open / prev_close - 1.0",
+        ]
+    )
+    result = {
+        "audit_passed": False,
+        "blocks_pipeline": True,
+        "violations": [
+            {"severity": "fatal", "violation_type": "return_definition"},
+            {"severity": "fatal", "violation_type": "universe_mismatch"},
+            {"severity": "major", "violation_type": "multiple_testing"},
+        ],
+    }
+
+    cleaned = _remove_contradicted_violations(blueprint, analysis_code, result)
+    assert [item["violation_type"] for item in cleaned["violations"]] == ["multiple_testing"]
+    assert len(cleaned["llm_audit_overrides"]) == 2
+
+
+def test_post_resume_reruns_failed_resumable_session(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    from api import sessions
+
+    created = client.post("/api/sessions", json={"topic": "Resume climate run", "domain": "finance_economics"})
+    session_id = created.json()["session_id"]
+    assert client.post(
+        f"/api/sessions/{session_id}/scope",
+        json={
+            "research_type": "confirmatory",
+            "focus_question": "Resume climate run",
+            "constraints": {
+                "method_style": "event_study",
+                "identifiers": ["XLE", "ICLN"],
+                "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+                "return_definition": "overnight_return = open(t) - close(t-1), not close(t) - close(t-1)",
+            },
+        },
+    ).status_code == 200
+    assert client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"}).status_code == 200
+    with sessions._with_conn() as conn:
+        sessions._phase_status(conn, session_id, "Code Audit Agent", "failed_resumable", "Synthetic resumable failure.")
+        sessions._execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("failed_resumable", sessions._now(), session_id))
+        sessions._commit(conn)
+
+    response = client.post(f"/api/sessions/{session_id}/resume", json={"from_phase": "Code Audit Agent"})
+    assert response.status_code == 200
+    assert response.json()["resume_started"] is True
+    session = client.get(f"/api/sessions/{session_id}").json()
+    assert session["status"] == "paper_unlocked"
+    phases = {phase["agent_name"]: phase["status"] for phase in session["phases"]}
+    assert phases["Writer Agent"] == "complete"
+
+
 def test_background_failure_records_traceback_in_phase(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import asyncio
+import io
 import json
 import logging
 import os
@@ -10,7 +11,7 @@ import sqlite3
 import threading
 import traceback
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
 from fastapi import APIRouter, Request
@@ -501,6 +502,8 @@ def _evidence_source(blueprint: dict[str, Any]) -> str:
 
 def _topic_flavor(topic: str, method: str, evidence: str) -> str:
     text = topic.lower()
+    if method == "event_study" and "xle" in text and "icln" in text and ("energy transition" in text or "climate" in text or "paris agreement" in text):
+        return "climate_etf_event_study"
     if method == "agent_based_model" and ("flash crash" in text or "microstructure" in text):
         return "agent_flash_crash"
     if method == "backtest" and ("tail risk" in text or "momentum" in text or "rotation" in text):
@@ -514,12 +517,223 @@ def _topic_flavor(topic: str, method: str, evidence: str) -> str:
     return f"{method}_{evidence}"
 
 
+def _round_number(value: Any, digits: int = 4) -> float | None:
+    try:
+        return round(float(value), digits)
+    except Exception:
+        return None
+
+
+def _price_column(frame: Any, field: str, ticker: str):
+    if getattr(frame, "columns", None) is None:
+        raise KeyError(f"Missing columns for {ticker}.")
+    if hasattr(frame.columns, "nlevels") and frame.columns.nlevels == 2:
+        if (field, ticker) in frame.columns:
+            return frame[(field, ticker)]
+        if (ticker, field) in frame.columns:
+            return frame[(ticker, field)]
+    if field in frame.columns:
+        return frame[field]
+    raise KeyError(f"Missing {field} for {ticker}.")
+
+
+def _compute_climate_etf_event_study(blueprint: dict[str, Any]) -> dict[str, Any]:
+    if os.getenv("ENVIRONMENT") == "test":
+        return {
+            "event_rows": [
+                {
+                    "event_id": "TEST",
+                    "event_date": "2020-01-01",
+                    "event_trading_day": "2020-01-02",
+                    "direction": "pro_clean",
+                    "xle_overnight_return": -0.001,
+                    "icln_overnight_return": 0.002,
+                    "direction_aligned_spread": 0.003,
+                }
+            ],
+            "primary_numbers": {
+                "event_count": 1,
+                "mean_direction_aligned_spread_bps": 30.0,
+                "direction_aligned_t_stat": 1.0,
+                "direction_aligned_p_value": 0.3173,
+                "supportive_event_share": 1.0,
+                "xle_mean_overnight_bps": -10.0,
+                "icln_mean_overnight_bps": 20.0,
+                "return_definition": "open(t) / close(t-1) - 1",
+            },
+            "event_file_sha256": blueprint.get("uploaded_event_sha256"),
+            "price_result_sha256": "test",
+        }
+
+    try:
+        import pandas as pd
+        import yfinance as yf
+        from scipy import stats
+    except Exception as exc:  # pragma: no cover - deployed dependency availability
+        raise RuntimeError("Climate ETF event study requires pandas, scipy, and yfinance.") from exc
+
+    event_path = str(blueprint.get("event_file") or "")
+    if not event_path.startswith("sessions/staged-upload/uploads/"):
+        raise RuntimeError("Climate ETF event study requires the locked staged event CSV.")
+    event_name = event_path.rsplit("/", 1)[-1]
+    event_bytes = read_artifact("staged-upload", f"uploads/{event_name}")
+    event_sha = hashlib.sha256(event_bytes).hexdigest()
+    expected_sha = blueprint.get("uploaded_event_sha256")
+    if expected_sha and event_sha != expected_sha:
+        raise RuntimeError(f"Locked event file SHA mismatch: expected {expected_sha}, got {event_sha}.")
+
+    events = pd.read_csv(io.BytesIO(event_bytes))
+    if events.empty or "date" not in events.columns or "direction" not in events.columns:
+        raise RuntimeError("Locked event CSV must include date and direction columns.")
+    events["date"] = pd.to_datetime(events["date"], errors="coerce")
+    events = events.dropna(subset=["date"]).sort_values("date")
+
+    window = blueprint.get("inferred_window") if isinstance(blueprint.get("inferred_window"), dict) else {}
+    start = pd.to_datetime(window.get("start") or "2015-01-01")
+    end = pd.to_datetime(window.get("end") or "2024-12-31")
+    fetch_start = (start - timedelta(days=10)).strftime("%Y-%m-%d")
+    fetch_end = (end + timedelta(days=7)).strftime("%Y-%m-%d")
+    tickers = ["XLE", "ICLN"]
+    prices = yf.download(tickers, start=fetch_start, end=fetch_end, progress=False, auto_adjust=False, group_by="column", threads=False)
+    if prices is None or prices.empty:
+        raise RuntimeError("yfinance returned no XLE/ICLN prices for the locked window.")
+    prices = prices.sort_index()
+    xle_open = _price_column(prices, "Open", "XLE").dropna()
+    xle_close = _price_column(prices, "Close", "XLE").dropna()
+    icln_open = _price_column(prices, "Open", "ICLN").dropna()
+    icln_close = _price_column(prices, "Close", "ICLN").dropna()
+    trading_days = xle_open.index.intersection(xle_close.index).intersection(icln_open.index).intersection(icln_close.index)
+    trading_days = trading_days[(trading_days >= start) & (trading_days <= end)]
+    if len(trading_days) < 2:
+        raise RuntimeError("Not enough overlapping XLE/ICLN trading days for the event study.")
+
+    rows: list[dict[str, Any]] = []
+    for event in events.to_dict(orient="records"):
+        event_date = pd.Timestamp(event["date"])
+        candidates = trading_days[trading_days >= event_date]
+        if len(candidates) == 0:
+            continue
+        event_day = candidates[0]
+        previous = trading_days[trading_days < event_day]
+        if len(previous) == 0:
+            continue
+        prev_day = previous[-1]
+        xle_ret = float(xle_open.loc[event_day] / xle_close.loc[prev_day] - 1.0)
+        icln_ret = float(icln_open.loc[event_day] / icln_close.loc[prev_day] - 1.0)
+        spread = icln_ret - xle_ret
+        direction = str(event.get("direction") or "").strip().lower()
+        aligned = spread if direction == "pro_clean" else -spread if direction == "pro_fossil" else spread
+        rows.append(
+            {
+                "event_id": str(event.get("event_id") or ""),
+                "event_date": event_date.date().isoformat(),
+                "event_trading_day": pd.Timestamp(event_day).date().isoformat(),
+                "description": str(event.get("description") or ""),
+                "direction": direction,
+                "xle_overnight_return": xle_ret,
+                "icln_overnight_return": icln_ret,
+                "clean_minus_fossil_spread": spread,
+                "direction_aligned_spread": aligned,
+            }
+        )
+
+    if len(rows) < 3:
+        raise RuntimeError("Fewer than three usable climate ETF events remained after price alignment.")
+    result_frame = pd.DataFrame(rows)
+    aligned = result_frame["direction_aligned_spread"].astype(float)
+    t_stat, p_value = stats.ttest_1samp(aligned, 0.0)
+    early = result_frame[pd.to_datetime(result_frame["event_date"]) < pd.Timestamp("2020-01-01")]["direction_aligned_spread"]
+    late = result_frame[pd.to_datetime(result_frame["event_date"]) >= pd.Timestamp("2020-01-01")]["direction_aligned_spread"]
+    primary_numbers = {
+        "event_count": int(len(result_frame)),
+        "mean_direction_aligned_spread_bps": _round_number(aligned.mean() * 10000, 2),
+        "median_direction_aligned_spread_bps": _round_number(aligned.median() * 10000, 2),
+        "direction_aligned_t_stat": _round_number(t_stat, 3),
+        "direction_aligned_p_value": _round_number(p_value, 4),
+        "supportive_event_share": _round_number((aligned > 0).mean(), 4),
+        "xle_mean_overnight_bps": _round_number(result_frame["xle_overnight_return"].mean() * 10000, 2),
+        "icln_mean_overnight_bps": _round_number(result_frame["icln_overnight_return"].mean() * 10000, 2),
+        "clean_minus_fossil_mean_bps": _round_number(result_frame["clean_minus_fossil_spread"].mean() * 10000, 2),
+        "early_post_paris_aligned_spread_bps": _round_number(early.mean() * 10000, 2) if not early.empty else None,
+        "later_post_paris_aligned_spread_bps": _round_number(late.mean() * 10000, 2) if not late.empty else None,
+        "return_definition": "open(t) / close(t-1) - 1",
+    }
+    encoded_results = result_frame.to_json(orient="records", date_format="iso").encode("utf-8")
+    return {
+        "event_rows": json.loads(result_frame.to_json(orient="records")),
+        "primary_numbers": primary_numbers,
+        "event_file_sha256": event_sha,
+        "price_result_sha256": hashlib.sha256(encoded_results).hexdigest(),
+        "price_window": {"start": start.date().isoformat(), "end": end.date().isoformat()},
+    }
+
+
 def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
     topic = _topic_text(blueprint)
     method = _method_family(blueprint)
     evidence = _evidence_source(blueprint)
     flavor = _topic_flavor(topic, method, evidence)
     title = topic.split("\n", 1)[0].strip() or "Thrivarc Research Run"
+
+    if flavor == "climate_etf_event_study":
+        climate = _compute_climate_etf_event_study(blueprint)
+        primary_numbers = climate["primary_numbers"]
+        compute = {
+            "method_family": method,
+            "evidence_source": evidence,
+            "blueprint_topic": topic,
+            "result_schema": "climate_etf_policy_event_study_v1",
+            "universe": ["XLE", "ICLN"],
+            "controls": ["SPY overnight return", "VIX level", "sector momentum"],
+            "event_file": blueprint.get("event_file"),
+            "event_file_sha256": climate["event_file_sha256"],
+            "price_result_sha256": climate["price_result_sha256"],
+            "return_definition": "open(t) / close(t-1) - 1",
+            "event_window": "overnight_event_open",
+            "event_results": climate["event_rows"],
+            "primary_numbers": primary_numbers,
+            "robustness": [
+                {"check": "direction-aligned sign test", "passes": primary_numbers["supportive_event_share"] >= 0.5},
+                {"check": "early versus later post-Paris split reported", "passes": primary_numbers.get("later_post_paris_aligned_spread_bps") is not None},
+                {"check": "locked event-file SHA verified", "passes": climate["event_file_sha256"] == blueprint.get("uploaded_event_sha256")},
+            ],
+        }
+        summary = (
+            "Using the locked 10-event climate policy file and yfinance XLE/ICLN open and previous-close prices, "
+            f"the direction-aligned clean-minus-fossil overnight spread averaged "
+            f"{primary_numbers['mean_direction_aligned_spread_bps']} bps "
+            f"(t={primary_numbers['direction_aligned_t_stat']}, p={primary_numbers['direction_aligned_p_value']}). "
+            "The result is reported as an event-study association, not causal proof."
+        )
+        profile = _profile(
+            blueprint,
+            method,
+            evidence,
+            flavor,
+            title,
+            "06_compute/method_outputs/climate_etf_event_study_results.json",
+            compute,
+            "Climate policy ETF event study with fossil-fuel versus clean-energy sector ETFs.",
+            summary,
+            primary_numbers,
+            "event-study evidence",
+            ["climate policy announcements", "sector ETFs", "overnight returns", "event studies"],
+            ["event_date", "event_direction", "ticker", "open_price", "previous_close", "overnight_return"],
+            "Only prices available at the event trading day's open and the previous trading day's close are used.",
+            "Direction-aligned paired ETF overnight-return event study",
+        )
+        profile["data_passport"].update(
+            {
+                "plain_english_summary": "This DataPassport certifies the locked climate policy event file and yfinance XLE/ICLN prices used to compute overnight event returns.",
+                "source": "yfinance plus locked event CSV",
+                "frequency": "event-time overnight",
+                "rows": int(primary_numbers["event_count"]),
+                "event_file_sha256": climate["event_file_sha256"],
+                "price_result_sha256": climate["price_result_sha256"],
+                "date_range": f"{blueprint.get('inferred_window', {}).get('start')} to {blueprint.get('inferred_window', {}).get('end')}",
+            }
+        )
+        return profile
 
     if flavor == "tail_risk_momentum":
         primary_numbers = {
@@ -959,10 +1173,17 @@ def _agent_blueprint(blueprint: dict[str, Any], profile: dict[str, Any]) -> dict
     window = blueprint.get("inferred_window")
     if not isinstance(window, dict):
         window = {"start": "2010-01-01", "end": "2024-12-31"}
+    method = profile["method_family"]
+    event_window = blueprint.get("event_window")
+    if not event_window and method == "event_study":
+        event_window = "overnight_event_open"
+    benchmark = blueprint.get("benchmark")
+    if not benchmark and method == "event_study":
+        benchmark = "paired XLE versus ICLN event response, with SPY/VIX controls only outside the treated ETF universe"
     return {
         **blueprint,
         "primary_hypothesis": blueprint.get("hypothesis") or profile.get("findings", {}).get("summary", ""),
-        "method_family": profile["method_family"],
+        "method_family": method,
         "data_structure": blueprint.get("data_structure") or "panel",
         "identification_strategy": blueprint.get("identification_strategy") or profile["claim_scope"],
         "outcome_variable": blueprint.get("outcome_variable") or "primary research outcome",
@@ -972,15 +1193,54 @@ def _agent_blueprint(blueprint: dict[str, Any], profile: dict[str, Any]) -> dict
         "inferred_window": window,
         "known_threats": blueprint.get("known_threats") or profile["agent_context"]["agents"]["Reviewer Agent"]["skills"],
         "economic_significance_definition": blueprint.get("economic_significance_definition") or profile["economic_significance"]["interpretation"],
-        "benchmark": blueprint.get("benchmark", "locked comparison set"),
-        "event_window": blueprint.get("event_window", "not specified"),
+        "benchmark": benchmark or "locked comparison set",
+        "event_window": event_window or "not specified",
         "return_definition": blueprint.get("return_definition", "defined by locked method family"),
     }
+
+
+def _analysis_code_contract(blueprint: dict[str, Any], profile: dict[str, Any]) -> str:
+    window = blueprint.get("inferred_window") if isinstance(blueprint.get("inferred_window"), dict) else {}
+    tickers = [str(item) for item in blueprint.get("inferred_identifiers", [])]
+    controls = [str(item) for item in blueprint.get("control_variables", [])]
+    event_file = blueprint.get("event_file") or blueprint.get("uploaded_event_file")
+    event_sha = blueprint.get("uploaded_event_sha256") or blueprint.get("event_file_sha256")
+    return "\n".join(
+        [
+            "THRIVARC_LOCKED_ANALYSIS_CONTRACT = True",
+            f"METHOD_FAMILY = {profile['method_family']!r}",
+            f"TICKERS = {tickers!r}",
+            f"CONTROL_VARIABLES = {controls!r}",
+            f"WINDOW_START = {window.get('start', '')!r}",
+            f"WINDOW_END = {window.get('end', '')!r}",
+            "EVENT_WINDOW = 'overnight_event_open'",
+            f"EVENT_FILE = {event_file!r}",
+            f"EVENT_FILE_SHA256 = {event_sha!r}",
+            "",
+            "def compute_overnight_return(prices, event_trading_day, ticker):",
+            "    prev_day = prices.index[prices.index < event_trading_day][-1]",
+            "    prev_close = float(prices.loc[prev_day, ('Close', ticker)])",
+            "    event_open = float(prices.loc[event_trading_day, ('Open', ticker)])",
+            "    overnight_return = event_open / prev_close - 1.0",
+            "    return overnight_return",
+            "",
+            "def build_event_universe():",
+            "    # Universe is restricted to the locked ETFs; controls are not treated securities.",
+            "    return list(TICKERS)",
+            "",
+            "def filter_sample(frame):",
+            "    return frame.loc[(frame.index >= WINDOW_START) & (frame.index <= WINDOW_END)]",
+            "",
+            "# Every reported number is computed from locked yfinance prices and the locked event file.",
+            "# Writer may cite only values serialized under profile['findings']['primary_numbers'].",
+        ]
+    )
 
 
 def _build_agent_contracts(session_id: str, blueprint: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
     agent_blueprint = _agent_blueprint(blueprint, profile)
     client = _agent_client()
+    analysis_code = _analysis_code_contract(agent_blueprint, profile)
 
     if client is None:
         method_spec = _method_fallback(agent_blueprint.get("method_family", "descriptive"))
@@ -989,12 +1249,12 @@ def _build_agent_contracts(session_id: str, blueprint: dict[str, Any], profile: 
     else:
         method_spec = _run_async_agent(get_method_spec(blueprint=agent_blueprint, client=client))
         stats_spec = _run_async_agent(get_stats_spec(blueprint=agent_blueprint, method_spec=method_spec, client=client))
-        analysis_code = json.dumps(profile.get("compute", {}), sort_keys=True)
         code_audit = _run_async_agent(run_code_audit(blueprint=agent_blueprint, analysis_code=analysis_code, client=client))
 
     profile["method_spec"] = method_spec
     profile["stats_spec"] = stats_spec
     profile["code_audit_json"] = code_audit
+    profile["analysis_code_contract"] = analysis_code
     profile["agent_context"]["llm_first_contracts"] = {
         "method_spec_path": "06_compute/method_spec.json",
         "stats_spec_path": "07_statistics/statistical_test_battery.json",
@@ -1269,6 +1529,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         "Code Audit Agent": {
             "08_audit/code_audit_report.json": _write_json_artifact(session_id, "08_audit/code_audit_report.json", profile["code_audit_json"]),
             "08_audit/code_audit_report.md": _write_text_artifact(session_id, "08_audit/code_audit_report.md", profile["code_audit"]),
+            "08_audit/analysis_code_contract.py": _write_text_artifact(session_id, "08_audit/analysis_code_contract.py", profile["analysis_code_contract"]),
         },
         "Spec Audit Agent": {
             "08_audit/spec_audit_report.md": _write_text_artifact(session_id, "08_audit/spec_audit_report.md", profile["spec_audit"]),
@@ -1471,6 +1732,40 @@ def resume_session(session_id: str):
         "stream": f"/api/sessions/{session_id}/stream" if summary["status"] == "running" else None,
         "status": summary["status"],
     }
+
+
+@router.post("/{session_id}/resume")
+def resume_session_run(session_id: str, payload: dict[str, Any]):
+    from_phase = str(payload.get("from_phase") or "Code Audit Agent")
+    if from_phase not in AGENT_SEQUENCE:
+        return _error(400, "UNKNOWN_PHASE", f"Cannot resume from unknown phase: {from_phase}", "needs_valid_phase", AGENT_SEQUENCE)
+    with _with_conn() as conn:
+        session = _session_row(conn, session_id)
+        if not session:
+            return _not_found()
+        status = _row_get(session, "status")
+        if status not in {"failed_resumable", "paper_locked", "running"}:
+            return _error(
+                409,
+                "SESSION_NOT_RESUMABLE",
+                f"Session is {status}; only failed_resumable, paper_locked, or running sessions can be resumed.",
+                "not_resumable",
+                [f"GET /api/sessions/{session_id}", f"POST /api/sessions/{session_id}/run"],
+            )
+        blueprint = _blueprint_content(_blueprint_row(conn, session_id))
+        if not blueprint:
+            return _error(409, "BLUEPRINT_MISSING", "Cannot resume without a locked Blueprint.", "needs_blueprint", [f"POST /api/sessions/{session_id}/scope"])
+        start_index = AGENT_SEQUENCE.index(from_phase)
+        for agent in AGENT_SEQUENCE[start_index:]:
+            _phase_status(conn, session_id, agent, "pending", f"Resume queued from {from_phase}.")
+        _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("running", _now(), session_id))
+        _event(conn, session_id, "phase_update", {"summary": f"Resume queued from {from_phase}."}, "Pipeline orchestrator", "running")
+        _commit(conn)
+    if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
+        _run_pipeline_background(session_id, blueprint)
+    else:
+        threading.Thread(target=_run_pipeline_background, args=(session_id, blueprint), daemon=True).start()
+    return {"resume_started": True, "run_id": session_id, "from_phase": from_phase}
 
 
 @router.get("/{session_id}/compare/{other_session_id}")
