@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,10 +11,56 @@ from fastapi.responses import FileResponse, RedirectResponse
 from api import artifacts, data, guide, runs, sessions
 from db.connection import DatabaseUnavailableError, get_db_connection
 
+logger = logging.getLogger(__name__)
+
 ROOT = Path(__file__).resolve().parent
 FRONTEND = ROOT / "frontend"
+MIGRATION_SQL = ROOT / "db" / "migrations" / "001_initial_schema.sql"
 
-app = FastAPI(title="Thrivarc API", version="1.0.0")
+
+def _run_migrations() -> None:
+    """Apply 001_initial_schema.sql to PostgreSQL on startup.
+
+    Safe to call on every boot — every statement uses IF NOT EXISTS.
+    Skipped silently when DATABASE_URL is not set (local SQLite dev).
+    """
+    try:
+        conn = get_db_connection()
+    except DatabaseUnavailableError as exc:
+        logger.warning("DB unavailable at startup — skipping migration: %s", exc)
+        return
+
+    # Only run PostgreSQL migrations. SQLite is handled by init_db.py locally.
+    is_pg = getattr(conn, "is_postgresql", False)
+    if not is_pg:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return
+
+    sql = MIGRATION_SQL.read_text(encoding="utf-8")
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+        logger.info("DB migration applied: %s", MIGRATION_SQL.name)
+    except Exception as exc:
+        logger.error("Migration failed — %s: %s", type(exc).__name__, exc)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # noqa: ARG001
+    _run_migrations()
+    yield
+
+
+app = FastAPI(title="Thrivarc API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
