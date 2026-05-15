@@ -1175,9 +1175,19 @@ def _render_latex_source_pdf(latex: str, title: str) -> bytes:
 
 
 def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> None:
+    with _with_conn() as conn:
+        _phase_status(conn, session_id, "Research Architect", "running", "Building the execution profile from the locked Blueprint.")
+        _event(conn, session_id, "phase_update", {"summary": "Building the execution profile from the locked Blueprint."}, "Research Architect", "running")
+        _commit(conn)
+
     profile = _execution_profile(blueprint)
     contracts = _build_agent_contracts(session_id, blueprint, profile)
     agent_blueprint = contracts["agent_blueprint"]
+    with _with_conn() as conn:
+        _phase_status(conn, session_id, "Literature Agent", "running", "Retrieving and ranking external literature for the locked topic.")
+        _event(conn, session_id, "phase_update", {"summary": "Retrieving and ranking external literature for the locked topic."}, "Literature Agent", "running")
+        _commit(conn)
+
     literature = _run_async_agent(
         run_literature_agent(
             topic=profile["topic"],
