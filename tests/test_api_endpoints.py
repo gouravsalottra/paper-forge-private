@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -162,6 +163,36 @@ def test_session_scope_post_saves_climate_etf_blueprint(tmp_path: Path, monkeypa
     session = client.get(f"/api/sessions/{session_id}").json()
     assert session["phases"]
     assert {phase["status"] for phase in session["phases"]} <= {"pending", "running", "complete"}
+
+    artifacts = client.get(f"/api/sessions/{session_id}/artifacts").json()["artifacts"]
+    paths = {item["path"] for item in artifacts}
+    for suffix in [
+        "03_data/overnight_returns.csv",
+        "06_compute/method_outputs/event_returns.csv",
+        "06_compute/method_outputs/event_window_car.csv",
+        "07_statistics/results_tables/summary_statistics.csv",
+        "07_statistics/results_tables/t_tests.csv",
+        "07_statistics/results_tables/placebo_tests.csv",
+        "11_paper/final.tex",
+        "11_paper/final.pdf",
+    ]:
+        assert any(path.endswith(suffix) for path in paths), suffix
+
+    from storage import blob
+
+    event_csv = blob.read_artifact(session_id, "06_compute/method_outputs/event_returns.csv").decode("utf-8")
+    t_csv = blob.read_artifact(session_id, "07_statistics/results_tables/t_tests.csv").decode("utf-8")
+    tex = blob.read_artifact(session_id, "11_paper/final.tex").decode("utf-8")
+    pdf = blob.read_artifact(session_id, "11_paper/final.pdf")
+
+    assert "xle_overnight_return" in event_csv
+    assert "icln_overnight_return" in event_csv
+    assert "t_stat" in t_csv and "p_value" in t_csv
+    assert "open_{i,t} - close_{i,t-1}" in tex
+    assert tex.count("\\begin{table}") >= 3
+    assert "TBD" not in tex
+    assert "[INSERT NUMBER]" not in tex
+    assert len(re.findall(rb"/Type\s*/Page\b", pdf)) > 4
 
 
 def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:
