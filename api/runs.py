@@ -62,7 +62,14 @@ SESSION_PHASE_TO_LEGACY = {
 
 
 def _legacy_runs_enabled() -> bool:
+    env = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).strip().lower()
+    if env == "production":
+        return False
     return os.getenv("THRIVARC_ENABLE_LEGACY_RUNS", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _raise_run_not_found(run_id: str) -> None:
+    raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 
 
 def _canonical_session_exists(run_id: str) -> bool:
@@ -452,6 +459,9 @@ def run_status(run_id: str) -> dict[str, Any]:
     if canonical:
         return canonical
 
+    if not _legacy_runs_enabled():
+        _raise_run_not_found(run_id)
+
     with _connect() as conn:
         row = conn.execute(
             "SELECT run_id, started_at, finished_at, status, seed_query, meta_json FROM pipeline_runs WHERE run_id=? LIMIT 1",
@@ -474,6 +484,9 @@ def run_truth_contract(run_id: str) -> dict[str, Any]:
             with sessions._with_conn() as conn:
                 blueprint = sessions._blueprint_content(sessions._blueprint_row(conn, run_id))
             return {"truth_contract": sessions._truth_contract(run_id, blueprint)}
+
+    if not _legacy_runs_enabled():
+        _raise_run_not_found(run_id)
 
     with _connect() as conn:
         row = conn.execute(
@@ -506,6 +519,9 @@ def run_log(run_id: str) -> dict[str, list[dict[str, str | None]]]:
             ]
         }
 
+    if not _legacy_runs_enabled():
+        _raise_run_not_found(run_id)
+
     run_dir = RUN_STORE / run_id
     if not run_dir.exists():
         run_dir = LEGACY_RUN_STORE / run_id
@@ -527,6 +543,8 @@ def run_log(run_id: str) -> dict[str, list[dict[str, str | None]]]:
 def run_artifacts(run_id: str) -> dict[str, Any]:
     if _canonical_session_exists(run_id):
         return {"artifacts": list_artifacts(run_id)}
+    if not _legacy_runs_enabled():
+        _raise_run_not_found(run_id)
     return {"artifacts": _artifact_manifest(run_id)}
 
 
@@ -565,6 +583,8 @@ async def run_stream(run_id: str) -> StreamingResponse:
             yield f"event: status\ndata: {payload}\n\n"
 
         return StreamingResponse(canonical_event(), media_type="text/event-stream")
+    if not _legacy_runs_enabled():
+        _raise_run_not_found(run_id)
     return StreamingResponse(_status_events(run_id), media_type="text/event-stream")
 
 
@@ -578,6 +598,9 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
             sessions._event(conn, run_id, "run_failed", {"summary": "Run cancelled by researcher."}, "Pipeline orchestrator", "cancelled")
             sessions._commit(conn)
         return {"cancelled": True, "run_id": run_id}
+
+    if not _legacy_runs_enabled():
+        _raise_run_not_found(run_id)
 
     process = RUN_PROCESSES.get(run_id)
     if process and process.returncode is None:
