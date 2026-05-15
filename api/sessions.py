@@ -2065,7 +2065,7 @@ def create_deviation(session_id: str, payload: dict[str, Any]):
         _execute(
             conn,
             "INSERT INTO deviation_register (id, session_id, field_changed, changed_from, changed_to, reason, timestamp, agent_triggered_by, requires_researcher_approval) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (deviation_id, session_id, payload.get("field"), payload.get("from"), payload.get("to"), payload.get("reason") or "Researcher requested change.", _now(), payload.get("agent_triggered_by"), int(approval_required)),
+            (deviation_id, session_id, payload.get("field"), payload.get("from"), payload.get("to"), payload.get("reason") or "Researcher requested change.", _now(), payload.get("agent_triggered_by"), bool(approval_required)),
         )
         _event(conn, session_id, "deviation_logged", {"deviation_id": deviation_id}, "Research Architect", "repair_required" if approval_required else "complete")
         _commit(conn)
@@ -2168,7 +2168,7 @@ def approve_repair(session_id: str, payload: dict[str, Any]):
         _execute(
             conn,
             "INSERT INTO repair_log (id, session_id, trigger_agent, trigger_finding, scope, pass_criterion, cycle_number, approval_required, approved_by, approved_at, outcome) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (repair_id, session_id, "Researcher", "Manual approval", "safe repair", "Repair approved or rejected", 1, 0, payload.get("approved_by"), _now(), status),
+            (repair_id, session_id, "Researcher", "Manual approval", "safe repair", "Repair approved or rejected", 1, False, payload.get("approved_by"), _now(), status),
         )
         _event(conn, session_id, "repair_complete", {"repair_id": repair_id, "repair_status": status}, "Repair Agent", status)
         if payload.get("approved") is True and blueprint:
