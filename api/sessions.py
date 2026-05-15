@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import sqlite3
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -838,7 +839,9 @@ def _profile(
 
 
 def _agent_client():
-    if not os.getenv("AZURE_OPENAI_API_KEY"):
+    if os.getenv("ENVIRONMENT") == "test":
+        return None
+    if not os.getenv("OPENAI_API_KEY"):
         return None
     try:
         return guide._client()
@@ -851,7 +854,21 @@ def _run_async_agent(coro):
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
-    raise RuntimeError("Cannot run asynchronous LLM agent from an active event loop.")
+    result: dict[str, Any] = {}
+    error: dict[str, BaseException] = {}
+
+    def _runner() -> None:
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:
+            error["value"] = exc
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+    if error:
+        raise error["value"]
+    return result.get("value")
 
 
 def _agent_blueprint(blueprint: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:

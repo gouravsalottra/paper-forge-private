@@ -35,7 +35,7 @@ def _blocking_payload() -> dict:
 
 
 def test_validate_recomputes_completion_contract_after_blocking_clarifications(monkeypatch) -> None:
-    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(guide, "_json_call", lambda _system, _payload: _blocking_payload())
 
     result = guide.validate({"topic": "Test whether sector rotation improves returns"})
@@ -49,7 +49,7 @@ def test_validate_recomputes_completion_contract_after_blocking_clarifications(m
 
 
 def test_validate_sanitizes_all_agent_stack_engine_labels(monkeypatch) -> None:
-    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     payload = _blocking_payload()
     payload["clarifications"] = []
@@ -71,7 +71,7 @@ def test_validate_sanitizes_all_agent_stack_engine_labels(monkeypatch) -> None:
 
 
 def test_build_runspec_recomputes_completion_contract_from_client_payload(monkeypatch) -> None:
-    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     stale_validated = _blocking_payload()
 
     result = guide.build_runspec({
@@ -86,7 +86,7 @@ def test_build_runspec_recomputes_completion_contract_from_client_payload(monkey
 
 
 def test_validate_surfaces_reviewer_repair_and_integrity_contracts(monkeypatch) -> None:
-    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     result = guide.validate({
         "topic": "Explore whether SEC filing language shifts map to sector ETF overnight volatility using EDGAR and yfinance data from 2015 to 2024",
@@ -105,7 +105,7 @@ def test_validate_surfaces_reviewer_repair_and_integrity_contracts(monkeypatch) 
 
 
 def test_backtest_blueprint_blocks_missing_design_details(monkeypatch) -> None:
-    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     result = guide.validate({
         "topic": "Test whether a trading strategy can outperform a benchmark",
@@ -127,7 +127,7 @@ def test_backtest_blueprint_blocks_missing_design_details(monkeypatch) -> None:
 
 
 def test_build_runspec_embeds_guide_truth_contracts(monkeypatch) -> None:
-    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     result = guide.build_runspec({
         "form_data": {"topic": "Test whether a trading strategy can outperform a benchmark"},

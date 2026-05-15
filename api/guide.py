@@ -35,7 +35,7 @@ VALID_EVIDENCE_ROUTES = {
 def _client() -> AzureOpenAI:
     return AzureOpenAI(
         azure_endpoint=AZURE_ENDPOINT,
-        api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        api_key=os.environ["OPENAI_API_KEY"],
         api_version=AZURE_API_VERSION,
     )
 
@@ -717,7 +717,7 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
 
     # LLM-powered inference — primary path when API key exists
     llm_inferences: dict[str, Any] = {}
-    if os.getenv("AZURE_OPENAI_API_KEY"):
+    if os.getenv("OPENAI_API_KEY"):
         try:
             llm_inferences = _llm_infer_blueprint_fields(payload)
         except Exception:
@@ -938,7 +938,7 @@ def research_guide() -> dict[str, Any]:
 @router.post("/api/guide/validate")
 @router.post("/guide/validate")
 def validate(payload: dict[str, Any]) -> dict[str, Any]:
-    if not os.getenv("AZURE_OPENAI_API_KEY"):
+    if not os.getenv("OPENAI_API_KEY"):
         return _fallback_blueprint(payload)
     system = (
         "You are a research architect for empirical finance. Return ONLY valid JSON matching the Thrivarc blueprint "
