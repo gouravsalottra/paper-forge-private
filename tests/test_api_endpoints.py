@@ -215,6 +215,49 @@ def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypat
     assert not any(item["path"].endswith("11_paper/final.tex") for item in artifacts)
 
 
+def test_code_audit_block_surfaces_before_hawk_runs(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    from api import sessions
+
+    original_contracts = sessions._build_agent_contracts
+
+    def blocking_contracts(session_id: str, blueprint: dict, profile: dict) -> dict:
+        contracts = original_contracts(session_id, blueprint, profile)
+        contracts["code_audit"] = {
+            "audit_passed": False,
+            "blocks_pipeline": True,
+            "audit_summary": "Synthetic code audit failure.",
+            "violations": [{"severity": "fatal", "violation_type": "look_ahead_bias"}],
+        }
+        profile["code_audit_json"] = contracts["code_audit"]
+        profile["code_audit"] = "# Code Audit Report\n\nSynthetic code audit failure.\n"
+        return contracts
+
+    def hawk_should_not_run(*_args, **_kwargs):
+        raise AssertionError("HAWK must not run when Code Audit blocks the pipeline.")
+
+    monkeypatch.setattr(sessions, "_build_agent_contracts", blocking_contracts)
+    monkeypatch.setattr(sessions, "_run_hawk_review", hawk_should_not_run)
+
+    created = client.post("/api/sessions", json={"topic": "Audit blocks before reviewer", "domain": "finance_economics"})
+    session_id = created.json()["session_id"]
+    assert client.post(
+        f"/api/sessions/{session_id}/scope",
+        json={"research_type": "confirmatory", "focus_question": "Audit blocks before reviewer", "constraints": {"method_style": "event_study"}},
+    ).status_code == 200
+    assert client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"}).status_code == 200
+    assert client.post(f"/api/sessions/{session_id}/run", json={"approved": True}).status_code == 200
+
+    session = client.get(f"/api/sessions/{session_id}").json()
+    phases = {phase["agent_name"]: phase["status"] for phase in session["phases"]}
+    assert session["status"] == "failed_resumable"
+    assert sum(1 for status in phases.values() if status == "complete") >= 5
+    assert phases["Code Audit Agent"] == "failed_resumable"
+    assert phases["Reviewer Agent"] == "paper_locked"
+    assert phases["Writer Agent"] == "paper_locked"
+    assert client.get(f"/api/sessions/{session_id}/results").json()["paper_url"] is None
+
+
 def test_background_failure_records_traceback_in_phase(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions

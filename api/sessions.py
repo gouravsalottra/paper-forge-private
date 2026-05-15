@@ -1211,25 +1211,27 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
     design = profile["compute"].get("design", {})
     profile["data_passport"]["rows"] = design.get("sessions", 1000) if isinstance(design, dict) else 1000
     code_audit_blocks = bool(contracts.get("code_audit", {}).get("blocks_pipeline"))
-    scorecard = _run_hawk_review(session_id, blueprint, profile, contracts)
-    if not scorecard.get("gate_passed"):
-        profile["repair_contract"] = {
-            "repairs": [
-                {
-                    "hawk_issue": issue,
-                    "repair_type": "reviewer_required_repair",
-                    "exact_fix": issue,
-                    "verification": "Re-run HAWK and require average >= 7.0 with every dimension >= 6.0.",
-                }
-                for issue in scorecard.get("findings", {}).get("top_3_issues", [])
-            ],
-            "deviation_register_entries": [],
-            "repair_priority_order": scorecard.get("findings", {}).get("top_3_issues", []),
-            "projected_average_after_all_repairs": None,
-            "projected_gate_pass": False,
-            "repairs_exhausted": False,
-            "prompt_template": "api.prompts.REPAIR_AGENT_PROMPT",
-        }
+    scorecard: dict[str, Any] | None = None
+    if not code_audit_blocks:
+        scorecard = _run_hawk_review(session_id, blueprint, profile, contracts)
+        if not scorecard.get("gate_passed"):
+            profile["repair_contract"] = {
+                "repairs": [
+                    {
+                        "hawk_issue": issue,
+                        "repair_type": "reviewer_required_repair",
+                        "exact_fix": issue,
+                        "verification": "Re-run HAWK and require average >= 7.0 with every dimension >= 6.0.",
+                    }
+                    for issue in scorecard.get("findings", {}).get("top_3_issues", [])
+                ],
+                "deviation_register_entries": [],
+                "repair_priority_order": scorecard.get("findings", {}).get("top_3_issues", []),
+                "projected_average_after_all_repairs": None,
+                "projected_gate_pass": False,
+                "repairs_exhausted": False,
+                "prompt_template": "api.prompts.REPAIR_AGENT_PROMPT",
+            }
 
     artifact_refs = {
         "Research Architect": {
@@ -1271,13 +1273,18 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         "Spec Audit Agent": {
             "08_audit/spec_audit_report.md": _write_text_artifact(session_id, "08_audit/spec_audit_report.md", profile["spec_audit"]),
         },
-        "Reviewer Agent": {
-            "09_review/reviewer_scorecard_v1.json": _write_json_artifact(session_id, "09_review/reviewer_scorecard_v1.json", scorecard),
-        },
-        "Repair Agent": {
-            "09_review/repair_contracts/repair_cycle_0.json": _write_json_artifact(session_id, "09_review/repair_contracts/repair_cycle_0.json", profile["repair_contract"]),
-        },
     }
+    if scorecard is not None:
+        artifact_refs.update(
+            {
+                "Reviewer Agent": {
+                    "09_review/reviewer_scorecard_v1.json": _write_json_artifact(session_id, "09_review/reviewer_scorecard_v1.json", scorecard),
+                },
+                "Repair Agent": {
+                    "09_review/repair_contracts/repair_cycle_0.json": _write_json_artifact(session_id, "09_review/repair_contracts/repair_cycle_0.json", profile["repair_contract"]),
+                },
+            }
+        )
 
     with _with_conn() as conn:
         for agent in AGENT_SEQUENCE:
