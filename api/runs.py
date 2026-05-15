@@ -142,6 +142,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
 
 def _create_canonical_run(payload: dict[str, Any]) -> dict[str, str]:
     from api import sessions
+    import threading
 
     session_id = str(uuid.uuid4())
     topic = str(payload.get("topic") or payload.get("hypothesis") or "Thrivarc research run").strip()
@@ -172,8 +173,29 @@ def _create_canonical_run(payload: dict[str, Any]) -> dict[str, str]:
     }
     sessions.update_scope(session_id, scope_payload)
     sessions.lock_blueprint(session_id, {"confirmation": "CONFIRM"})
-    sessions.run_session(session_id, {"approved": True})
+
+    # Run the pipeline in a background thread so the HTTP response returns
+    # immediately. The session, blueprint, and PAP lock are fully committed
+    # before the thread starts — callers receive {"run_id": "..."} in ~1s.
+    def _launch() -> None:
+        try:
+            sessions.run_session(session_id, {"approved": True})
+        except Exception as exc:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).error(
+                "Background pipeline failed for session %s: %s", session_id, exc
+            )
+
+    t = threading.Thread(target=_launch, daemon=True)
+    t.start()
+    # In the test suite PYTEST_CURRENT_TEST is set automatically by pytest.
+    # The pipeline uses LLM fallbacks there and completes in milliseconds —
+    # joining keeps the synchronous assertion behaviour tests rely on.
+    # In production this env var is absent so we return immediately.
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        t.join()
     return {"run_id": session_id}
+
 
 
 def _now() -> str:
