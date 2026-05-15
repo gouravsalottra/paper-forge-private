@@ -521,7 +521,15 @@ Return ONLY valid JSON. No preamble. No markdown.
 """
 
 
-WRITER_AGENT_PROMPT = r"""
+WRITER_PROSE_PROMPT = r"""
+You are outputting raw LaTeX source code.
+Use real backslash characters. Never use \textbackslash.
+Write \section{Introduction} not \textbackslash{}section{Introduction}.
+Write \citep{key} not \textbackslash{}citep{key}.
+Write \begin{table} not \textbackslash{}begin{table}.
+The output will be saved directly to a .tex file and compiled
+with pdflatex. It must be valid LaTeX.
+
 You are writing a complete empirical finance paper in LaTeX for submission
 to the Journal of Finance. This agent fires ONLY after HAWK has passed the
 study. Writer is last and never invents numbers.
@@ -540,16 +548,12 @@ Inputs are structured artifacts, not suggestions:
 Write a complete empirical finance paper in LaTeX.
 
 STYLE RULES:
-- \documentclass[12pt]{{article}}
-- Use \usepackage{{booktabs,amsmath,natbib,geometry,setspace,longtable}}
-- Use \geometry{{margin=1in}}
+- \documentclass[12pt]{article}
+- Use \usepackage{booktabs,amsmath,natbib,geometry,setspace,longtable}
+- Use \geometry{margin=1in}
 - Use \doublespacing
-- Tables go AFTER references, each on its own page.
-- Use \citet{{}} and \citep{{}} for citations; never invent citation keys.
+- Use \citet{} and \citep{} for citations; never invent citation keys.
 - Use only citation keys from the BibTeX artifact.
-- Standard errors appear in parentheses below coefficients where coefficient tables exist.
-- Significance notes: *** p<0.01, ** p<0.05, * p<0.10.
-- Use \toprule, \midrule, \bottomrule from booktabs; never \hline.
 
 PAPER STRUCTURE:
 - abstract: 150-200 words with question, method, main finding, contribution.
@@ -561,9 +565,13 @@ PAPER STRUCTURE:
 - Robustness: placebo, subsample, alternative windows, correction, and HAWK concerns.
 - Conclusion: limitations, future work, no overclaiming.
 - References.
-- Tables after references in JF style.
 
 CRITICAL RULES:
+- Write each section EXACTLY ONCE. Never repeat a section.
+- Never repeat the same paragraph.
+- No tables yet. Do not write any \begin{table} or \end{table}. Tables will be generated later.
+- After writing \end{document}, output: %%%END_PROSE%%%
+  Then stop immediately. Nothing after that marker.
 - Every number must come from stats_results or csv_artifacts.
 - Never write a number you are not certain came from the artifacts.
 - Never invent a citation key.
@@ -574,12 +582,44 @@ CRITICAL RULES:
 
 Return ONLY JSON:
 {{
-  "latex": "complete LaTeX source",
+  "latex": "complete LaTeX source without tables, ending with %%%END_PROSE%%%",
   "numbers_used": ["list every statistic cited"],
-  "citation_keys_used": ["keys used from bibliography_bib"],
-  "tables_written": ["table captions"]
+  "citation_keys_used": ["keys used from bibliography_bib"]
 }}
 
 Return ONLY valid JSON. No preamble. No markdown.
 """
 
+WRITER_TABLES_PROMPT = r"""
+You are outputting raw LaTeX source code.
+Use real backslash characters. Never use \textbackslash.
+Write \begin{table} not \textbackslash{}begin{table}.
+The output will be saved directly to a .tex file and compiled
+with pdflatex. It must be valid LaTeX.
+
+You are generating LaTeX tables for an empirical finance paper.
+Write all LaTeX table environments for this paper based on the verified CSV data.
+
+Inputs are structured artifacts:
+- Topic: {topic}
+- CSV artifacts: {all_csv_artifacts_json}
+- Statistical results: {stats_results_json}
+
+STYLE RULES:
+- Standard errors appear in parentheses below coefficients where coefficient tables exist.
+- Significance notes: *** p<0.01, ** p<0.05, * p<0.10.
+- Use \toprule, \midrule, \bottomrule from booktabs; never \hline.
+
+CRITICAL RULES:
+- Only generate table environments (\begin{table} ... \end{table}).
+- End with %%%END_TABLES%%%
+  Then stop immediately. Nothing after that marker.
+
+Return ONLY JSON:
+{{
+  "latex": "only LaTeX table environments, ending with %%%END_TABLES%%%",
+  "tables_written": ["table captions"]
+}}
+
+Return ONLY valid JSON. No preamble. No markdown.
+"""

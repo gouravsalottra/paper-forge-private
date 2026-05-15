@@ -15,7 +15,8 @@ class TestPromptRegistry:
             CODE_AUDIT_PROMPT,
             HAWK_PROMPT,
             REPAIR_AGENT_PROMPT,
-            WRITER_AGENT_PROMPT,
+            WRITER_PROSE_PROMPT,
+            WRITER_TABLES_PROMPT,
         )
         assert all([
             RESEARCH_ARCHITECT_PROMPT,
@@ -25,7 +26,8 @@ class TestPromptRegistry:
             CODE_AUDIT_PROMPT,
             HAWK_PROMPT,
             REPAIR_AGENT_PROMPT,
-            WRITER_AGENT_PROMPT,
+            WRITER_PROSE_PROMPT,
+            WRITER_TABLES_PROMPT,
         ])
 
     def test_no_hardcoded_model_strings_in_prompts(self):
@@ -53,7 +55,8 @@ class TestPromptRegistry:
             CODE_AUDIT_PROMPT,
             HAWK_PROMPT,
             REPAIR_AGENT_PROMPT,
-            WRITER_AGENT_PROMPT,
+            WRITER_PROSE_PROMPT,
+            WRITER_TABLES_PROMPT,
         )
         for prompt in [
             RESEARCH_ARCHITECT_PROMPT,
@@ -63,7 +66,8 @@ class TestPromptRegistry:
             CODE_AUDIT_PROMPT,
             HAWK_PROMPT,
             REPAIR_AGENT_PROMPT,
-            WRITER_AGENT_PROMPT,
+            WRITER_PROSE_PROMPT,
+            WRITER_TABLES_PROMPT,
         ]:
             assert "Return ONLY" in prompt or "Return only" in prompt
 
@@ -81,9 +85,9 @@ class TestPromptRegistry:
         assert "gate_passed" in HAWK_PROMPT
 
     def test_writer_prompt_numbers_contract(self):
-        from api.prompts import WRITER_AGENT_PROMPT
-        assert "results_json" in WRITER_AGENT_PROMPT
-        assert "invent" in WRITER_AGENT_PROMPT.lower() or "only" in WRITER_AGENT_PROMPT
+        from api.prompts import WRITER_PROSE_PROMPT
+        assert "stats_results" in WRITER_PROSE_PROMPT or "results_json" in WRITER_PROSE_PROMPT
+        assert "invent" in WRITER_PROSE_PROMPT.lower() or "only" in WRITER_PROSE_PROMPT
 
 
 class TestLLMCaller:

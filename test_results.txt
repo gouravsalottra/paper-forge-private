@@ -1,0 +1,55 @@
+....................................................F................... [ 31%]
+..............................................F......................... [ 62%]
+....................................................s................... [ 93%]
+..............                                                           [100%]
+=================================== FAILURES ===================================
+_ test_runtime_code_uses_db_connection_wrapper_instead_of_direct_sqlite_connect _
+tests/test_db_connection.py:105: in test_runtime_code_uses_db_connection_wrapper_instead_of_direct_sqlite_connect
+    assert offenders == []
+E   AssertionError: assert ['.venv/lib/p...e/history.py'] == []
+E     
+E     Left contains 6 more items, first extra item: '.venv/lib/python3.13/site-packages/peewee.py'
+E     Use -v to get more diff
+_____________ test_step0_model_strings_are_standardized_to_gpt_4o ______________
+tests/test_model_standardization.py:28: in test_step0_model_strings_are_standardized_to_gpt_4o
+    assert offenders == []
+E   AssertionError: assert ['api/guide.p...: gpt-5', ...] == []
+E     
+E     Left contains 88 more items, first extra item: 'api/guide.py: gpt-5'
+E     Use -v to get more diff
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:64
+  /Users/gouravsalotrta/Documents/New project/.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:64: PyparsingDeprecationWarning: 'oneOf' deprecated - use 'one_of'
+    prop = Group((name + Suppress("=") + comma_separated(value)) | oneOf(_CONSTANTS))
+
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:85
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:85
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:85
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:85
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:85
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:85
+  /Users/gouravsalotrta/Documents/New project/.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:85: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    parse = parser.parseString(pattern)
+
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:89
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:89
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:89
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:89
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:89
+.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:89
+  /Users/gouravsalotrta/Documents/New project/.venv/lib/python3.13/site-packages/matplotlib/_fontconfig_pattern.py:89: PyparsingDeprecationWarning: 'resetCache' deprecated - use 'reset_cache'
+    parser.resetCache()
+
+.venv/lib/python3.13/site-packages/matplotlib/_mathtext.py:45
+  /Users/gouravsalotrta/Documents/New project/.venv/lib/python3.13/site-packages/matplotlib/_mathtext.py:45: PyparsingDeprecationWarning: 'enablePackrat' deprecated - use 'enable_packrat'
+    ParserElement.enablePackrat()
+
+tests/test_runtime_hardening.py::test_statsrun_job_markov_regime_aligns_lengths
+  /Users/gouravsalotrta/Documents/New project/.venv/lib/python3.13/site-packages/statsmodels/tsa/statespace/tools.py:503: RuntimeWarning: invalid value encountered in divide
+    r = unconstrained/((1 + unconstrained**2)**0.5)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_db_connection.py::test_runtime_code_uses_db_connection_wrapper_instead_of_direct_sqlite_connect
+FAILED tests/test_model_standardization.py::test_step0_model_strings_are_standardized_to_gpt_4o
+2 failed, 227 passed, 1 skipped, 15 warnings in 30.44s

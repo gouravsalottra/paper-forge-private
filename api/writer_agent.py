@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from api.llm_caller import call_agent_llm
-from api.prompts import WRITER_AGENT_PROMPT
+from api.prompts import WRITER_PROSE_PROMPT, WRITER_TABLES_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +193,8 @@ The paper answers the locked question using the evidence available in the verifi
 async def write_paper_latex(context: dict[str, Any], client=None) -> dict[str, Any]:
     if client is None:
         return _fallback_latex(context)
-    prompt = WRITER_AGENT_PROMPT.format(
+    
+    prose_prompt = WRITER_PROSE_PROMPT.format(
         topic=context.get("topic", ""),
         blueprint_json=json.dumps(context.get("blueprint", {}), indent=2, sort_keys=True),
         data_passport_json=json.dumps(context.get("data_passport", {}), indent=2, sort_keys=True),
@@ -204,17 +205,50 @@ async def write_paper_latex(context: dict[str, Any], client=None) -> dict[str, A
         hawk_scorecard_json=json.dumps(context.get("hawk_scorecard", {}), indent=2, sort_keys=True),
         all_csv_artifacts_json=json.dumps(context.get("all_csv_artifacts", {}), indent=2, sort_keys=True),
     )
-    result = await call_agent_llm(
-        agent_name="WRITER_AGENT",
-        prompt=prompt,
+    
+    tables_prompt = WRITER_TABLES_PROMPT.format(
+        topic=context.get("topic", ""),
+        all_csv_artifacts_json=json.dumps(context.get("all_csv_artifacts", {}), indent=2, sort_keys=True),
+        stats_results_json=json.dumps(context.get("stats_results", {}), indent=2, sort_keys=True),
+    )
+    
+    prose_result = await call_agent_llm(
+        agent_name="WRITER_AGENT_PROSE",
+        prompt=prose_prompt,
         client=client,
         fallback_fn=_fallback_latex,
         fallback_args={"context": context},
-        max_tokens=12000,
+        max_tokens=10000,
     )
-    latex = result.get("latex") or result.get("final_latex")
-    if not latex or "\\documentclass" not in latex:
+    
+    tables_result = await call_agent_llm(
+        agent_name="WRITER_AGENT_TABLES",
+        prompt=tables_prompt,
+        client=client,
+        fallback_fn=lambda: {"latex": ""},
+        max_tokens=6000,
+    )
+    
+    prose_latex = prose_result.get("latex") or prose_result.get("final_latex") or ""
+    if "%%%END_PROSE%%%" in prose_latex:
+        prose_latex = prose_latex.split("%%%END_PROSE%%%")[0]
+        
+    tables_latex = tables_result.get("latex") or tables_result.get("final_latex") or ""
+    if "%%%END_TABLES%%%" in tables_latex:
+        tables_latex = tables_latex.split("%%%END_TABLES%%%")[0]
+        
+    # Remove \end{document} from prose if the LLM output it early
+    prose_latex = prose_latex.replace("\\end{document}", "")
+    
+    latex = f"{prose_latex.strip()}\n\n{tables_latex.strip()}\n\\end{document}\n"
+    
+    if not prose_latex or "\\documentclass" not in prose_latex:
         fallback = _fallback_latex(context)
-        fallback["llm_result_without_latex"] = result
+        fallback["llm_result_without_latex"] = prose_result
         return fallback
-    return {**result, "latex": latex}
+        
+    return {
+        **prose_result,
+        "latex": latex,
+        "tables_written": tables_result.get("tables_written", [])
+    }

@@ -10,7 +10,10 @@ import logging
 import mimetypes
 import os
 import re
+import shutil
 import sqlite3
+import subprocess
+import tempfile
 import threading
 import traceback
 import uuid
@@ -1151,46 +1154,42 @@ def _latex_escape(value: Any) -> str:
     return text
 
 
+def clean_latex_escaping(text: str) -> str:
+    """Remove over-escaped backslashes from LLM output."""
+    replacements = [
+        (r'\textbackslash\{\}', '\\'),
+        (r'\textbackslash{}', '\\'),
+        (r'{\textbackslash}', '\\'),
+    ]
+    for bad, good in replacements:
+        text = text.replace(bad, good)
+    return text
+
+
 def _render_latex_source_pdf(latex: str, title: str) -> bytes:
-    try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
-    except Exception as exc:  # pragma: no cover
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tex_file = os.path.join(tmpdir, "paper.tex")
+        with open(tex_file, "w", encoding="utf-8") as f:
+            f.write(latex)
+        
+        for _ in range(2):
+            subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode", "-output-directory", tmpdir, tex_file],
+                capture_output=True, text=True, timeout=120
+            )
+            
+        pdf_file = os.path.join(tmpdir, "paper.pdf")
+        if os.path.exists(pdf_file):
+            with open(pdf_file, "rb") as f:
+                return f.read()
+                
+        log_file = os.path.join(tmpdir, "paper.log")
+        if os.path.exists(log_file):
+            print(open(log_file, encoding="utf-8").read()[-3000:])
+            
+        # Fallback if pdflatex completely fails
         plain_lines = [line.strip() for line in latex.splitlines() if line.strip()]
         return render_pdf(title, plain_lines)
-
-    out = io.BytesIO()
-    doc = SimpleDocTemplate(out, pagesize=letter, rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=54)
-    styles = getSampleStyleSheet()
-    story = [Paragraph(_latex_escape(title), styles["Title"]), Spacer(1, 12)]
-    lines = latex.splitlines()
-    page_line_count = 0
-    for raw in lines:
-        line = raw.strip()
-        if not line or line.startswith("\\documentclass") or line.startswith("\\usepackage") or line in {"\\begin{document}", "\\end{document}"}:
-            continue
-        if line.startswith("\\clearpage"):
-            story.append(PageBreak())
-            page_line_count = 0
-            continue
-        if line.startswith("\\section") or line.startswith("\\subsection"):
-            text = re.sub(r"\\(?:sub)*section\*?\{(.*)\}", r"\1", line)
-            story.append(Paragraph(_latex_escape(text), styles["Heading2"]))
-            page_line_count += 2
-            continue
-        if line.startswith("\\begin") or line.startswith("\\end") or line.startswith("\\toprule") or line.startswith("\\midrule") or line.startswith("\\bottomrule"):
-            continue
-        cleaned = re.sub(r"\\cite[t|p]?\{([^}]*)\}", r"[\1]", line)
-        cleaned = cleaned.replace(r"\\", " ").replace("$", "")
-        story.append(Paragraph(_latex_escape(cleaned), styles["BodyText"]))
-        story.append(Spacer(1, 4))
-        page_line_count += 1
-        if page_line_count >= 42:
-            story.append(PageBreak())
-            page_line_count = 0
-    doc.build(story)
-    return out.getvalue()
 
 
 def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> None:
@@ -1395,6 +1394,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         }
         writer_result = _run_async_agent(write_paper_latex(writer_context, client=_agent_client()), timeout_seconds=240)
         paper = writer_result.get("latex", "")
+        paper = clean_latex_escaping(paper)
         pdf = _render_latex_source_pdf(paper, profile["title"])
         profile["verification"]["writer_numbers_used"] = writer_result.get("numbers_used", [])
         profile["verification"]["writer_agent"] = {k: v for k, v in writer_result.items() if k != "latex"}
@@ -1874,3 +1874,64 @@ def fork_session(session_id: str, payload: dict[str, Any]):
         _commit(conn)
     _write_truth_contract(new_id, {"parent_run_id": session_id, "changes": changes})
     return {"new_session_id": new_id}
+
+
+@router.post("/{session_id}/rerender")
+async def rerender_paper(session_id: str) -> JSONResponse:
+    profile_bytes = read_artifact(session_id, "00_runspec/execution_profile.json")
+    if not profile_bytes:
+        return _error(404, "NOT_FOUND", "Profile artifact not found", "error", [])
+        
+    profile = json.loads(profile_bytes.decode("utf-8"))
+    
+    context_bytes = read_artifact(session_id, "00_runspec/agent_context.json")
+    agent_context = json.loads(context_bytes.decode("utf-8")) if context_bytes else {}
+    
+    contracts = agent_context.get("contracts", {})
+    agent_blueprint = contracts.get("agent_blueprint", profile.get("blueprint", {}))
+    
+    # Reconstruct scorecard
+    scorecard = {}
+    with _with_conn() as conn:
+        row = _fetchone(conn, "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC, created_at DESC LIMIT 1", (session_id,))
+        if row:
+            scorecard = {
+                "gate_passed": _row_get(row, "gate_passed"),
+                "scores": {
+                    "identification_validity": _row_get(row, "identification_validity"),
+                    "data_integrity": _row_get(row, "data_integrity"),
+                    "statistical_rigor": _row_get(row, "statistical_rigor"),
+                    "economic_significance": _row_get(row, "economic_significance"),
+                    "benchmark_fairness": _row_get(row, "benchmark_fairness"),
+                    "robustness_burden": _row_get(row, "robustness_burden"),
+                    "overclaiming_risk": _row_get(row, "overclaiming_risk"),
+                },
+                "average_score": _row_get(row, "average_score"),
+                "findings": _json_loads(_row_get(row, "findings"), {})
+            }
+
+    writer_context = {
+        "topic": profile.get("title", profile.get("topic", "")),
+        "blueprint": agent_blueprint,
+        "data_passport": profile.get("data_passport", {}),
+        "literature_review": profile.get("literature_agent", {}).get("literature_review_md", ""),
+        "bibliography_bib": profile.get("literature_agent", {}).get("bibliography_bib", ""),
+        "method_spec": contracts.get("method_spec", {}),
+        "stats_results": {"statistics": profile.get("statistics", {}), "findings": profile.get("findings", {}), "primary_numbers": profile.get("findings", {}).get("primary_numbers", {})},
+        "hawk_scorecard": scorecard,
+        "all_csv_artifacts": profile.get("csv_outputs", {}),
+    }
+
+    writer_result = await write_paper_latex(writer_context, client=_agent_client())
+    paper = writer_result.get("latex", "")
+    paper = clean_latex_escaping(paper)
+    pdf = _render_latex_source_pdf(paper, profile.get("title", "Research Paper"))
+
+    _write_text_artifact(session_id, "11_paper/final.tex", paper)
+    write_artifact(session_id, "11_paper/final.pdf", pdf)
+
+    return JSONResponse(status_code=200, content={
+        "status": "ok", 
+        "pages": max(1, len(pdf) // 2000), 
+        "pdf_path": get_artifact_url(session_id, "11_paper/final.pdf")
+    })
