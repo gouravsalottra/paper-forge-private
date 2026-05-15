@@ -280,6 +280,9 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
             "WINDOW_END = '2024-12-31'",
             "EVENT_WINDOW = 'overnight_event_open'",
             "EVENT_FILE_SHA256 = 'bad8c8703accc78afab28bcc2cd657eb3a1a417d956162e065e408fb3edf68d9'",
+            "assert event_trading_day in prices.index",
+            "prices.index < event_trading_day",
+            "assert prev_day < event_trading_day",
             "overnight_return = event_open - prev_close",
         ]
     )
@@ -290,6 +293,7 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
             {"severity": "fatal", "violation_type": "return_definition"},
             {"severity": "fatal", "violation_type": "universe_mismatch"},
             {"severity": "fatal", "violation_type": "event_file_integrity"},
+            {"severity": "fatal", "violation_type": "look_ahead_bias"},
             {"severity": "fatal", "violation_type": "hardcoded_results", "description": "EVENT_FILE_SHA256 is hardcoded."},
             {"severity": "major", "violation_type": "multiple_testing"},
         ],
@@ -297,7 +301,7 @@ def test_code_audit_contract_removes_contradicted_llm_fatals() -> None:
 
     cleaned = _remove_contradicted_violations(blueprint, analysis_code, result)
     assert [item["violation_type"] for item in cleaned["violations"]] == ["multiple_testing"]
-    assert len(cleaned["llm_audit_overrides"]) == 4
+    assert len(cleaned["llm_audit_overrides"]) == 5
 
 
 def test_post_resume_reruns_failed_resumable_session(tmp_path: Path, monkeypatch) -> None:
@@ -393,6 +397,8 @@ def test_analysis_code_contract_uses_compute_controls_not_stale_blueprint_contro
     assert "sector momentum" not in contract
     assert "verify_event_file" in contract
     assert "computed_sha == EVENT_FILE_SHA256" in contract
+    assert "assert event_trading_day in prices.index" in contract
+    assert "assert prev_day < event_trading_day" in contract
 
 
 def test_repair_approval_reruns_from_paper_locked_state(tmp_path: Path, monkeypatch) -> None:

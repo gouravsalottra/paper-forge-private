@@ -55,6 +55,14 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
     code_window_matches = bool(window.get("start") in analysis_code and window.get("end") in analysis_code)
     code_universe_matches = bool(code_tickers == locked_tickers and locked_tickers)
     code_has_event_window = "EVENT_WINDOW = 'overnight_event_open'" in analysis_code
+    code_validates_event_calendar = all(
+        token in analysis_code
+        for token in [
+            "assert event_trading_day in prices.index",
+            "prices.index < event_trading_day",
+            "assert prev_day < event_trading_day",
+        ]
+    )
     expected_event_sha = blueprint.get("uploaded_event_sha256") or blueprint.get("event_file_sha256")
     code_event_sha_matches = bool(expected_event_sha and f"EVENT_FILE_SHA256 = '{expected_event_sha}'" in analysis_code)
 
@@ -70,6 +78,7 @@ def _remove_contradicted_violations(blueprint: dict, analysis_code: str, result:
             or (violation_type == "date_range_mismatch" and code_window_matches)
             or (violation_type == "window_mismatch" and code_has_event_window)
             or (violation_type == "event_file_integrity" and code_event_sha_matches)
+            or (violation_type == "look_ahead_bias" and code_uses_overnight and code_validates_event_calendar)
             or (
                 violation_type == "hardcoded_results"
                 and code_event_sha_matches
