@@ -131,9 +131,38 @@ def load_yfinance_context(blueprint: dict[str, Any]) -> ExecutionContext:
     else:
         import yfinance as yf
 
-        prices = yf.download(identifiers, start=fetch_start, end=fetch_end, progress=False, auto_adjust=False, group_by="column", threads=False)
-        if prices is None or prices.empty:
+        # Fetch sequentially and retain only the columns needed by the execution
+        # contract. Broad finance topics can include many identifiers; a single
+        # multi-ticker download is memory-spiky in small containers.
+        frames = []
+        for ticker in identifiers:
+            try:
+                single = yf.download(
+                    ticker,
+                    start=fetch_start,
+                    end=fetch_end,
+                    progress=False,
+                    auto_adjust=False,
+                    group_by="column",
+                    threads=False,
+                    timeout=20,
+                )
+                if single is None or single.empty:
+                    logger.warning("Skipping identifier %s because yfinance returned no rows.", ticker)
+                    continue
+                open_series = _price_column(single, "Open", ticker).dropna()
+                close_series = _price_column(single, "Close", ticker).dropna()
+                days = open_series.index.intersection(close_series.index)
+                if len(days) < 3:
+                    logger.warning("Skipping identifier %s because fewer than 3 OHLC rows were available.", ticker)
+                    continue
+                frames.append(pd.DataFrame({("Open", ticker): open_series.reindex(days), ("Close", ticker): close_series.reindex(days)}, index=days))
+            except Exception as exc:
+                logger.warning("Skipping identifier %s because yfinance fetch failed: %s", ticker, exc)
+                continue
+        if not frames:
             raise RuntimeError(f"yfinance returned no prices for identifiers={identifiers}.")
+        prices = pd.concat(frames, axis=1).sort_index()
     prices = prices.sort_index()
 
     rows: list[dict[str, Any]] = []
