@@ -253,8 +253,11 @@ def test_code_audit_block_surfaces_before_hawk_runs(tmp_path: Path, monkeypatch)
     assert session["status"] == "failed_resumable"
     assert sum(1 for status in phases.values() if status == "complete") >= 5
     assert phases["Code Audit Agent"] == "failed_resumable"
+    assert phases["Spec Audit Agent"] == "paper_locked"
     assert phases["Reviewer Agent"] == "paper_locked"
+    assert phases["Repair Agent"] == "paper_locked"
     assert phases["Writer Agent"] == "paper_locked"
+    assert "pending" not in set(phases.values())
     assert client.get(f"/api/sessions/{session_id}/results").json()["paper_url"] is None
 
 
