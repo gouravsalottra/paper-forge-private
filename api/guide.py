@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter
 from openai import AzureOpenAI
@@ -269,7 +272,8 @@ def _llm_infer_blueprint_fields(
     prompt = RESEARCH_ARCHITECT_PROMPT.format(research_question=raw_text)
     try:
         result = _json_call(prompt, {"brief": raw_text})
-        # Validate all four fields present and values valid
+        logger.info(f"LLM raw blueprint: {result}")
+        # Validate core routing fields present and values valid
         if not isinstance(result, dict):
             return {}
         if result.get("research_stance") not in {"confirmatory", "exploratory"}:
@@ -278,6 +282,7 @@ def _llm_infer_blueprint_fields(
             return {}
         if result.get("evidence_route") not in VALID_EVIDENCE_ROUTES:
             return {}
+        # identification_strategy is optional but forwarded when present
         return result
     except Exception:
         return {}
@@ -729,6 +734,7 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
     )
     method_from_llm = llm_inferences.get("method_family", "")
     evidence_from_llm = llm_inferences.get("evidence_route", "")
+    identification_strategy_from_llm = str(llm_inferences.get("identification_strategy") or "").strip()
 
     # Keyword rules only run when LLM did not return valid value
     confirmatory = "confirmatory" in research_state or confirmatory_from_llm or any(
@@ -800,6 +806,15 @@ def _architecture_defaults(result: dict[str, Any], payload: dict[str, Any]) -> d
     summary.setdefault("working_assumptions", ["The comparison frame will be finalized before data preview.", "The method must match the approved blueprint."])
     summary.setdefault("reviewer_attack_surface", ["Benchmark choice", "Data coverage", "Robustness", "Claim overreach"])
     summary.setdefault("reviewer_focus", "A hostile reviewer will attack identification, data quality, and interpretation.")
+
+    # Surface identification_strategy — from LLM when available, else empty string.
+    # This field is required by downstream agents (Literature, Method, Code Audit).
+    if identification_strategy_from_llm:
+        summary["identification_strategy"] = identification_strategy_from_llm
+        result["identification_strategy"] = identification_strategy_from_llm
+    else:
+        summary.setdefault("identification_strategy", "")
+        result.setdefault("identification_strategy", "")
 
     # Build canonical agent_stack_preview — always uses AZURE_DEPLOYMENT (gpt-4o).
     # Defending against hallucinated model names from LLM.
@@ -903,6 +918,7 @@ def _fallback_blueprint(payload: dict[str, Any]) -> dict[str, Any]:
             "working_assumptions": ["The comparison frame will be finalized before data preview.", "The method must match the approved blueprint."],
             "reviewer_attack_surface": ["Benchmark choice", "Data coverage", "Robustness", "Claim overreach"],
             "reviewer_focus": "A hostile reviewer will attack identification, data quality, and interpretation.",
+            "identification_strategy": "",
             "first_clarification": clarifications[0] if clarifications else None,
             "agent_stack_preview": agent_stack,
             "architect_questions": [
@@ -912,6 +928,7 @@ def _fallback_blueprint(payload: dict[str, Any]) -> dict[str, Any]:
             ][:5],
             "revision_policy": {"micro_loops": ["Agents retry bounded failed attempts."], "cross_layer_loops": ["Reviewer routes weaknesses to the weakest phase through Repair Contracts."], "hard_stops": ["Writer waits for reviewer pass.", "Blueprint changes require Deviation Register entries."], "writer_rule": "WRITER drafts only after REVIEWER score average >= 7 and no dimension is below 6", "max_cycles": {"datapull": 2, "compute": 3, "statsrun": 2, "reviewer": 3}},
         },
+        "identification_strategy": "",
     })
 
 
