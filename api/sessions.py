@@ -1155,7 +1155,7 @@ def _latex_escape(value: Any) -> str:
 
 
 def clean_latex_escaping(text: str) -> str:
-    """Remove over-escaped backslashes from LLM output."""
+    """Normalize common LLM LaTeX/Markdown mixtures before pdflatex."""
     replacements = [
         (r'\textbackslash\{\}', '\\'),
         (r'\textbackslash{}', '\\'),
@@ -1164,6 +1164,17 @@ def clean_latex_escaping(text: str) -> str:
     for bad, good in replacements:
         text = text.replace(bad, good)
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    text = re.sub(r"```(?:latex|tex)?\s*", "", text, flags=re.I)
+    text = text.replace("```", "")
+
+    def markdown_heading(match: re.Match[str]) -> str:
+        level = len(match.group(1))
+        title = match.group(2).strip().strip("#").strip()
+        command = "section" if level <= 2 else "subsection"
+        return rf"\{command}{{{_latex_escape(title)}}}"
+
+    text = re.sub(r"(?m)^\s*(#{1,6})\s+(.+?)\s*$", markdown_heading, text)
+    text = re.sub(r"(?<!\\)#", r"\\#", text)
     return text
 
 

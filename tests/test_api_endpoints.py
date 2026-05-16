@@ -230,7 +230,11 @@ def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monk
         "02_literature/bibliography.bib",
         "@article{smith2020,\n  author = {Smith, Jane},\n  title = {Market predictability},\n  journal = {Journal of Finance},\n  year = {2020}\n}",
     )
-    blob.write_artifact(session_id, "02_literature/literature_review.md", "Smith (2020) studies market predictability \\citep{smith2020}.")
+    blob.write_artifact(
+        session_id,
+        "02_literature/literature_review.md",
+        "### Literature Review\n\nSmith (2020) studies market predictability ([smith2020](https://example.com)).",
+    )
     blob.write_artifact(session_id, "03_data/data_passport.json", {"rows": 2, "sha256": "abc", "source": "yfinance"})
     blob.write_artifact(session_id, "03_data/overnight_returns.csv", "date,ticker,overnight_return\n2020-01-02,SPY,0.1\n")
     blob.write_artifact(session_id, "06_compute/method_spec.json", {"modeling_frameworks": [{"name": "HAC regression"}]})
@@ -248,6 +252,7 @@ def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monk
     pdf = blob.read_artifact(session_id, "11_paper/final.pdf")
     assert "\\section{Introduction}" in tex
     assert "\\textbackslash{}section" not in tex
+    assert "### Literature Review" not in tex
     assert "t\\_stat" in tex
     assert pdf.startswith(b"%PDF")
 

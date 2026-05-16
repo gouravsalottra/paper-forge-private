@@ -95,6 +95,56 @@ def _bibitems(bibliography_bib: str) -> str:
     return "\n".join(entries)
 
 
+def _latex_escape_preserving_citations(text: str) -> str:
+    """Escape prose while keeping citation commands generated from links usable."""
+    citation_tokens: dict[str, str] = {}
+
+    def citation_repl(match: re.Match[str]) -> str:
+        token = f"THRIVARCCITE{len(citation_tokens)}TOKEN"
+        citation_tokens[token] = rf"\citep{{{_latex_escape(match.group(1))}}}"
+        return token
+
+    text = re.sub(r"\(\[([A-Za-z0-9:_-]+)\]\([^)]+\)\)", citation_repl, text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = text.replace("**", "").replace("__", "")
+    escaped = _latex_escape(text)
+    for token, citation in citation_tokens.items():
+        escaped = escaped.replace(_latex_escape(token), citation)
+    return escaped
+
+
+def _markdown_to_latex(text: str) -> str:
+    """Convert retrieved Markdown prose into conservative LaTeX paragraphs."""
+    if not text:
+        return ""
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(text))
+    lines: list[str] = []
+    in_fence = False
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.+)$", stripped)
+        if heading:
+            title = heading.group(2).strip().strip("#").strip()
+            if title:
+                command = "subsection" if len(heading.group(1)) <= 3 else "subsubsection"
+                lines.append(rf"\{command}*{{{_latex_escape(title)}}}")
+            continue
+        if not stripped:
+            lines.append("")
+            continue
+        list_item = re.match(r"^(\d+\.|-|\*)\s+(.+)$", stripped)
+        if list_item:
+            lines.append(r"\noindent " + _latex_escape_preserving_citations(list_item.group(2)) + r"\\")
+            continue
+        lines.append(_latex_escape_preserving_citations(stripped))
+    return "\n".join(lines)
+
+
 def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     topic = context.get("topic") or context.get("blueprint", {}).get("focus_question") or "Empirical finance research question"
     blueprint = context.get("blueprint", {})
@@ -122,7 +172,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     method_names = ", ".join(str(item.get("name") if isinstance(item, dict) else item) for item in method_frameworks[:4]) or blueprint.get("method_family", "locked empirical design")
     return_definition = blueprint.get("return_definition") or blueprint.get("overnight_return") or "defined in the locked Blueprint"
     abstract_numbers = "; ".join(number_lines[:4]) or "all reported estimates are available in the verified tables"
-    lit_section = literature_review.replace("# ", "\\subsection*{").replace("\n\n", "}\n\n", 1) if literature_review.startswith("# ") else literature_review
+    lit_section = _markdown_to_latex(literature_review)
     extended_discussion = "\n\n".join(
         [
             f"The evidence is interpreted narrowly because the locked design binds data, method, and claim language before writing. This paragraph references {citation_sentence} and the verified artifact set rather than adding unverified facts. The central empirical quantities for this run are {', '.join(number_lines[:6]) if number_lines else 'reported in the artifact tables'}."
