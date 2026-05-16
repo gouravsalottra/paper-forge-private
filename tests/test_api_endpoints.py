@@ -7,6 +7,25 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
+FORBIDDEN_WRITER_META = [
+    "Thrivarc",
+    "Blueprint",
+    "pipeline",
+    "artifact",
+    "DataPassport",
+    "HAWK",
+    "Writer",
+    "paper-code",
+    "finance claims often become persuasive",
+    "reverses that order",
+]
+
+
+def _assert_standalone_academic_paper(tex: str) -> None:
+    for phrase in FORBIDDEN_WRITER_META:
+        assert phrase not in tex
+
+
 def _client(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("SQLITE_DB_PATH", str(tmp_path / "sessions.db"))
@@ -192,18 +211,19 @@ def test_session_scope_post_saves_climate_etf_blueprint(tmp_path: Path, monkeypa
     assert tex.count("\\begin{table}") >= 3
     assert "TBD" not in tex
     assert "[INSERT NUMBER]" not in tex
+    _assert_standalone_academic_paper(tex)
     assert len(re.findall(rb"/Type\s*/Page\b", pdf)) > 4
 
 
 def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
-    created = client.post("/api/sessions", json={"topic": "Old artifact shape rerender", "domain": "finance_economics"})
+    created = client.post("/api/sessions", json={"topic": "Old session shape rerender", "domain": "finance_economics"})
     session_id = created.json()["session_id"]
     client.post(
         f"/api/sessions/{session_id}/scope",
         json={
             "research_type": "exploratory",
-            "focus_question": "Old artifact shape rerender",
+            "focus_question": "Old session shape rerender",
             "hypothesis": "Verified artifacts are sufficient to rerender.",
             "constraints": {
                 "method_style": "time_series",
@@ -218,7 +238,7 @@ def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monk
 
     from storage import blob
 
-    blob.write_artifact(session_id, "00_runspec/execution_profile.json", {"title": "Old artifact shape rerender"})
+    blob.write_artifact(session_id, "00_runspec/execution_profile.json", {"title": "Old session shape rerender"})
     blob.write_artifact(session_id, "00_runspec/agent_context.json", {})
     blob.write_artifact(
         session_id,
@@ -255,6 +275,7 @@ def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monk
     assert "### Literature Review" not in tex
     assert "\\citep\\{" not in tex
     assert "t\\_stat" in tex
+    _assert_standalone_academic_paper(tex)
     assert pdf.startswith(b"%PDF")
 
 

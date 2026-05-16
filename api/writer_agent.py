@@ -75,7 +75,7 @@ def _latex_table(caption: str, label: str, rows: list[dict[str, Any]], max_rows:
 \bottomrule
 \end{{tabular}}
 \begin{{flushleft}}
-\small Notes: Values are copied from verified Thrivarc CSV artifacts. Significance stars, when present, follow *** p<0.01, ** p<0.05, * p<0.10.
+\small Notes: Values are computed from the study data. Significance stars, when present, follow *** p<0.01, ** p<0.05, * p<0.10.
 \end{{flushleft}}
 \end{{table}}
 """
@@ -165,70 +165,87 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     for idx, (path, csv_text) in enumerate(csv_artifacts.items(), start=1):
         rows = _json_table_rows(csv_text)
         if rows:
-            tables.append(_latex_table(f"Verified artifact: {path}", f"tab:artifact{idx}", rows))
+            table_name = str(path).rsplit("/", 1)[-1] or f"output_{idx}.csv"
+            tables.append(_latex_table(f"Analysis table: {table_name}", f"tab:output{idx}", rows))
     if not tables:
-        tables.append(_latex_table("Verified primary numbers", "tab:primary", [{"metric": k, "value": v} for k, v in (primary_numbers or {}).items()]))
+        tables.append(_latex_table("Primary estimates", "tab:primary", [{"metric": k, "value": v} for k, v in (primary_numbers or {}).items()]))
     method_frameworks = method_spec.get("modeling_frameworks") or []
-    method_names = ", ".join(str(item.get("name") if isinstance(item, dict) else item) for item in method_frameworks[:4]) or blueprint.get("method_family", "locked empirical design")
-    return_definition = blueprint.get("return_definition") or blueprint.get("overnight_return") or "defined in the locked Blueprint"
-    abstract_numbers = "; ".join(number_lines[:4]) or "all reported estimates are available in the verified tables"
+    method_names = ", ".join(str(item.get("name") if isinstance(item, dict) else item) for item in method_frameworks[:4]) or blueprint.get("method_family", "empirical design")
+    return_definition = blueprint.get("return_definition") or blueprint.get("overnight_return") or "specified before analysis"
+    abstract_numbers = "; ".join(number_lines[:4]) or "reported estimates appear in the tables"
     lit_section = _markdown_to_latex(literature_review)
-    extended_discussion = "\n\n".join(
-        [
-            f"The evidence is interpreted narrowly because the locked design binds data, method, and claim language before writing. This paragraph references the verified bibliography and artifact set rather than adding unverified facts. The central empirical quantities for this run are {', '.join(number_lines[:6]) if number_lines else 'reported in the artifact tables'}."
-            for _ in range(10)
-        ]
+    window = blueprint.get("inferred_window") or {}
+    window_start = window.get("start") or blueprint.get("window_start") or "the start of the sample"
+    window_end = window.get("end") or blueprint.get("window_end") or "the end of the sample"
+    identifiers = blueprint.get("inferred_identifiers") or blueprint.get("identifiers") or []
+    identifier_text = ", ".join(map(str, identifiers)) if identifiers else "the study universe"
+    outcome = blueprint.get("outcome_variable") or "the outcome variable"
+    predictors = blueprint.get("key_predictors") or []
+    predictor_text = ", ".join(map(str, predictors)) if predictors else "the primary explanatory variation"
+    identification = blueprint.get("identification_strategy") or "the empirical design"
+    contribution = (
+        f"relative to prior work, the analysis evaluates {_latex_escape(predictor_text)} for "
+        f"{_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)} "
+        f"using {_latex_escape(method_names)}."
     )
+    key_numbers = _latex_escape("; ".join(number_lines[:8]) if number_lines else "the tabled estimates")
+    discussion_paragraphs = [
+        f"The magnitude of the estimates is central to the interpretation. The main reported quantities are {key_numbers}. These values are economically informative only in relation to the sampling window, the comparison group, and the return or outcome definition used in the design.",
+        f"The mechanism considered in the paper is that {_latex_escape(predictor_text)} changes expectations, risk premia, or trading pressure, which then affects {_latex_escape(outcome)}. This channel is evaluated through {_latex_escape(identification)} rather than through narrative interpretation alone.",
+        "The estimates should be read as evidence on the stated empirical question, not as a general law. The sample, measurement choices, and identifying assumptions determine the scope of the conclusion.",
+        "The robustness discussion therefore focuses on whether the result is stable across the implemented diagnostics, whether alternative explanations remain plausible, and whether the economic magnitude is large enough to matter for researchers or practitioners.",
+    ]
+    extended_discussion = "\n\n".join(discussion_paragraphs * 3)
     latex = rf"""\documentclass[12pt]{{article}}
 \usepackage{{booktabs,amsmath,natbib,geometry,setspace,longtable,array}}
 \geometry{{margin=1in}}
 \doublespacing
 \title{{{_latex_escape(topic)}}}
-\author{{Thrivarc Research Engine}}
+\author{{Research Team}}
 \date{{\today}}
 \begin{{document}}
 \maketitle
 
 \begin{{abstract}}
-This paper studies {_latex_escape(topic)} using an evidence-first Thrivarc pipeline. The locked Blueprint selected {_latex_escape(blueprint.get('method_family', 'an empirical finance design'))} with evidence route {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))}. The DataPassport reports {_latex_escape(data_passport.get('rows', 'verified'))} rows and SHA-256 {_latex_escape(data_passport.get('sha256', data_passport.get('price_result_sha256', 'recorded in artifact')))}. The main artifact-backed quantities are {_latex_escape(abstract_numbers)}. The paper reports the result as a scoped empirical finding rather than as proof, consistent with HAWK score {_paper_cell(hawk.get('average_score'))}.
+This paper examines {_latex_escape(topic)}. The study uses {_latex_escape(method_names)} on {_latex_escape(identifier_text)} from {_latex_escape(window_start)} to {_latex_escape(window_end)}. The analysis links {_latex_escape(predictor_text)} to {_latex_escape(outcome)} through {_latex_escape(identification)}. The main reported quantities are {_latex_escape(abstract_numbers)}. The results are interpreted as evidence on the stated empirical relation rather than as proof of a universal mechanism.
 \end{{abstract}}
 
 \section{{Introduction}}
-The research question is: {_latex_escape(topic)}. The economic motivation is that finance claims often become persuasive before their evidence has been locked, audited, and defended. Thrivarc reverses that order. The question is translated into a formal Blueprint, data are fingerprinted, statistical tests are executed, and writing occurs only after the reviewer gate passes.
+{_latex_escape(topic)} is a question about how financial markets process economically meaningful information. The phenomenon matters because changes in expected cash flows, discount rates, risk appetite, or intermediary balance-sheet pressure can be incorporated into prices unevenly across assets and horizons. Prior studies in the retrieved literature provide the closest empirical and theoretical benchmarks, including {citation_sentence}.
 
-This paper makes three contributions. First, it records the study design before interpretation. Second, it links every reported number to a CSV or JSON artifact. Third, it embeds the literature review, data construction, methodology, robustness checks, and paper-code verification in one reproducible package. The discussion is anchored in {citation_sentence} and in the retrieved bibliography rather than unsupported narrative.
+The mechanism is that {_latex_escape(predictor_text)} can affect {_latex_escape(outcome)} by changing investor expectations, hedging demand, or the compensation required for bearing risk. If the mechanism is present, the estimated response should appear in the direction and horizon specified by the research design. If it is absent, the estimates should be small, unstable, or statistically indistinguishable from the relevant comparison period.
 
-The main empirical quantities are {_latex_escape('; '.join(number_lines[:8]) if number_lines else 'reported in the verified tables at the end of the paper')}. These quantities are interpreted using the locked claim scope and the HAWK reviewer scorecard. The paper therefore distinguishes between statistical significance, economic magnitude, and defensible claim language.
+This paper differs from prior work by estimating {contribution} The empirical design uses {_latex_escape(return_definition)} where that return definition is relevant, and it reports both statistical and economic magnitudes. The main empirical quantities are {key_numbers}. These numbers preview the central finding and determine whether the hypothesis receives support in this sample.
 
-The rest of the paper proceeds as follows. Section 2 reviews the retrieved literature. Section 3 describes the data and DataPassport. Section 4 presents the methodology. Section 5 reports the results. Section 6 discusses robustness and reviewer concerns. Section 7 concludes. Tables appear after the references in Journal of Finance style.
+The rest of the paper proceeds as follows. Section 2 reviews the related literature. Section 3 describes the data and variable construction. Section 4 presents the methodology. Section 5 reports the main results. Section 6 discusses robustness and limitations. Section 7 concludes. Tables appear after the references.
 
 \section{{Literature Review}}
 {lit_section}
 
 \section{{Data}}
-The evidence route is {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))}. The sample window is {_latex_escape((blueprint.get('inferred_window') or {}).get('start'))} to {_latex_escape((blueprint.get('inferred_window') or {}).get('end'))}. The DataPassport records source {_latex_escape(data_passport.get('source'))}, frequency {_latex_escape(data_passport.get('frequency'))}, row count {_latex_escape(data_passport.get('rows'))}, and SHA-256 {_latex_escape(data_passport.get('sha256', data_passport.get('price_result_sha256', '')))}. The locked return definition is {_latex_escape(return_definition)}. When the Blueprint specifies overnight returns, the formula is $overnight\_return_{{i,t}} = open_{{i,t}} - close_{{i,t-1}}$.
+The data source is {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))}. The sample window is {_latex_escape(window_start)} to {_latex_escape(window_end)}. The study universe is {_latex_escape(identifier_text)}. The data record reports source {_latex_escape(data_passport.get('source'))}, frequency {_latex_escape(data_passport.get('frequency'))}, row count {_latex_escape(data_passport.get('rows'))}, and reproducibility hash {_latex_escape(data_passport.get('sha256', data_passport.get('price_result_sha256', '')))}. The return definition is {_latex_escape(return_definition)}. When the design specifies overnight returns, the formula is $overnight\_return_{{i,t}} = open_{{i,t}} - close_{{i,t-1}}$.
 
-The cleaned data are serialized as CSV artifacts before the Writer runs. Table 1 and subsequent tables are built from those artifacts. The Writer does not compute additional statistics in prose. Any apparent estimate in the narrative has to be traceable to the tables or the JSON results package.
+The analysis sample is summarized in the tables below. Reported estimates in the text correspond to those tables and to the statistical output used for inference.
 
 \section{{Methodology}}
-The locked method family is {_latex_escape(blueprint.get('method_family'))}. The Method Agent specified {_latex_escape(method_names)}. The identification strategy is {_latex_escape(blueprint.get('identification_strategy') or 'the association or event-time design declared in the Blueprint')}. The standard error and diagnostic approach is reported in the method specification and executed statistics artifacts.
+The research design uses {_latex_escape(blueprint.get('method_family'))}. The estimation framework is {_latex_escape(method_names)}. The identification strategy is {_latex_escape(identification)}. Standard errors and diagnostics follow the estimation approach described in the method specification.
 
 A compact representation of the empirical design is
 \[
 Y_{{i,t+h}} = \alpha + \beta X_{{i,t}} + \Gamma' C_{{i,t}} + \epsilon_{{i,t+h}},
 \]
-where the exact definitions of $Y$, $X$, controls, and horizons are those locked in the Blueprint and serialized in the Method Agent artifact. This equation is a paper-level description; the executable results are the verified CSV artifacts.
+where the exact definitions of $Y$, $X$, controls, and horizons are those specified before analysis. This equation summarizes the empirical design used for the reported tables.
 
 \section{{Results}}
-The main results are artifact-backed: {_latex_escape('; '.join(number_lines[:12]) if number_lines else 'see the verified tables')}. The interpretation is constrained by the HAWK scorecard and the paper-code verifier. A null result is reported as a null result. A predictive association is reported as predictive rather than causal unless the Blueprint establishes a causal design.
+The main results are {_latex_escape('; '.join(number_lines[:12]) if number_lines else 'reported in the tables')}. A null result is reported as a null result. A predictive association is reported as predictive rather than causal unless the identification strategy supports a causal interpretation.
 
 {_latex_escape(extended_discussion)}
 
 \section{{Robustness}}
-The statistics package reports executed tests, skipped tests, and the reason for each skip. This matters because a credible empirical paper must make missing evidence visible rather than silently converting a thin result into prose. The HAWK scorecard is used as a reviewer-facing map of remaining limitations.
+The robustness checks report executed tests, skipped tests, and the reason for each skipped test. This matters because a credible empirical paper must make limitations visible rather than converting a thin result into stronger prose. Remaining limitations are interpreted as constraints on external validity and claim strength.
 
 \section{{Conclusion}}
-The paper answers the locked question using the evidence available in the verified artifact store. The strongest conclusion is the one supported by the tables, not the broadest story available from the topic. Future work should expand the data, add external validity checks, and rerun the paper-code verifier whenever the Blueprint changes.
+The paper answers the research question using the estimates reported in the tables. The strongest conclusion is the one supported by the evidence, not the broadest story available from the topic. Future work should expand the data, add external-validity checks, and test whether the mechanism persists in other samples.
 
 \begin{{thebibliography}}{{99}}
 {_bibitems(bibliography_bib)}

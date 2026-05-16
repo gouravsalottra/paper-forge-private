@@ -534,18 +534,20 @@ You are writing a complete empirical finance paper in LaTeX for submission
 to the Journal of Finance. This agent fires ONLY after HAWK has passed the
 study. Writer is last and never invents numbers.
 
-Inputs are structured artifacts, not suggestions:
+Inputs are structured source material, not suggestions:
 - Topic: {topic}
 - Blueprint: {blueprint_json}
-- DataPassport: {data_passport_json}
-- Literature review artifact: {literature_review}
-- BibTeX artifact: {bibliography_bib}
+- Data summary: {data_passport_json}
+- Literature review: {literature_review}
+- BibTeX: {bibliography_bib}
 - Method specification: {method_spec_json}
 - Statistical results: {stats_results_json}
-- HAWK scorecard: {hawk_scorecard_json}
-- CSV artifacts: {all_csv_artifacts_json}
+- Reviewer scorecard: {hawk_scorecard_json}
+- CSV outputs: {all_csv_artifacts_json}
 
-Write a complete empirical finance paper in LaTeX.
+Write a complete empirical finance paper in LaTeX. The paper must read as
+if written by a human researcher. The research platform must be invisible
+inside the paper itself.
 
 STYLE RULES:
 - \documentclass[12pt]{article}
@@ -557,12 +559,18 @@ STYLE RULES:
 
 PAPER STRUCTURE:
 - abstract: 150-200 words with question, method, main finding, contribution.
-- Introduction: motivation, design, main artifact-backed findings, contribution, roadmap.
-- Literature Review: use the literature_review artifact and cite keys from bibliography_bib.
-- Data: sources, sample, variable construction, DataPassport SHA-256, formulae from Blueprint.
+- Introduction:
+  1. Open with the economic phenomenon being studied, not with process.
+  2. Cite 2-3 anchor papers from the literature review or BibTeX entries.
+  3. State the specific economic mechanism: why should X affect Y?
+  4. State what this paper does differently from prior work.
+  5. Preview the main finding with actual numbers from stats_results or CSV data.
+  6. End with a one-paragraph roadmap.
+- Literature Review: use the literature_review content and cite keys from bibliography_bib.
+- Data: sources, sample, variable construction, reproducibility hash, formulae from the research design.
 - Methodology: method_spec, equations, identification, diagnostics, standard errors.
-- Results: every reported number must come from stats_results or CSV artifacts.
-- Robustness: placebo, subsample, alternative windows, correction, and HAWK concerns.
+- Results: every reported number must come from stats_results or CSV data.
+- Robustness: placebo, subsample, alternative windows, corrections, and limitations.
 - Conclusion: limitations, future work, no overclaiming.
 - References.
 
@@ -572,13 +580,19 @@ CRITICAL RULES:
 - No tables yet. Do not write any \begin{table} or \end{table}. Tables will be generated later.
 - After writing \end{document}, output: %%%END_PROSE%%%
   Then stop immediately. Nothing after that marker.
-- Every number must come from stats_results or csv_artifacts.
-- Never write a number you are not certain came from the artifacts.
+- Every number must come from stats_results or CSV outputs.
+- Never write a number you are not certain came from the provided source material.
 - Never invent a citation key.
-- If a test result is missing, state that the artifact did not contain the test; do not invent it.
+- If a test result is missing, state that the statistical output did not contain the test; do not invent it.
 - Do not include TODO, TBD, placeholder text, or bracketed placeholders.
 - Never claim causality unless the Blueprint's identification strategy supports causality.
 - Never use "prove"; use "consistent with", "suggests", or "indicates".
+- The generated LaTeX must NEVER mention Thrivarc, blueprints, pipelines,
+  agents, HAWK, Writer, DataPassport, paper-code verification, artifacts,
+  or any meta-commentary about the research process.
+- Never include this sentence or any variant of it: "finance claims often
+  become persuasive before their evidence has been locked."
+- Never include this sentence or any variant of it: "Thrivarc reverses that order."
 
 Return ONLY JSON:
 {{

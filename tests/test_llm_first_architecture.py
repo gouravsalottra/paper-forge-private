@@ -89,6 +89,13 @@ class TestPromptRegistry:
         assert "stats_results" in WRITER_PROSE_PROMPT or "results_json" in WRITER_PROSE_PROMPT
         assert "invent" in WRITER_PROSE_PROMPT.lower() or "only" in WRITER_PROSE_PROMPT
 
+    def test_writer_prompt_requires_standalone_academic_introduction(self):
+        from api.prompts import WRITER_PROSE_PROMPT
+        assert "Open with the economic phenomenon" in WRITER_PROSE_PROMPT
+        assert "specific economic mechanism" in WRITER_PROSE_PROMPT
+        assert "must NEVER mention Thrivarc" in WRITER_PROSE_PROMPT
+        assert "research platform must be invisible" in WRITER_PROSE_PROMPT
+
 
 class TestLLMCaller:
     """LLM caller handles JSON extraction and engine sanitization."""
