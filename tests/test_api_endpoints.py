@@ -195,6 +195,63 @@ def test_session_scope_post_saves_climate_etf_blueprint(tmp_path: Path, monkeypa
     assert len(re.findall(rb"/Type\s*/Page\b", pdf)) > 4
 
 
+def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    created = client.post("/api/sessions", json={"topic": "Old artifact shape rerender", "domain": "finance_economics"})
+    session_id = created.json()["session_id"]
+    client.post(
+        f"/api/sessions/{session_id}/scope",
+        json={
+            "research_type": "exploratory",
+            "focus_question": "Old artifact shape rerender",
+            "hypothesis": "Verified artifacts are sufficient to rerender.",
+            "constraints": {
+                "method_style": "time_series",
+                "evidence_route": "yfinance",
+                "identifiers": ["SPY"],
+                "inferred_window": {"start": "2020-01-01", "end": "2021-01-01"},
+                "return_definition": "overnight_return = open(t) - close(t-1)",
+            },
+        },
+    )
+    client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"})
+
+    from storage import blob
+
+    blob.write_artifact(session_id, "00_runspec/execution_profile.json", {"title": "Old artifact shape rerender"})
+    blob.write_artifact(session_id, "00_runspec/agent_context.json", {})
+    blob.write_artifact(
+        session_id,
+        "02_literature/papers.json",
+        [{"title": "Market predictability", "citation_key": "smith2020", "year": 2020}],
+    )
+    blob.write_artifact(
+        session_id,
+        "02_literature/bibliography.bib",
+        "@article{smith2020,\n  author = {Smith, Jane},\n  title = {Market predictability},\n  journal = {Journal of Finance},\n  year = {2020}\n}",
+    )
+    blob.write_artifact(session_id, "02_literature/literature_review.md", "Smith (2020) studies market predictability \\citep{smith2020}.")
+    blob.write_artifact(session_id, "03_data/data_passport.json", {"rows": 2, "sha256": "abc", "source": "yfinance"})
+    blob.write_artifact(session_id, "03_data/overnight_returns.csv", "date,ticker,overnight_return\n2020-01-02,SPY,0.1\n")
+    blob.write_artifact(session_id, "06_compute/method_spec.json", {"modeling_frameworks": [{"name": "HAC regression"}]})
+    blob.write_artifact(session_id, "06_compute/method_outputs/results.csv", "metric,value\neffect,0.1\n")
+    blob.write_artifact(session_id, "07_statistics/results_tables/executed_tests.csv", "test_name,status,t_stat,p_value\nnewey_west_hac,complete,2.1,0.04\n")
+    blob.write_artifact(session_id, "07_statistics/research_findings.json", {"primary_numbers": {"t_stat": 2.1, "p_value": 0.04}})
+    blob.write_artifact(session_id, "08_stats/stats_summary.json", {"tests": ["newey_west_hac"]})
+    blob.write_artifact(session_id, "09_review/reviewer_scorecard_v1.json", {"average_score": 7.2, "gate_passed": True, "scores": {}})
+
+    response = client.post(f"/api/sessions/{session_id}/rerender")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+    tex = blob.read_artifact(session_id, "11_paper/final.tex").decode("utf-8")
+    pdf = blob.read_artifact(session_id, "11_paper/final.pdf")
+    assert "\\section{Introduction}" in tex
+    assert "\\textbackslash{}section" not in tex
+    assert "t\\_stat" in tex
+    assert pdf.startswith(b"%PDF")
+
+
 def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions

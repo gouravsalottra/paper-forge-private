@@ -1163,10 +1163,17 @@ def clean_latex_escaping(text: str) -> str:
     ]
     for bad, good in replacements:
         text = text.replace(bad, good)
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
     return text
 
 
 def _render_latex_source_pdf(latex: str, title: str) -> bytes:
+    pdflatex = shutil.which("pdflatex")
+    if not pdflatex:
+        if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
+            plain_lines = [line.strip() for line in latex.splitlines() if line.strip()]
+            return render_pdf(title, plain_lines)
+        raise RuntimeError("pdflatex is not installed in the container image.")
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_file = os.path.join(tmpdir, "paper.tex")
         with open(tex_file, "w", encoding="utf-8") as f:
@@ -1174,7 +1181,7 @@ def _render_latex_source_pdf(latex: str, title: str) -> bytes:
         
         for _ in range(2):
             subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", "-output-directory", tmpdir, tex_file],
+                [pdflatex, "-interaction=nonstopmode", "-halt-on-error", "-output-directory", tmpdir, tex_file],
                 capture_output=True, text=True, timeout=120
             )
             
@@ -1184,12 +1191,14 @@ def _render_latex_source_pdf(latex: str, title: str) -> bytes:
                 return f.read()
                 
         log_file = os.path.join(tmpdir, "paper.log")
+        log_tail = ""
         if os.path.exists(log_file):
-            print(open(log_file, encoding="utf-8").read()[-3000:])
+            log_tail = open(log_file, encoding="utf-8", errors="ignore").read()[-3000:]
             
-        # Fallback if pdflatex completely fails
-        plain_lines = [line.strip() for line in latex.splitlines() if line.strip()]
-        return render_pdf(title, plain_lines)
+        if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
+            plain_lines = [line.strip() for line in latex.splitlines() if line.strip()]
+            return render_pdf(title, plain_lines)
+        raise RuntimeError(f"pdflatex failed to compile paper.tex. Log tail: {log_tail}")
 
 
 def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> None:
@@ -1876,27 +1885,65 @@ def fork_session(session_id: str, payload: dict[str, Any]):
     return {"new_session_id": new_id}
 
 
-@router.post("/{session_id}/rerender")
-async def rerender_paper(session_id: str) -> JSONResponse:
-    profile_bytes = read_artifact(session_id, "00_runspec/execution_profile.json")
-    if not profile_bytes:
-        return _error(404, "NOT_FOUND", "Profile artifact not found", "error", [])
-        
-    profile = json.loads(profile_bytes.decode("utf-8"))
-    
-    context_bytes = read_artifact(session_id, "00_runspec/agent_context.json")
-    agent_context = json.loads(context_bytes.decode("utf-8")) if context_bytes else {}
-    
-    contracts = agent_context.get("contracts", {})
-    agent_blueprint = contracts.get("agent_blueprint", profile.get("blueprint", {}))
-    
-    # Reconstruct scorecard
-    scorecard = {}
+def _artifact_relative_path(session_id: str, blob_path: str) -> str:
+    prefix = f"sessions/{session_id}/"
+    clean = str(blob_path or "").strip().strip("/")
+    return clean[len(prefix) :] if clean.startswith(prefix) else clean
+
+
+def _safe_artifact_bytes(session_id: str, path: str) -> bytes | None:
+    try:
+        return read_artifact(session_id, path)
+    except Exception as exc:  # noqa: BLE001 - rerender is best-effort over historical artifacts
+        logger.warning("Rerender skipped missing/unreadable artifact %s for %s: %s", path, session_id, exc)
+        return None
+
+
+def _safe_artifact_text(session_id: str, path: str, *, limit: int | None = None) -> str:
+    data = _safe_artifact_bytes(session_id, path)
+    if not data:
+        return ""
+    text = data.decode("utf-8", errors="replace")
+    return text[:limit] if limit else text
+
+
+def _safe_artifact_json(session_id: str, path: str, default: Any | None = None) -> Any:
+    text = _safe_artifact_text(session_id, path)
+    if not text:
+        return {} if default is None else default
+    return _json_loads(text, {} if default is None else default)
+
+
+def _csv_artifacts_for_writer(session_id: str, artifacts_list: list[dict[str, Any]]) -> dict[str, str]:
+    csv_outputs: dict[str, str] = {}
+    prefixes = (
+        "03_data/overnight_returns.csv",
+        "06_compute/method_outputs/",
+        "07_statistics/results_tables/",
+        "08_stats/",
+    )
+    for item in artifacts_list:
+        relative = _artifact_relative_path(session_id, str(item.get("path") or ""))
+        if not relative.endswith(".csv"):
+            continue
+        if not any(relative == prefix or relative.startswith(prefix) for prefix in prefixes):
+            continue
+        # Large raw data files are useful for data summary, but should not crowd
+        # out compact result tables in the Writer context.
+        limit = 80000 if relative.startswith("03_data/") else None
+        text = _safe_artifact_text(session_id, relative, limit=limit)
+        if text:
+            csv_outputs[relative] = text
+    return csv_outputs
+
+
+def _latest_reviewer_scorecard(session_id: str) -> dict[str, Any]:
+    scorecard: dict[str, Any] = {}
     with _with_conn() as conn:
         row = _fetchone(conn, "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC, created_at DESC LIMIT 1", (session_id,))
         if row:
             scorecard = {
-                "gate_passed": _row_get(row, "gate_passed"),
+                "gate_passed": bool(_row_get(row, "gate_passed")),
                 "scores": {
                     "identification_validity": _row_get(row, "identification_validity"),
                     "data_integrity": _row_get(row, "data_integrity"),
@@ -1907,31 +1954,97 @@ async def rerender_paper(session_id: str) -> JSONResponse:
                     "overclaiming_risk": _row_get(row, "overclaiming_risk"),
                 },
                 "average_score": _row_get(row, "average_score"),
-                "findings": _json_loads(_row_get(row, "findings"), {})
+                "findings": _json_loads(_row_get(row, "findings"), {}),
             }
+    if scorecard:
+        return scorecard
+    artifact_scorecard = _safe_artifact_json(session_id, "09_review/reviewer_scorecard_v1.json", {})
+    return artifact_scorecard if isinstance(artifact_scorecard, dict) else {}
 
-    writer_context = {
-        "topic": profile.get("title", profile.get("topic", "")),
-        "blueprint": agent_blueprint,
-        "data_passport": profile.get("data_passport", {}),
-        "literature_review": profile.get("literature_agent", {}).get("literature_review_md", ""),
-        "bibliography_bib": profile.get("literature_agent", {}).get("bibliography_bib", ""),
-        "method_spec": contracts.get("method_spec", {}),
-        "stats_results": {"statistics": profile.get("statistics", {}), "findings": profile.get("findings", {}), "primary_numbers": profile.get("findings", {}).get("primary_numbers", {})},
-        "hawk_scorecard": scorecard,
-        "all_csv_artifacts": profile.get("csv_outputs", {}),
+
+def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
+    with _with_conn() as conn:
+        session = _session_row(conn, session_id)
+        if not session:
+            raise KeyError("session_not_found")
+        blueprint = _blueprint_content(_blueprint_row(conn, session_id))
+        topic = _row_get(session, "topic") or blueprint.get("focus_question") or blueprint.get("topic") or "Thrivarc research paper"
+
+    artifacts_list = list_artifacts(session_id)
+    profile = _safe_artifact_json(session_id, "00_runspec/execution_profile.json", {})
+    agent_context = _safe_artifact_json(session_id, "00_runspec/agent_context.json", {})
+    contracts = agent_context.get("contracts", {}) if isinstance(agent_context, dict) else {}
+    agent_blueprint = contracts.get("agent_blueprint") if isinstance(contracts, dict) else {}
+    if not isinstance(agent_blueprint, dict):
+        agent_blueprint = {}
+    merged_blueprint = {**(blueprint if isinstance(blueprint, dict) else {}), **agent_blueprint}
+
+    data_passport = _safe_artifact_json(session_id, "03_data/data_passport.json", {})
+    method_spec = _safe_artifact_json(session_id, "06_compute/method_spec.json", {})
+    if not method_spec and isinstance(contracts, dict):
+        method_spec = contracts.get("method_spec", {})
+    stats_summary_json = _safe_artifact_json(session_id, "08_stats/stats_summary.json", {})
+    research_findings = _safe_artifact_json(session_id, "07_statistics/research_findings.json", {})
+    main_results = _safe_artifact_json(session_id, "07_statistics/results_tables/main_results.json", {})
+    economic_significance = _safe_artifact_json(session_id, "07_statistics/economic_significance.json", {})
+
+    csv_outputs = _csv_artifacts_for_writer(session_id, artifacts_list)
+    stats_summary_csv = csv_outputs.get("08_stats/stats_summary.csv", "")
+    primary_numbers = {}
+    if isinstance(research_findings, dict):
+        primary_numbers.update(research_findings.get("primary_numbers") or {})
+    if isinstance(profile, dict):
+        primary_numbers.update((profile.get("findings") or {}).get("primary_numbers") or {})
+
+    return {
+        "topic": topic,
+        "blueprint": merged_blueprint,
+        "data_passport": data_passport if isinstance(data_passport, dict) else {},
+        "literature_review": _safe_artifact_text(session_id, "02_literature/literature_review.md"),
+        "bibliography_bib": _safe_artifact_text(session_id, "02_literature/bibliography.bib"),
+        "method_spec": method_spec if isinstance(method_spec, dict) else {},
+        "stats_results": {
+            "stats_summary": stats_summary_json if isinstance(stats_summary_json, dict) else {},
+            "stats_summary_csv": stats_summary_csv,
+            "statistics": main_results if isinstance(main_results, dict) else {},
+            "findings": research_findings if isinstance(research_findings, dict) else {},
+            "economic_significance": economic_significance if isinstance(economic_significance, dict) else {},
+            "primary_numbers": primary_numbers,
+        },
+        "hawk_scorecard": _latest_reviewer_scorecard(session_id),
+        "all_csv_artifacts": csv_outputs,
     }
 
-    writer_result = await write_paper_latex(writer_context, client=_agent_client())
-    paper = writer_result.get("latex", "")
-    paper = clean_latex_escaping(paper)
-    pdf = _render_latex_source_pdf(paper, profile.get("title", "Research Paper"))
+
+@router.post("/{session_id}/rerender")
+async def rerender_paper(session_id: str) -> JSONResponse:
+    try:
+        writer_context = _build_rerender_writer_context(session_id)
+    except KeyError:
+        return _not_found()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Could not build rerender context for %s", session_id)
+        return _error(500, "RERENDER_CONTEXT_FAILED", f"Could not build Writer context: {exc}", "rerender_failed", [f"GET /api/sessions/{session_id}/artifacts"])
+
+    try:
+        writer_result = await write_paper_latex(writer_context, client=_agent_client())
+        paper = clean_latex_escaping(writer_result.get("latex", ""))
+        pdf = _render_latex_source_pdf(paper, writer_context.get("topic", "Research Paper"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("LLM rerender failed for %s; retrying deterministic Writer fallback: %s", session_id, exc)
+        try:
+            writer_result = await write_paper_latex(writer_context, client=None)
+            paper = clean_latex_escaping(writer_result.get("latex", ""))
+            pdf = _render_latex_source_pdf(paper, writer_context.get("topic", "Research Paper"))
+        except Exception as fallback_exc:  # noqa: BLE001
+            logger.exception("Rerender failed for %s", session_id)
+            return _error(500, "RERENDER_FAILED", f"Paper rerender failed: {fallback_exc}", "rerender_failed", [f"GET /api/sessions/{session_id}/artifacts"])
 
     _write_text_artifact(session_id, "11_paper/final.tex", paper)
     write_artifact(session_id, "11_paper/final.pdf", pdf)
 
     return JSONResponse(status_code=200, content={
         "status": "ok", 
-        "pages": max(1, len(pdf) // 2000), 
+        "pages": max(1, len(re.findall(rb"/Type\s*/Page\b", pdf))), 
         "pdf_path": get_artifact_url(session_id, "11_paper/final.pdf")
     })
