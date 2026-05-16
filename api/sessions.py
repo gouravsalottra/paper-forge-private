@@ -1163,6 +1163,13 @@ def clean_latex_escaping(text: str) -> str:
     ]
     for bad, good in replacements:
         text = text.replace(bad, good)
+    # LLMs sometimes double-escape LaTeX-safe symbols inside prose
+    # (for example ``bootstrap\\_ci``). Collapse only escaped special
+    # characters so table row breaks (``\\`` at line end) remain intact.
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"\\\\([_%&#$])", r"\\\1", text)
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
     text = re.sub(r"```(?:latex|tex)?\s*", "", text, flags=re.I)
     text = text.replace("```", "")

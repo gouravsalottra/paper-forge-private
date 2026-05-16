@@ -279,6 +279,17 @@ def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monk
     assert pdf.startswith(b"%PDF")
 
 
+def test_clean_latex_escaping_collapses_double_escaped_specials() -> None:
+    from api.sessions import clean_latex_escaping
+
+    raw = r"The main quantities are bootstrap\\_ci\\_lower and p\\_value.\\"
+    cleaned = clean_latex_escaping(raw)
+    assert r"bootstrap\_ci\_lower" in cleaned
+    assert r"p\_value" in cleaned
+    assert r"\\_" not in cleaned
+    assert cleaned.endswith(r"\\")
+
+
 def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions
