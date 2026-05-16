@@ -274,7 +274,8 @@ def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monk
     assert "\\textbackslash{}section" not in tex
     assert "### Literature Review" not in tex
     assert "\\citep\\{" not in tex
-    assert "t\\_stat" in tex
+    assert "t=2.100" in tex
+    assert "t\\_stat=2.1" not in tex
     _assert_standalone_academic_paper(tex)
     assert pdf.startswith(b"%PDF")
 
@@ -336,11 +337,61 @@ def test_writer_fallback_introduction_starts_with_topic_phenomenon() -> None:
     )
     tex = result["latex"]
     intro = tex.split("\\section{Introduction}", 1)[1].split("\\section{Literature Review}", 1)[0]
-    assert "The relation between the VIX term structure inversion and next-month momentum crashes" in intro
+    assert "A VIX term-structure inversion is a compact warning signal" in intro
+    assert "is the economic phenomenon studied" not in intro
+    assert "It matters because the relation connects" not in intro
     assert "estimating relative to prior work" not in intro
     assert "financial markets process economically meaningful information" not in intro
     assert "primary explanatory variation can affect the outcome variable" not in intro
     assert intro.count("\\citep{") == 3
+
+
+def test_writer_fallback_results_are_narrative_not_key_value_dump() -> None:
+    from api.writer_agent import _fallback_latex
+
+    result = _fallback_latex(
+        {
+            "topic": "Do energy transition policy announcements produce opposite-sign overnight return responses in fossil fuel (XLE) versus clean energy (ICLN) ETFs?",
+            "blueprint": {
+                "method_family": "event_study",
+                "inferred_identifiers": ["XLE", "ICLN"],
+                "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+                "return_definition": "overnight_return = open(t) - close(t-1)",
+            },
+            "stats_results": {
+                "primary_numbers": {
+                    "event_count": 10,
+                    "mean_aligned_effect": 0.077499,
+                    "event_t_stat": 0.9674,
+                    "event_p_value": 0.358605,
+                    "newey_west_t_stat": 1.6157,
+                    "newey_west_p_value": 0.10615,
+                    "placebo_empirical_p_value": 0.364,
+                    "bootstrap_ci_lower": 0.003629,
+                    "bootstrap_ci_upper": 0.019278,
+                }
+            },
+            "all_csv_artifacts": {
+                "07_statistics/results_tables/summary_statistics.csv": "ticker,sample,n,mean,std,min,median,max\nICLN,all,10,0.01,0.02,-0.01,0.01,0.05\nXLE,all,10,-0.01,0.03,-0.08,0.00,0.04\n",
+                "06_compute/method_outputs/event_returns.csv": "event_id,event_date,direction,xle_overnight_return,icln_overnight_return,second_minus_first_spread,direction_aligned_spread\nE01,2020-01-01,pro_clean,-0.045,0.115,0.160,0.160\n",
+                "06_compute/method_outputs/event_window_car.csv": "window,xle_CAR,icln_CAR,second_minus_first_CAR,direction_aligned_CAR\n[-1,1],-0.1,0.2,0.3,0.3\n",
+                "07_statistics/results_tables/executed_tests.csv": "test_name,status,t_stat,p_value,mean_aligned_effect,coefficient,empirical_p_value,ci_lower,ci_upper,draws,observed_stat\n"
+                "event_study_car,complete,0.9674,0.358605,0.077499,,,,,,\n"
+                "newey_west_hac,complete,1.6157,0.10615,,0.066311,,,,,\n"
+                "placebo_test,complete,,,,,0.364,,,1000,0.077499\n"
+                "bootstrap_ci,complete,,,,,,0.003629,0.019278,,\n",
+            },
+        }
+    )
+    tex = result["latex"]
+    results = tex.split("\\section{Results}", 1)[1].split("\\section{Robustness}", 1)[0]
+    assert "event\\_p\\_value=0.358605" not in results
+    assert "bootstrap\\_ci\\_lower=0.003629" not in results
+    assert "The event-day test yields t=0.967, p=0.359" in results
+    assert "not statistically significant at conventional levels" in results
+    assert tex.count("\\begin{table}") == 4
+    assert "Event-Day Overnight Returns" in tex
+    assert "Statistical Inference and Robustness Tests" in tex
 
 
 def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:

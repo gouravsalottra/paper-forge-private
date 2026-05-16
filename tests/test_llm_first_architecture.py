@@ -91,10 +91,11 @@ class TestPromptRegistry:
 
     def test_writer_prompt_requires_standalone_academic_introduction(self):
         from api.prompts import WRITER_PROSE_PROMPT
-        assert "Open with the economic phenomenon" in WRITER_PROSE_PROMPT
+        assert "concrete market behavior" in WRITER_PROSE_PROMPT
         assert "specific economic mechanism" in WRITER_PROSE_PROMPT
         assert "must NEVER mention Thrivarc" in WRITER_PROSE_PROMPT
         assert "research platform must be invisible" in WRITER_PROSE_PROMPT
+        assert "variable name followed by an equals" in WRITER_PROSE_PROMPT
 
 
 class TestLLMCaller:

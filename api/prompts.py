@@ -560,17 +560,30 @@ STYLE RULES:
 
 PAPER STRUCTURE:
 - abstract: 150-200 words with question, method, main finding, contribution.
-- Introduction:
-  1. Open with the economic phenomenon being studied, not with process.
-  2. Cite 2-3 anchor papers from the literature review or BibTeX entries.
-  3. State the specific economic mechanism: why should X affect Y?
-  4. State what this paper does differently from prior work.
-  5. Preview the main finding with actual numbers from stats_results or CSV data.
-  6. End with a one-paragraph roadmap.
+- Introduction: write as a researcher who has completed the study and is
+  persuading a skeptical Journal of Finance reader that the question matters.
+  1. Hook: open with the concrete market behavior or institutional friction
+     behind the topic. Explain what happens economically, why investors care,
+     and why this setting is informative. Do not begin with a generic
+     relation/phenomenon sentence.
+  2. Prior literature: discuss the 2-3 most relevant papers from the provided
+     bibliography. State what each paper actually contributes using the
+     supplied literature review; do not merely say prior studies are benchmarks.
+  3. Gap: state precisely what prior work did not examine and why that gap
+     matters for this study.
+  4. This paper: state the method, data, sample, specific economic mechanism,
+     and main finding with actual
+     numbers from stats_results or CSV data. If the evidence is weak, say so.
+  5. Contribution: list three concrete contributions to the literature.
+  6. Roadmap: end with one paragraph describing the rest of the paper.
 - Literature Review: Synthesize the literature into a coherent academic narrative using the literature_review content. Cite keys from bibliography_bib. Do not summarize it as a system output.
 - Data: Describe the data sources, sample selection, and variable construction in an academic tone. Do not discuss internal reproducibility metadata unless it is a substantive part of the research design.
 - Methodology: Describe the empirical strategy, equations, identification, and diagnostics as a standard finance methodology section. Write from the perspective of researchers.
-- Results: Present the findings derived from the provided tables. Focus on economic and statistical significance. Frame the interpretation academically. Every reported number must come from stats_results or CSV data.
+- Results: Present the findings as narrative interpretation, not as raw
+  variable dumps. Every reported number must come from stats_results or CSV
+  data. Each paragraph should cover one test or one finding, translate the
+  statistic into an economic conclusion, and distinguish directional evidence
+  from statistical significance.
 - Robustness: Discuss alternative specifications, subsamples, corrections, and limitations in a professional academic tone.
 - Conclusion: Summarize the main finding, its implications, and future work academically. Do not overclaim.
 - References.
@@ -593,6 +606,11 @@ CRITICAL RULES:
 - Never include this sentence or any variant of it: "finance claims often
   become persuasive before their evidence has been locked."
 - Never include this sentence or any variant of it: "Thrivarc reverses that order."
+- Never use a generic opening that says a relation is merely the phenomenon
+  under study. Open with the actual market behavior.
+- Never present findings as raw metric assignments such as metric = number.
+- Never write a prose sentence containing a variable name followed by an equals
+  sign and a number. Convert every statistic into readable academic prose.
 
 Return ONLY JSON:
 {{
@@ -612,7 +630,8 @@ The output will be saved directly to a .tex file and compiled
 with pdflatex. It must be valid LaTeX.
 
 You are generating LaTeX tables for an empirical finance paper.
-Write all LaTeX table environments for this paper based on the verified CSV data.
+Write distinct LaTeX table environments for this paper based on the verified
+CSV data. Each table must show different information.
 
 Inputs are structured source material:
 - Topic: {topic}
@@ -623,9 +642,21 @@ STYLE RULES:
 - Standard errors appear in parentheses below coefficients where coefficient tables exist.
 - Significance notes: *** p<0.01, ** p<0.05, * p<0.10.
 - Use \toprule, \midrule, \bottomrule from booktabs; never \hline.
+- Format numbers to a readable precision: usually three decimals, p-values to
+  three decimals, and values below 0.001 as <0.001.
 
 CRITICAL RULES:
 - Only generate table environments (\begin{table} ... \end{table}).
+- Do not repeat the same CSV under different captions.
+- Consolidate identical or near-identical statistical CSVs into one inference
+  table with columns: Test, Statistic, p-value, Interpretation.
+- Preferred table sequence:
+  Table 1: Summary statistics by ticker or unit.
+  Table 2: Event-level returns or primary observations.
+  Table 3: Event-window cumulative abnormal returns by window.
+  Table 4: Consolidated statistical inference and robustness tests.
+- Each table needs a descriptive caption, data-matching headers, booktabs rules,
+  and notes explaining significance stars and source data.
 - End with %%%END_TABLES%%%
   Then stop immediately. Nothing after that marker.
 
