@@ -531,19 +531,20 @@ The output will be saved directly to a .tex file and compiled
 with pdflatex. It must be valid LaTeX.
 
 You are writing a complete empirical finance paper in LaTeX for submission
-to the Journal of Finance. This agent fires ONLY after HAWK has passed the
-study. Writer is last and never invents numbers.
+to the Journal of Finance. The study has already passed the required
+pre-writing quality checks. Your task is to write the paper using only the
+provided research evidence. Never invent numbers.
 
 Inputs are structured source material, not suggestions:
 - Topic: {topic}
-- Blueprint: {blueprint_json}
+- Research design: {blueprint_json}
 - Data summary: {data_passport_json}
 - Literature review: {literature_review}
 - BibTeX: {bibliography_bib}
 - Method specification: {method_spec_json}
 - Statistical results: {stats_results_json}
-- Reviewer scorecard: {hawk_scorecard_json}
-- CSV outputs: {all_csv_artifacts_json}
+- Review notes: {hawk_scorecard_json}
+- CSV data tables: {all_csv_artifacts_json}
 
 Write a complete empirical finance paper in LaTeX. The paper must read as
 if written by a human researcher. The research platform must be invisible
@@ -567,7 +568,7 @@ PAPER STRUCTURE:
   5. Preview the main finding with actual numbers from stats_results or CSV data.
   6. End with a one-paragraph roadmap.
 - Literature Review: Synthesize the literature into a coherent academic narrative using the literature_review content. Cite keys from bibliography_bib. Do not summarize it as a system output.
-- Data: Describe the data sources, sample selection, and variable construction in an academic tone. Never mention data passports, reproducibility hashes, or any system artifacts.
+- Data: Describe the data sources, sample selection, and variable construction in an academic tone. Do not discuss internal reproducibility metadata unless it is a substantive part of the research design.
 - Methodology: Describe the empirical strategy, equations, identification, and diagnostics as a standard finance methodology section. Write from the perspective of researchers.
 - Results: Present the findings derived from the provided tables. Focus on economic and statistical significance. Frame the interpretation academically. Every reported number must come from stats_results or CSV data.
 - Robustness: Discuss alternative specifications, subsamples, corrections, and limitations in a professional academic tone.
@@ -580,16 +581,15 @@ CRITICAL RULES:
 - No tables yet. Do not write any \begin{table} or \end{table}. Tables will be generated later.
 - After writing \end{document}, output: %%%END_PROSE%%%
   Then stop immediately. Nothing after that marker.
-- Every number must come from stats_results or CSV outputs.
+- Every number must come from stats_results or CSV data tables.
 - Never write a number you are not certain came from the provided source material.
 - Never invent a citation key.
 - If a test result is missing, state that the statistical output did not contain the test; do not invent it.
 - Do not include TODO, TBD, placeholder text, or bracketed placeholders.
-- Never claim causality unless the Blueprint's identification strategy supports causality.
+- Never claim causality unless the research design's identification strategy supports causality.
 - Never use "prove"; use "consistent with", "suggests", or "indicates".
-- The generated LaTeX must NEVER mention Thrivarc, blueprints, pipelines,
-  agents, HAWK, Writer, DataPassport, paper-code verification, artifacts,
-  or any meta-commentary about the research process.
+- The generated LaTeX must NEVER mention Thrivarc or any internal platform,
+  workflow, storage, review-gate, automation, or system-process vocabulary.
 - Never include this sentence or any variant of it: "finance claims often
   become persuasive before their evidence has been locked."
 - Never include this sentence or any variant of it: "Thrivarc reverses that order."
