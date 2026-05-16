@@ -32,6 +32,15 @@ def _latex_escape(value: Any) -> str:
     return text
 
 
+def _latex_identifier(value: Any, default: str = "id") -> str:
+    """Return a LaTeX-safe structural identifier for labels and citation keys."""
+    text = "" if value is None else str(value)
+    text = text.replace("\\_", "_")
+    text = re.sub(r"[^A-Za-z0-9:._-]+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("_.:-")
+    return text or default
+
+
 def _paper_cell(value: Any, digits: int = 4) -> str:
     if isinstance(value, float):
         return f"{value:.{digits}f}"
@@ -175,7 +184,7 @@ def _make_latex_table(caption: str, label: str, headers: list[str], rows: list[l
         return ""
     columns = "l" * len(headers)
     body_lines = [
-        " & ".join(_latex_escape(_paper_cell(cell)) for cell in row) + r" \\"
+        " & ".join(f"{{{_latex_escape(_paper_cell(cell))}}}" for cell in row) + r" \\"
         for row in rows
     ]
     return rf"""
@@ -183,7 +192,7 @@ def _make_latex_table(caption: str, label: str, headers: list[str], rows: list[l
 \begin{{table}}[!htbp]
 \centering
 \caption{{{_latex_escape(caption)}}}
-\label{{{_latex_escape(label)}}}
+\label{{{_latex_identifier(label, 'tab:table')}}}
 \begin{{tabular}}{{{columns}}}
 \toprule
 {' & '.join(_latex_escape(header) for header in headers)} \\
@@ -386,13 +395,13 @@ def _latex_table(caption: str, label: str, rows: list[dict[str, Any]], max_rows:
     columns = "l" * len(headers)
     body_lines = []
     for row in rows[:max_rows]:
-        body_lines.append(" & ".join(_latex_escape(_paper_cell(row.get(header))) for header in headers) + r" \\")
+        body_lines.append(" & ".join(f"{{{_latex_escape(_paper_cell(row.get(header)))}}}" for header in headers) + r" \\")
     return rf"""
 \clearpage
 \begin{{table}}[!htbp]
 \centering
 \caption{{{_latex_escape(caption)}}}
-\label{{{_latex_escape(label)}}}
+\label{{{_latex_identifier(label, 'tab:table')}}}
 \begin{{tabular}}{{{columns}}}
 \toprule
 {' & '.join(_latex_escape(h) for h in headers)} \\
@@ -417,7 +426,7 @@ def _bibitems(bibliography_bib: str) -> str:
         year = re.search(r"year\s*=\s*\{([^}]*)\}", body, flags=re.I)
         label = f"{author.group(1) if author else 'Unknown'} ({year.group(1) if year else 'n.d.'})"
         text = f"{label}. {title.group(1) if title else 'Untitled'}. {journal.group(1) if journal else 'Working paper'}."
-        entries.append(rf"\bibitem[{_latex_escape(label)}]{{{_latex_escape(key)}}} {_latex_escape(text)}")
+        entries.append(rf"\bibitem[{_latex_escape(label)}]{{{_latex_identifier(key, 'ref')}}} {_latex_escape(text)}")
     return "\n".join(entries)
 
 
@@ -427,7 +436,7 @@ def _latex_escape_preserving_citations(text: str) -> str:
 
     def citation_repl(match: re.Match[str]) -> str:
         token = f"THRIVARCCITE{len(citation_tokens)}TOKEN"
-        citation_tokens[token] = rf"\citep{{{_latex_escape(match.group(1))}}}"
+        citation_tokens[token] = rf"\citep{{{_latex_identifier(match.group(1), 'ref')}}}"
         return token
 
     text = re.sub(r"\(\[([A-Za-z0-9:_-]+)\]\([^)]+\)\)", citation_repl, text)
@@ -480,7 +489,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     method_spec = context.get("method_spec", {})
     csv_artifacts = context.get("all_csv_artifacts", {})
     keys = _citation_keys(bibliography_bib)
-    citation_sentence = ", ".join(rf"\citep{{{_latex_escape(key)}}}" for key in keys[:3]) if keys else "the retrieved bibliography"
+    citation_sentence = ", ".join(rf"\citep{{{_latex_identifier(key, 'ref')}}}" for key in keys[:3]) if keys else "the retrieved bibliography"
     primary_numbers = _primary_numbers_from_context(context)
     method_frameworks = method_spec.get("modeling_frameworks") or []
     method_names = ", ".join(str(item.get("name") if isinstance(item, dict) else item) for item in method_frameworks[:4]) or blueprint.get("method_family", "empirical design")
