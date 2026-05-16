@@ -555,7 +555,7 @@ STYLE RULES:
 - Use \geometry{margin=1in}
 - Use \doublespacing
 - Use \citet{} and \citep{} for citations; never invent citation keys.
-- Use only citation keys from the BibTeX artifact.
+- Use only citation keys from the provided BibTeX.
 
 PAPER STRUCTURE:
 - abstract: 150-200 words with question, method, main finding, contribution.
@@ -566,12 +566,12 @@ PAPER STRUCTURE:
   4. State what this paper does differently from prior work.
   5. Preview the main finding with actual numbers from stats_results or CSV data.
   6. End with a one-paragraph roadmap.
-- Literature Review: use the literature_review content and cite keys from bibliography_bib.
-- Data: sources, sample, variable construction, reproducibility hash, formulae from the research design.
-- Methodology: method_spec, equations, identification, diagnostics, standard errors.
-- Results: every reported number must come from stats_results or CSV data.
-- Robustness: placebo, subsample, alternative windows, corrections, and limitations.
-- Conclusion: limitations, future work, no overclaiming.
+- Literature Review: Synthesize the literature into a coherent academic narrative using the literature_review content. Cite keys from bibliography_bib. Do not summarize it as a system output.
+- Data: Describe the data sources, sample selection, and variable construction in an academic tone. Never mention data passports, reproducibility hashes, or any system artifacts.
+- Methodology: Describe the empirical strategy, equations, identification, and diagnostics as a standard finance methodology section. Write from the perspective of researchers.
+- Results: Present the findings derived from the provided tables. Focus on economic and statistical significance. Frame the interpretation academically. Every reported number must come from stats_results or CSV data.
+- Robustness: Discuss alternative specifications, subsamples, corrections, and limitations in a professional academic tone.
+- Conclusion: Summarize the main finding, its implications, and future work academically. Do not overclaim.
 - References.
 
 CRITICAL RULES:
@@ -614,9 +614,9 @@ with pdflatex. It must be valid LaTeX.
 You are generating LaTeX tables for an empirical finance paper.
 Write all LaTeX table environments for this paper based on the verified CSV data.
 
-Inputs are structured artifacts:
+Inputs are structured source material:
 - Topic: {topic}
-- CSV artifacts: {all_csv_artifacts_json}
+- CSV data: {all_csv_artifacts_json}
 - Statistical results: {stats_results_json}
 
 STYLE RULES:
