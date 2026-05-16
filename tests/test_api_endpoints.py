@@ -253,6 +253,7 @@ def test_rerender_reads_raw_artifacts_for_old_session_shape(tmp_path: Path, monk
     assert "\\section{Introduction}" in tex
     assert "\\textbackslash{}section" not in tex
     assert "### Literature Review" not in tex
+    assert "\\citep\\{" not in tex
     assert "t\\_stat" in tex
     assert pdf.startswith(b"%PDF")
 

@@ -1185,6 +1185,8 @@ def _render_latex_source_pdf(latex: str, title: str) -> bytes:
             plain_lines = [line.strip() for line in latex.splitlines() if line.strip()]
             return render_pdf(title, plain_lines)
         raise RuntimeError("pdflatex is not installed in the container image.")
+    if "\\pdfobjcompresslevel" not in latex:
+        latex = latex.replace("\\documentclass", "\\pdfobjcompresslevel=0\n\\documentclass", 1)
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_file = os.path.join(tmpdir, "paper.tex")
         with open(tex_file, "w", encoding="utf-8") as f:

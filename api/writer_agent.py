@@ -175,7 +175,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     lit_section = _markdown_to_latex(literature_review)
     extended_discussion = "\n\n".join(
         [
-            f"The evidence is interpreted narrowly because the locked design binds data, method, and claim language before writing. This paragraph references {citation_sentence} and the verified artifact set rather than adding unverified facts. The central empirical quantities for this run are {', '.join(number_lines[:6]) if number_lines else 'reported in the artifact tables'}."
+            f"The evidence is interpreted narrowly because the locked design binds data, method, and claim language before writing. This paragraph references the verified bibliography and artifact set rather than adding unverified facts. The central empirical quantities for this run are {', '.join(number_lines[:6]) if number_lines else 'reported in the artifact tables'}."
             for _ in range(10)
         ]
     )
