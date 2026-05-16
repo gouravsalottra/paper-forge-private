@@ -80,7 +80,7 @@ def _infer_mechanism_terms(topic: str, predictor_text: str, outcome: str) -> tup
     generic_outcomes = {"the outcome variable", "outcome variable", ""}
     x_term = inferred_x or ("" if predictor_text in generic_predictors else predictor_text) or _clean_topic_fragment(topic)
     y_term = inferred_y or ("" if outcome in generic_outcomes else outcome) or "the measured financial outcome"
-    phenomenon = f"{x_term} and {y_term}" if inferred_x and inferred_y else _clean_topic_fragment(topic)
+    phenomenon = f"the relation between {x_term} and {y_term}" if inferred_x and inferred_y else _clean_topic_fragment(topic)
     phenomenon = phenomenon[:1].upper() + phenomenon[1:] if phenomenon else phenomenon
     return phenomenon, x_term, y_term
 
@@ -217,7 +217,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     phenomenon, x_term, y_term = _infer_mechanism_terms(topic, predictor_text, outcome)
     identification = blueprint.get("identification_strategy") or "the empirical design"
     contribution = (
-        f"relative to prior work, the analysis evaluates {_latex_escape(predictor_text)} for "
+        f"the relation between {_latex_escape(x_term)} and {_latex_escape(y_term)} for "
         f"{_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)} "
         f"using {_latex_escape(method_names)}."
     )

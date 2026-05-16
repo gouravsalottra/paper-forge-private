@@ -336,7 +336,8 @@ def test_writer_fallback_introduction_starts_with_topic_phenomenon() -> None:
     )
     tex = result["latex"]
     intro = tex.split("\\section{Introduction}", 1)[1].split("\\section{Literature Review}", 1)[0]
-    assert "The VIX term structure inversion and next-month momentum crashes" in intro
+    assert "The relation between the VIX term structure inversion and next-month momentum crashes" in intro
+    assert "estimating relative to prior work" not in intro
     assert "financial markets process economically meaningful information" not in intro
     assert "primary explanatory variation can affect the outcome variable" not in intro
     assert intro.count("\\citep{") == 3
