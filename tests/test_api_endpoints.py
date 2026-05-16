@@ -319,6 +319,29 @@ def test_writer_fallback_does_not_double_escape_statistic_names() -> None:
     assert r"\\_" not in tex
 
 
+def test_writer_fallback_introduction_starts_with_topic_phenomenon() -> None:
+    from api.writer_agent import _fallback_latex
+
+    result = _fallback_latex(
+        {
+            "topic": "Does the VIX term structure inversion predict next-month momentum crashes in US equity sector ETFs?",
+            "bibliography_bib": (
+                "@article{smith2020,\n  author = {Smith, Jane},\n  title = {Volatility Signals},\n  year = {2020}\n}\n"
+                "@article{lee2021,\n  author = {Lee, John},\n  title = {Momentum Crashes},\n  year = {2021}\n}\n"
+                "@article{patel2022,\n  author = {Patel, Ann},\n  title = {Sector ETFs},\n  year = {2022}\n}\n"
+                "@article{extra2023,\n  author = {Extra, Researcher},\n  title = {Extra},\n  year = {2023}\n}\n"
+            ),
+            "stats_results": {"primary_numbers": {"newey_west_t_stat": 1.1222}},
+        }
+    )
+    tex = result["latex"]
+    intro = tex.split("\\section{Introduction}", 1)[1].split("\\section{Literature Review}", 1)[0]
+    assert "The VIX term structure inversion and next-month momentum crashes" in intro
+    assert "financial markets process economically meaningful information" not in intro
+    assert "primary explanatory variation can affect the outcome variable" not in intro
+    assert intro.count("\\citep{") == 3
+
+
 def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions

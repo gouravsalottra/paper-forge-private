@@ -53,6 +53,38 @@ def _json_table_rows(csv_text: str, limit: int = 18) -> list[dict[str, str]]:
         return []
 
 
+def _clean_topic_fragment(topic: str) -> str:
+    fragment = re.sub(r"\s+", " ", str(topic or "")).strip().rstrip("?")
+    fragment = re.sub(r"^(does|do|can|will|is|are|when|what is|what are)\s+", "", fragment, flags=re.I)
+    return fragment[:1].upper() + fragment[1:] if fragment else "The empirical relation under study"
+
+
+def _infer_mechanism_terms(topic: str, predictor_text: str, outcome: str) -> tuple[str, str, str]:
+    text = re.sub(r"\s+", " ", str(topic or "")).strip().rstrip("?")
+    patterns = [
+        r"^(?:does|do)\s+(.+?)\s+predict\s+(.+)$",
+        r"^(?:does|do)\s+(.+?)\s+produce\s+(.+?)(?:,\s+and\s+.+)?$",
+        r"^(?:does|do)\s+(.+?)\s+allow\s+.+?\s+to\s+(.+?)(?:,\s+and\s+.+)?$",
+        r"^when\s+(.+?),\s*does\s+.+?\s+(.+)$",
+    ]
+    inferred_x = ""
+    inferred_y = ""
+    for pattern in patterns:
+        match = re.match(pattern, text, flags=re.I)
+        if match:
+            inferred_x = match.group(1).strip()
+            inferred_y = match.group(2).strip()
+            break
+
+    generic_predictors = {"the primary explanatory variation", "primary explanatory variation", ""}
+    generic_outcomes = {"the outcome variable", "outcome variable", ""}
+    x_term = inferred_x or ("" if predictor_text in generic_predictors else predictor_text) or _clean_topic_fragment(topic)
+    y_term = inferred_y or ("" if outcome in generic_outcomes else outcome) or "the measured financial outcome"
+    phenomenon = f"{x_term} and {y_term}" if inferred_x and inferred_y else _clean_topic_fragment(topic)
+    phenomenon = phenomenon[:1].upper() + phenomenon[1:] if phenomenon else phenomenon
+    return phenomenon, x_term, y_term
+
+
 def _latex_table(caption: str, label: str, rows: list[dict[str, Any]], max_rows: int = 18) -> str:
     if not rows:
         return ""
@@ -156,7 +188,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     hawk = context.get("hawk_scorecard", {})
     csv_artifacts = context.get("all_csv_artifacts", {})
     keys = _citation_keys(bibliography_bib)
-    citation_sentence = ", ".join(rf"\citep{{{_latex_escape(key)}}}" for key in keys[:12]) if keys else "the retrieved bibliography"
+    citation_sentence = ", ".join(rf"\citep{{{_latex_escape(key)}}}" for key in keys[:3]) if keys else "the retrieved bibliography"
     primary_numbers = stats_results.get("primary_numbers") or stats_results.get("primary_numbers", {})
     if not primary_numbers and isinstance(stats_results.get("findings"), dict):
         primary_numbers = stats_results["findings"].get("primary_numbers", {})
@@ -182,6 +214,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     outcome = blueprint.get("outcome_variable") or "the outcome variable"
     predictors = blueprint.get("key_predictors") or []
     predictor_text = ", ".join(map(str, predictors)) if predictors else "the primary explanatory variation"
+    phenomenon, x_term, y_term = _infer_mechanism_terms(topic, predictor_text, outcome)
     identification = blueprint.get("identification_strategy") or "the empirical design"
     contribution = (
         f"relative to prior work, the analysis evaluates {_latex_escape(predictor_text)} for "
@@ -212,9 +245,9 @@ This paper examines {_latex_escape(topic)}. The study uses {_latex_escape(method
 \end{{abstract}}
 
 \section{{Introduction}}
-{_latex_escape(topic)} is a question about how financial markets process economically meaningful information. The phenomenon matters because changes in expected cash flows, discount rates, risk appetite, or intermediary balance-sheet pressure can be incorporated into prices unevenly across assets and horizons. Prior studies in the retrieved literature provide the closest empirical and theoretical benchmarks, including {citation_sentence}.
+{_latex_escape(phenomenon)} is the economic phenomenon studied in this paper. It matters because the relation connects a measurable market signal or shock to a subsequent asset-pricing outcome that investors, risk managers, and empirical researchers can evaluate directly. Prior studies in the retrieved literature provide the closest empirical and theoretical benchmarks, including {citation_sentence}.
 
-The mechanism is that {_latex_escape(predictor_text)} can affect {_latex_escape(outcome)} by changing investor expectations, hedging demand, or the compensation required for bearing risk. If the mechanism is present, the estimated response should appear in the direction and horizon specified by the research design. If it is absent, the estimates should be small, unstable, or statistically indistinguishable from the relevant comparison period.
+The mechanism is that {_latex_escape(x_term)} can affect {_latex_escape(y_term)} by changing investor expectations, hedging demand, funding constraints, or the compensation required for bearing risk before the measured outcome is realized. If the mechanism is present, the estimated response should appear in the direction and horizon specified by the research design. If it is absent, the estimates should be small, unstable, or statistically indistinguishable from the relevant comparison period.
 
 This paper differs from prior work by estimating {contribution} The empirical design uses {_latex_escape(return_definition)} where that return definition is relevant, and it reports both statistical and economic magnitudes. The main empirical quantities are {key_numbers}. These numbers preview the central finding and determine whether the hypothesis receives support in this sample.
 
