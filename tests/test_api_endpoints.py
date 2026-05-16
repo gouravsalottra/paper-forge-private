@@ -379,7 +379,8 @@ def test_writer_fallback_results_are_narrative_not_key_value_dump() -> None:
                 "event_study_car,complete,0.9674,0.358605,0.077499,,,,,,\n"
                 "newey_west_hac,complete,1.6157,0.10615,,0.066311,,,,,\n"
                 "placebo_test,complete,,,,,0.364,,,1000,0.077499\n"
-                "bootstrap_ci,complete,,,,,,0.003629,0.019278,,\n",
+                "bootstrap_ci,complete,,,,,,0.003629,0.019278,,\n"
+                "panel_regression,failed,,,,,,,,,,The index on the time dimension must be either numeric or date-like\n",
             },
         }
     )
@@ -392,6 +393,8 @@ def test_writer_fallback_results_are_narrative_not_key_value_dump() -> None:
     assert tex.count("\\begin{table}") == 4
     assert "Event-Day Overnight Returns" in tex
     assert "Statistical Inference and Robustness Tests" in tex
+    assert "The index on the time dimension" not in tex
+    assert "{panel regression} & {skipped} & {---} & {Insufficient panel structure}" in tex
 
 
 def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:

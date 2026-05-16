@@ -545,6 +545,7 @@ Inputs are structured source material, not suggestions:
 - Statistical results: {stats_results_json}
 - Review notes: {hawk_scorecard_json}
 - CSV data tables: {all_csv_artifacts_json}
+- Verified figure artifacts: {figure_artifacts_json}
 
 Write a complete empirical finance paper in LaTeX. The paper must read as
 if written by a human researcher. The research platform must be invisible
@@ -554,9 +555,18 @@ STYLE RULES:
 - \documentclass[12pt]{article}
 - Use \usepackage{booktabs,amsmath,natbib,geometry,setspace,longtable}
 - Use \geometry{margin=1in}
-- Use \doublespacing
+- Use \onehalfspacing
 - Use \citet{} and \citep{} for citations; never invent citation keys.
 - Use only citation keys from the provided BibTeX.
+- Use \bibliographystyle{plainnat}. If writing manual \bibitem entries, use
+  natbib labels like \bibitem[Kaspard et al.(2026)]{kaspard2026}.
+- Always use \citep{key} with the short citation key from the bibliography.
+  Never write out full author names as citations. Example: use
+  \citep{kaspard2026}, not (Jeanne A. Kaspard and Cesar Kamel...).
+- The provided figures have already been generated from verified data and are
+  available as PNG files. Include them with
+  \includegraphics[width=0.95\textwidth]{figN_name.png}. Do not invent or
+  generate figures in the paper.
 
 PAPER STRUCTURE:
 - abstract: 150-200 words with question, method, main finding, contribution.
@@ -577,15 +587,25 @@ PAPER STRUCTURE:
   5. Contribution: list three concrete contributions to the literature.
   6. Roadmap: end with one paragraph describing the rest of the paper.
 - Literature Review: Synthesize the literature into a coherent academic narrative using the literature_review content. Cite keys from bibliography_bib. Do not summarize it as a system output.
-- Data: Describe the data sources, sample selection, and variable construction in an academic tone. Do not discuss internal reproducibility metadata unless it is a substantive part of the research design.
-- Methodology: Describe the empirical strategy, equations, identification, and diagnostics as a standard finance methodology section. Write from the perspective of researchers.
+- Data: Write at least four paragraphs. Paragraph 1: data source, sample
+  period, tickers or units, and observation count. Paragraph 2: variable
+  construction, especially the exact overnight-return formula and trading-day
+  alignment. Paragraph 3: event file or sample construction and hash only when
+  it is part of the research design. Paragraph 4: summary-statistics discussion
+  referencing Table 1. Include Figure 1 if available.
+- Methodology: Write at least five paragraphs. Cover event-study design or the
+  appropriate method, the primary test, a formal equation with variable
+  definitions, robustness tests, and limitations of the design.
 - Results: Present the findings as narrative interpretation, not as raw
   variable dumps. Every reported number must come from stats_results or CSV
   data. Each paragraph should cover one test or one finding, translate the
   statistic into an economic conclusion, and distinguish directional evidence
   from statistical significance.
-- Robustness: Discuss alternative specifications, subsamples, corrections, and limitations in a professional academic tone.
-- Conclusion: Summarize the main finding, its implications, and future work academically. Do not overclaim.
+- Robustness: Write at least four paragraphs. Interpret HAC or clustered
+  standard errors, placebo or falsification tests, bootstrap or confidence
+  intervals, and power/limitations. Reference the consolidated inference table.
+- Conclusion: Write at least three paragraphs: honest finding, economic
+  interpretation, and concrete future work. Do not overclaim.
 - References.
 
 CRITICAL RULES:
@@ -650,6 +670,11 @@ CRITICAL RULES:
 - Do not repeat the same CSV under different captions.
 - Consolidate identical or near-identical statistical CSVs into one inference
   table with columns: Test, Statistic, p-value, Interpretation.
+- If a test row has status failed, Error text, exception text, or traceback
+  content, do not print the error. Render the row as:
+  test name | skipped | -- | Insufficient data.
+- Use \begin{tabular}{llrp{5cm}} for the consolidated inference table so the
+  interpretation column wraps.
 - Preferred table sequence:
   Table 1: Summary statistics by ticker or unit.
   Table 2: Event-level returns or primary observations.

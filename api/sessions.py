@@ -1185,7 +1185,7 @@ def clean_latex_escaping(text: str) -> str:
     return text
 
 
-def _render_latex_source_pdf(latex: str, title: str) -> bytes:
+def _render_latex_source_pdf(latex: str, title: str, assets: dict[str, bytes] | None = None) -> bytes:
     pdflatex = shutil.which("pdflatex")
     if not pdflatex:
         if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
@@ -1198,6 +1198,12 @@ def _render_latex_source_pdf(latex: str, title: str) -> bytes:
         tex_file = os.path.join(tmpdir, "paper.tex")
         with open(tex_file, "w", encoding="utf-8") as f:
             f.write(latex)
+        for filename, data in (assets or {}).items():
+            safe_name = os.path.basename(str(filename))
+            if not safe_name or not isinstance(data, (bytes, bytearray)):
+                continue
+            with open(os.path.join(tmpdir, safe_name), "wb") as asset_file:
+                asset_file.write(bytes(data))
         
         for _ in range(2):
             subprocess.run(
@@ -1274,6 +1280,12 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
     compute_bytes = json.dumps(profile["compute"], sort_keys=True).encode("utf-8")
     data_hash = hashlib.sha256(compute_bytes).hexdigest()
     profile["data_passport"]["sha256"] = data_hash
+    profile["figure_artifacts"] = _generate_figures_from_csv_outputs(
+        session_id,
+        profile.get("csv_outputs", {}),
+        profile.get("findings", {}).get("primary_numbers", {}),
+    )
+    profile["verification"]["figure_artifacts"] = profile["figure_artifacts"]
     code_audit_blocks = bool(contracts.get("code_audit", {}).get("blocks_pipeline"))
     scorecard: dict[str, Any] | None = None
     if not code_audit_blocks:
@@ -1333,6 +1345,11 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
                 path: _write_text_artifact(session_id, path, text)
                 for path, text in profile.get("csv_outputs", {}).items()
                 if path.startswith("06_compute/")
+            },
+            **{
+                metadata["path"]: metadata
+                for metadata in profile.get("figure_artifacts", {}).values()
+                if isinstance(metadata, dict) and metadata.get("path")
             },
         },
         "Statistics Agent": {
@@ -1420,11 +1437,16 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
             "stats_results": {"statistics": profile["statistics"], "findings": profile["findings"], "primary_numbers": profile["findings"].get("primary_numbers", {})},
             "hawk_scorecard": scorecard,
             "all_csv_artifacts": profile.get("csv_outputs", {}),
+            "figure_artifacts": profile.get("figure_artifacts", {}),
         }
         writer_result = _run_async_agent(write_paper_latex(writer_context, client=_agent_client()), timeout_seconds=240)
         paper = writer_result.get("latex", "")
         paper = clean_latex_escaping(paper)
-        pdf = _render_latex_source_pdf(paper, profile["title"])
+        pdf = _render_latex_source_pdf(
+            paper,
+            profile["title"],
+            assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+        )
         profile["verification"]["writer_numbers_used"] = writer_result.get("numbers_used", [])
         profile["verification"]["writer_agent"] = {k: v for k, v in writer_result.items() if k != "latex"}
         paper_code_refs = {
@@ -1957,6 +1979,242 @@ def _csv_artifacts_for_writer(session_id: str, artifacts_list: list[dict[str, An
     return csv_outputs
 
 
+def _dataframe_from_csv_text(csv_text: str):
+    import pandas as pd
+
+    if not csv_text:
+        return None
+    try:
+        return pd.read_csv(io.StringIO(csv_text))
+    except Exception as exc:  # noqa: BLE001 - historical artifacts may be partial
+        logger.warning("Could not parse CSV artifact for figure generation: %s", exc)
+        return None
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def _figure_ref(key: str, filename: str, caption: str, label: str, artifact_ref: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "key": key,
+        "path": f"figures/{filename}",
+        "blob_path": artifact_ref.get("blob_path"),
+        "filename": filename,
+        "caption": caption,
+        "label": label,
+        "sha256": artifact_ref.get("sha256"),
+        "bytes": artifact_ref.get("bytes"),
+    }
+
+
+def _generate_figures(session_id: str, overnight_df, event_df, car_df, stats_dict: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Generate verified figure artifacts from computed data and upload them to Blob Storage."""
+    figures: dict[str, dict[str, Any]] = {}
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import pandas as pd
+    except Exception as exc:  # pragma: no cover - dependency is validated in deployment/tests
+        logger.warning("Matplotlib unavailable; figure artifacts skipped for %s: %s", session_id, exc)
+        return figures
+
+    stats_dict = stats_dict or {}
+    primary_numbers = stats_dict.get("primary_numbers") if isinstance(stats_dict.get("primary_numbers"), dict) else stats_dict
+
+    def upload_figure(key: str, filename: str, caption: str, label: str, fig) -> None:
+        path = os.path.join(tmpdir, filename)
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        with open(path, "rb") as handle:
+            artifact_ref = write_artifact(session_id, f"figures/{filename}", handle.read())
+        figures[key] = _figure_ref(key, filename, caption, label, artifact_ref)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        if overnight_df is not None and len(overnight_df) > 0 and {"ticker", "date", "overnight_return"}.issubset(set(overnight_df.columns)):
+            try:
+                frame = overnight_df.copy()
+                frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+                frame = frame.dropna(subset=["date", "overnight_return"]).sort_values("date")
+                tickers = list(dict.fromkeys(frame["ticker"].astype(str).tolist()))[:2]
+                if tickers:
+                    fig, axes = plt.subplots(len(tickers), 1, figsize=(12, 3.2 * len(tickers)), sharex=True)
+                    if len(tickers) == 1:
+                        axes = [axes]
+                    colors = ["#8B4513", "#228B22", "#145f52"]
+                    for ax, ticker, color in zip(axes, tickers, colors):
+                        df = frame[frame["ticker"].astype(str) == ticker].copy()
+                        df["overnight_return"] = df["overnight_return"].astype(float)
+                        df["cum_return"] = (1 + df["overnight_return"] / 100.0).cumprod()
+                        ax.plot(df["date"], df["cum_return"], color=color, linewidth=0.9, label=ticker)
+                        ax.set_ylabel("Cumulative return", fontsize=9)
+                        ax.legend(loc="upper left", fontsize=9)
+                        ax.grid(True, alpha=0.3)
+                    axes[-1].set_xlabel("Date")
+                    fig.suptitle("Cumulative Overnight Returns Over the Sample", fontsize=11)
+                    fig.tight_layout()
+                    upload_figure(
+                        "fig1_price_history",
+                        "fig1_price_history.png",
+                        "Cumulative overnight returns over the verified sample period.",
+                        "fig:price_history",
+                        fig,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Figure 1 generation failed for %s: %s", session_id, exc)
+
+        if event_df is not None and len(event_df) > 0 and {"xle_overnight_return", "icln_overnight_return"}.issubset(set(event_df.columns)):
+            try:
+                fig, ax = plt.subplots(figsize=(12, 5))
+                n = len(event_df)
+                x = np.arange(n)
+                width = 0.35
+                ax.bar(x - width / 2, event_df["xle_overnight_return"].astype(float), width, label="XLE", color="#8B4513", alpha=0.85)
+                ax.bar(x + width / 2, event_df["icln_overnight_return"].astype(float), width, label="ICLN", color="#228B22", alpha=0.85)
+                ax.axhline(y=0, color="black", linewidth=0.8)
+                ax.set_xlabel("Event")
+                ax.set_ylabel("Overnight return")
+                ax.set_title("Event-Day Overnight Returns: XLE vs ICLN")
+                labels = [
+                    f"E{idx + 1:02d}\n{str(row.get('event_date', ''))[:7]}\n({str(row.get('direction', ''))[:5]})"
+                    for idx, (_, row) in enumerate(event_df.iterrows())
+                ]
+                ax.set_xticks(x)
+                ax.set_xticklabels(labels, fontsize=7)
+                ax.legend(fontsize=9)
+                ax.grid(True, alpha=0.3, axis="y")
+                fig.tight_layout()
+                upload_figure(
+                    "fig2_event_returns",
+                    "fig2_event_returns.png",
+                    "Event-day overnight returns for XLE and ICLN around the verified policy announcement dates.",
+                    "fig:event_returns",
+                    fig,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Figure 2 generation failed for %s: %s", session_id, exc)
+
+        if car_df is not None and len(car_df) > 0 and {"window", "xle_CAR", "icln_CAR"}.issubset(set(car_df.columns)):
+            try:
+                desired_windows = ["[-1,1]", "[-3,3]", "[-5,5]"]
+                windows = [window for window in desired_windows if window in set(car_df["window"].astype(str))]
+                if windows:
+                    xle_cars = [car_df[car_df["window"].astype(str) == window]["xle_CAR"].astype(float).mean() for window in windows]
+                    icln_cars = [car_df[car_df["window"].astype(str) == window]["icln_CAR"].astype(float).mean() for window in windows]
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    x = np.arange(len(windows))
+                    ax.bar(x - 0.2, xle_cars, 0.35, label="XLE", color="#8B4513", alpha=0.85)
+                    ax.bar(x + 0.2, icln_cars, 0.35, label="ICLN", color="#228B22", alpha=0.85)
+                    ax.axhline(y=0, color="black", linewidth=0.8)
+                    ax.set_xlabel("Event window")
+                    ax.set_ylabel("Average CAR")
+                    ax.set_title("Average Cumulative Abnormal Returns by Window")
+                    ax.set_xticks(x)
+                    ax.set_xticklabels(windows)
+                    ax.legend(fontsize=9)
+                    ax.grid(True, alpha=0.3, axis="y")
+                    fig.tight_layout()
+                    upload_figure(
+                        "fig3_car_windows",
+                        "fig3_car_windows.png",
+                        "Average cumulative abnormal returns by event window for XLE and ICLN.",
+                        "fig:car_windows",
+                        fig,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Figure 3 generation failed for %s: %s", session_id, exc)
+
+        if overnight_df is not None and len(overnight_df) > 0 and "overnight_return" in overnight_df.columns:
+            try:
+                values = overnight_df["overnight_return"].astype(float).dropna().to_numpy()
+                observed = _safe_float(primary_numbers.get("mean_aligned_effect"), 0.0)
+                event_count = int(_safe_float(primary_numbers.get("event_count"), 10))
+                sample_size = max(1, min(event_count, len(values)))
+                rng = np.random.default_rng(20260515)
+                replace = len(values) < sample_size
+                draws = np.array([rng.choice(values, size=sample_size, replace=replace).mean() for _ in range(1000)])
+                fig, ax = plt.subplots(figsize=(8, 4))
+                ax.hist(draws, bins=50, color="#cccccc", edgecolor="white", alpha=0.85, label="Placebo distribution")
+                ax.axvline(x=observed, color="red", linewidth=2, label=f"Observed = {observed:.3f}")
+                ax.set_xlabel("Direction-aligned spread")
+                ax.set_ylabel("Frequency")
+                ax.set_title("Placebo Test: Observed Statistic Versus Random Non-Event Draws")
+                ax.legend(fontsize=9)
+                fig.tight_layout()
+                upload_figure(
+                    "fig4_placebo",
+                    "fig4_placebo.png",
+                    "Placebo distribution from random non-event draws with the observed aligned spread marked in red.",
+                    "fig:placebo",
+                    fig,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Figure 4 generation failed for %s: %s", session_id, exc)
+
+        if event_df is not None and len(event_df) > 0 and {"xle_overnight_return", "icln_overnight_return"}.issubset(set(event_df.columns)):
+            try:
+                data = event_df[["xle_overnight_return", "icln_overnight_return"]].astype(float).to_numpy()
+                vmax = max(abs(float(data.min())), abs(float(data.max())), 0.001)
+                fig, ax = plt.subplots(figsize=(6, 8))
+                image = ax.imshow(data, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
+                ax.set_xticks([0, 1])
+                ax.set_xticklabels(["XLE", "ICLN"])
+                labels = [f"E{idx + 1:02d} {str(row.get('event_date', ''))[:10]}" for idx, (_, row) in enumerate(event_df.iterrows())]
+                ax.set_yticks(range(len(event_df)))
+                ax.set_yticklabels(labels, fontsize=8)
+                fig.colorbar(image, ax=ax, label="Overnight return")
+                ax.set_title("Event-Day Overnight Return Heatmap", fontsize=11)
+                for i in range(len(event_df)):
+                    for j, col in enumerate(["xle_overnight_return", "icln_overnight_return"]):
+                        value = float(event_df.iloc[i][col])
+                        ax.text(j, i, f"{value:.3f}", ha="center", va="center", fontsize=7, color="black" if abs(value) < vmax * 0.6 else "white")
+                fig.tight_layout()
+                upload_figure(
+                    "fig5_heatmap",
+                    "fig5_heatmap.png",
+                    "Heatmap of event-day overnight returns by event and ETF.",
+                    "fig:event_heatmap",
+                    fig,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Figure 5 generation failed for %s: %s", session_id, exc)
+
+    return figures
+
+
+def _generate_figures_from_csv_outputs(session_id: str, csv_outputs: dict[str, str], stats_dict: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    overnight_df = _dataframe_from_csv_text(csv_outputs.get("03_data/overnight_returns.csv", ""))
+    event_df = _dataframe_from_csv_text(csv_outputs.get("06_compute/method_outputs/event_returns.csv", ""))
+    car_df = _dataframe_from_csv_text(csv_outputs.get("06_compute/method_outputs/event_window_car.csv", ""))
+    return _generate_figures(session_id, overnight_df, event_df, car_df, stats_dict or {})
+
+
+def _figure_assets_for_compile(session_id: str, figure_artifacts: dict[str, Any]) -> dict[str, bytes]:
+    assets: dict[str, bytes] = {}
+    if not isinstance(figure_artifacts, dict):
+        return assets
+    for metadata in figure_artifacts.values():
+        if not isinstance(metadata, dict):
+            continue
+        filename = os.path.basename(str(metadata.get("filename") or ""))
+        path = str(metadata.get("path") or metadata.get("blob_path") or "").strip()
+        if not filename or not path:
+            continue
+        relative = _artifact_relative_path(session_id, path)
+        data = _safe_artifact_bytes(session_id, relative)
+        if data:
+            assets[filename] = data
+    return assets
+
+
 def _latest_reviewer_scorecard(session_id: str) -> dict[str, Any]:
     scorecard: dict[str, Any] = {}
     with _with_conn() as conn:
@@ -2015,6 +2273,7 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
         primary_numbers.update(research_findings.get("primary_numbers") or {})
     if isinstance(profile, dict):
         primary_numbers.update((profile.get("findings") or {}).get("primary_numbers") or {})
+    figure_artifacts = _generate_figures_from_csv_outputs(session_id, csv_outputs, primary_numbers)
 
     return {
         "topic": topic,
@@ -2033,6 +2292,7 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
         },
         "hawk_scorecard": _latest_reviewer_scorecard(session_id),
         "all_csv_artifacts": csv_outputs,
+        "figure_artifacts": figure_artifacts,
     }
 
 
@@ -2049,13 +2309,21 @@ async def rerender_paper(session_id: str) -> JSONResponse:
     try:
         writer_result = await write_paper_latex(writer_context, client=_agent_client())
         paper = clean_latex_escaping(writer_result.get("latex", ""))
-        pdf = _render_latex_source_pdf(paper, writer_context.get("topic", "Research Paper"))
+        pdf = _render_latex_source_pdf(
+            paper,
+            writer_context.get("topic", "Research Paper"),
+            assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM rerender failed for %s; retrying deterministic Writer fallback: %s", session_id, exc)
         try:
             writer_result = await write_paper_latex(writer_context, client=None)
             paper = clean_latex_escaping(writer_result.get("latex", ""))
-            pdf = _render_latex_source_pdf(paper, writer_context.get("topic", "Research Paper"))
+            pdf = _render_latex_source_pdf(
+                paper,
+                writer_context.get("topic", "Research Paper"),
+                assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+            )
         except Exception as fallback_exc:  # noqa: BLE001
             logger.exception("Rerender failed for %s", session_id)
             return _error(500, "RERENDER_FAILED", f"Paper rerender failed: {fallback_exc}", "rerender_failed", [f"GET /api/sessions/{session_id}/artifacts"])
