@@ -188,10 +188,11 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
         f"{_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)} "
         f"using {_latex_escape(method_names)}."
     )
-    key_numbers = _latex_escape("; ".join(number_lines[:8]) if number_lines else "the tabled estimates")
+    key_numbers_raw = "; ".join(number_lines[:8]) if number_lines else "the tabled estimates"
+    key_numbers = _latex_escape(key_numbers_raw)
     discussion_paragraphs = [
-        f"The magnitude of the estimates is central to the interpretation. The main reported quantities are {key_numbers}. These values are economically informative only in relation to the sampling window, the comparison group, and the return or outcome definition used in the design.",
-        f"The mechanism considered in the paper is that {_latex_escape(predictor_text)} changes expectations, risk premia, or trading pressure, which then affects {_latex_escape(outcome)}. This channel is evaluated through {_latex_escape(identification)} rather than through narrative interpretation alone.",
+        f"The magnitude of the estimates is central to the interpretation. The main reported quantities are {key_numbers_raw}. These values are economically informative only in relation to the sampling window, the comparison group, and the return or outcome definition used in the design.",
+        f"The mechanism considered in the paper is that {predictor_text} changes expectations, risk premia, or trading pressure, which then affects {outcome}. This channel is evaluated through {identification} rather than through narrative interpretation alone.",
         "The estimates should be read as evidence on the stated empirical question, not as a general law. The sample, measurement choices, and identifying assumptions determine the scope of the conclusion.",
         "The robustness discussion therefore focuses on whether the result is stable across the implemented diagnostics, whether alternative explanations remain plausible, and whether the economic magnitude is large enough to matter for researchers or practitioners.",
     ]

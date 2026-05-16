@@ -290,6 +290,35 @@ def test_clean_latex_escaping_collapses_double_escaped_specials() -> None:
     assert cleaned.endswith(r"\\")
 
 
+def test_writer_fallback_does_not_double_escape_statistic_names() -> None:
+    from api.sessions import clean_latex_escaping
+    from api.writer_agent import _fallback_latex
+
+    result = _fallback_latex(
+        {
+            "topic": "Does the VIX term structure forecast sector ETF momentum?",
+            "blueprint": {
+                "method_family": "time_series",
+                "inferred_identifiers": ["XLY", "XLE"],
+                "inferred_window": {"start": "2015-01-01", "end": "2024-12-31"},
+                "key_predictors": ["VIX term structure"],
+                "outcome_variable": "next-month sector momentum returns",
+            },
+            "stats_results": {
+                "primary_numbers": {
+                    "bootstrap_ci_lower": 0.063801,
+                    "newey_west_t_stat": 1.1222,
+                    "newey_west_p_value": 0.261783,
+                }
+            },
+        }
+    )
+    tex = clean_latex_escaping(result["latex"])
+    assert r"bootstrap\_ci\_lower" in tex
+    assert r"newey\_west\_t\_stat" in tex
+    assert r"\\_" not in tex
+
+
 def test_session_run_locks_writer_when_hawk_gate_fails(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions
