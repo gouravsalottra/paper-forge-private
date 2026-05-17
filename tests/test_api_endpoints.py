@@ -317,9 +317,11 @@ def test_writer_fallback_does_not_double_escape_statistic_names() -> None:
         }
     )
     tex = clean_latex_escaping(result["latex"])
-    assert r"bootstrap\_ci\_lower" in tex
-    assert r"newey\_west\_t\_stat" in tex
+    assert "bootstrap ci lower" in tex
+    assert "newey west t stat" in tex
     assert r"\\_" not in tex
+    assert r"bootstrap\_ci\_lower" not in tex
+    assert r"newey\_west\_t\_stat" not in tex
 
 
 def test_writer_fallback_introduction_starts_with_topic_phenomenon() -> None:

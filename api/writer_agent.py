@@ -41,6 +41,17 @@ def _latex_identifier(value: Any, default: str = "id") -> str:
     return text or default
 
 
+def _humanize_label(value: Any) -> str:
+    text = "" if value is None else str(value)
+    if not text:
+        return ""
+    text = text.replace("\\_", "_")
+    if "_" in text:
+        text = text.replace("_", " ")
+    text = re.sub(r"\b(hac|hc3|car|bh|ols|r2|oos|vix|vix3m|spy|xle|icln)\b", lambda m: m.group(1).upper(), text, flags=re.I)
+    return text
+
+
 def _paper_cell(value: Any, digits: int = 4) -> str:
     if isinstance(value, float):
         return f"{value:.{digits}f}"
@@ -48,7 +59,7 @@ def _paper_cell(value: Any, digits: int = 4) -> str:
         return str(value)
     if value is None:
         return ""
-    return str(value)
+    return _humanize_label(value)
 
 
 def _citation_keys(bibliography_bib: str) -> list[str]:
@@ -219,6 +230,13 @@ def _summary_stat_map(csv_artifacts: dict[str, str]) -> dict[str, dict[str, str]
     return {str(row.get("ticker", "")).upper(): row for row in rows if row.get("ticker")}
 
 
+def _clean_figure_caption(value: Any) -> str:
+    text = _humanize_label(value).strip()
+    text = re.sub(r"^fig\s*\d+\s*", "", text, flags=re.I).strip()
+    text = re.sub(r"\s+", " ", text)
+    return text[:1].upper() + text[1:] if text else "Figure"
+
+
 def _figure_metadata(context: dict[str, Any]) -> dict[str, dict[str, str]]:
     raw = context.get("figure_artifacts", {})
     if not isinstance(raw, dict):
@@ -235,7 +253,7 @@ def _figure_metadata(context: dict[str, Any]) -> dict[str, dict[str, str]]:
             continue
         figures[str(key)] = {
             "filename": _latex_identifier(filename, "figure.png"),
-            "caption": str(value.get("caption") or key).strip(),
+            "caption": _clean_figure_caption(value.get("caption") or key),
             "label": _latex_identifier(value.get("label") or f"fig:{key}", f"fig:{key}"),
         }
     return figures
@@ -265,7 +283,7 @@ def _figure_overview_sentence(figures: dict[str, dict[str, str]]) -> str:
         return "No figures were generated for this design, so the paper does not reference figures."
     labels = [figure.get("label") for figure in figures.values() if figure.get("label")]
     refs = ", ".join(rf"Figure \ref{{{_latex_identifier(label, 'fig:figure')}}}" for label in labels[:5])
-    return f"The verified figures ({refs}) report the visual diagnostics generated for this design." if refs else "The verified figures report the visual diagnostics generated for this design."
+    return f"The figures ({refs}) report the visual diagnostics for this design." if refs else "The figures report the visual diagnostics for this design."
 
 
 def _method_is_event(blueprint: dict[str, Any], csv_artifacts: dict[str, str]) -> bool:
@@ -966,7 +984,7 @@ The empirical strategy fixes the burden of proof before interpreting the signs. 
 \section{{Results}}
 {_latex_escape(result_paragraphs[0])}
 
-The visual evidence appears below only when corresponding verified figures exist for this method family. The figures are generated from compute outputs and use the labels supplied in the figure inventory, preventing event-study references from appearing in time-series or regression papers.
+The visual evidence appears below when the empirical analysis produces figures for this design. Each figure is referenced only if it exists in the compiled paper.
 
 {figure_blocks}
 
@@ -977,7 +995,7 @@ The visual evidence appears below only when corresponding verified figures exist
 \section{{Robustness}}
 The robustness evidence is summarized in Table \ref{{tab:inference}}. The dependence-robust specification yields t={_latex_escape(_fmt_num(nw_t))}, p={_latex_escape(_fmt_p(nw_p))} when that statistic is available. This comparison is informative because allowing for dependence or heteroskedasticity can change apparent precision even when it does not change the economic sign.
 
-The randomization evidence reports an empirical p-value of {_latex_escape(_fmt_p(placebo_p))}. Interpreted literally, the observed aligned spread is not extreme relative to draws from the relevant comparison environment. Distributional figures are included in the Results section only when they exist in the verified figure inventory.
+The randomization evidence reports an empirical p-value of {_latex_escape(_fmt_p(placebo_p))}. Interpreted literally, the observed aligned spread is not extreme relative to draws from the relevant comparison environment. Distributional figures are included only when they are available for this design.
 
 The resampling interval runs from {_latex_escape(_fmt_num(ci_lower))} to {_latex_escape(_fmt_num(ci_upper))}. This interval keeps the estimated average response positive where the endpoints are both above zero, but the economic magnitude must be read relative to the volatility of the measured outcome. The interval therefore supports the directional interpretation while also cautioning against describing the result as large or precisely estimated when the sample is limited.
 
