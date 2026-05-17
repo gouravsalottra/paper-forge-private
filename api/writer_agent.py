@@ -1019,9 +1019,6 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
         summary_sentence = (
             f"Table \\ref{{tab:summary}} reports summary statistics for the daily event-measurement series. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The volatility difference matters because weak inference around event dates can reflect genuine absence of a response or the difficulty of detecting small announcement effects against noisy returns."
         )
-        conclusion_sentence = (
-            "The paper finds evidence that is best interpreted within the limits of the locked event-study design. The mean aligned statistic is positive when reported, and some observations move in the hypothesized direction, but the primary test does not necessarily reject the null at conventional levels."
-        )
     else:
         design_use_sentence = f"It uses {_latex_escape(method_names)} for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}."
         variable_sentence = (
@@ -1033,9 +1030,8 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
         summary_sentence = (
             f"Table \\ref{{tab:summary}} reports summary statistics for the analysis series used in the predictive design. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The dispersion matters because noisy predictors and outcomes can produce economically suggestive but statistically weak forecasting estimates."
         )
-        conclusion_sentence = (
-            "The paper finds evidence that is best interpreted within the limits of the locked predictive design. The estimated predictive coefficient is reported directly, but the primary test does not reject the null at conventional levels, so the paper treats the signal as suggestive rather than tradable forecasting evidence."
-        )
+    
+    conclusion_sentence = _latex_escape(_conclusion_statement(primary_numbers))
 
     latex = rf"""\documentclass[12pt]{{article}}
 \usepackage{{booktabs,amsmath,natbib,geometry,setspace,longtable,array,graphicx}}

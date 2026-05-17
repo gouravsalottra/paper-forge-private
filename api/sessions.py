@@ -1162,6 +1162,12 @@ def clean_latex_escaping(text: str) -> str:
         (r'\textbackslash\{\}', '\\'),
         (r'\textbackslash{}', '\\'),
         (r'{\textbackslash}', '\\'),
+        (r'\\textbackslash\\{\\}', '\\'),
+        (r'\\textbackslash{}', '\\'),
+        (r'\textbackslash', '\\'),
+        (r'\\textbackslash', '\\'),
+        (r'\{', '{'),
+        (r'\}', '}'),
     ]
     for bad, good in replacements:
         text = text.replace(bad, good)
@@ -2284,7 +2290,8 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
 @router.post("/{session_id}/rerender")
 async def rerender_paper(session_id: str) -> JSONResponse:
     try:
-        writer_context = _build_rerender_writer_context(session_id)
+        import asyncio
+        writer_context = await asyncio.to_thread(_build_rerender_writer_context, session_id)
     except KeyError:
         return _not_found()
     except Exception as exc:  # noqa: BLE001
@@ -2294,22 +2301,24 @@ async def rerender_paper(session_id: str) -> JSONResponse:
     try:
         writer_result = await write_paper_latex(writer_context, client=_agent_client())
         paper = clean_latex_escaping(writer_result.get("latex", ""))
-        pdf = _render_latex_source_pdf(
+        pdf = await asyncio.to_thread(
+            _render_latex_source_pdf,
             paper,
             writer_context.get("topic", "Research Paper"),
-            assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
-            session_id=session_id,
+            _figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+            session_id
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM rerender failed for %s; retrying deterministic Writer fallback: %s", session_id, exc)
         try:
             writer_result = await write_paper_latex(writer_context, client=None)
             paper = clean_latex_escaping(writer_result.get("latex", ""))
-            pdf = _render_latex_source_pdf(
+            pdf = await asyncio.to_thread(
+                _render_latex_source_pdf,
                 paper,
                 writer_context.get("topic", "Research Paper"),
-                assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
-                session_id=session_id,
+                _figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+                session_id
             )
         except Exception as fallback_exc:  # noqa: BLE001
             logger.exception("Rerender failed for %s", session_id)
