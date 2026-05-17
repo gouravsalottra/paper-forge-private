@@ -1981,6 +1981,51 @@ def _csv_artifacts_for_writer(session_id: str, artifacts_list: list[dict[str, An
     return csv_outputs
 
 
+def _method_style_for_compute(blueprint: dict[str, Any]) -> str:
+    return str(blueprint.get("method_style") or blueprint.get("method_family") or "descriptive").strip().lower()
+
+
+def _needs_method_specific_rerender_refresh(blueprint: dict[str, Any], csv_outputs: dict[str, str]) -> bool:
+    """Historical sessions may have event-study artifacts even when the Blueprint is not event-study."""
+    if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
+        return False
+    method = _method_style_for_compute(blueprint)
+    if method == "event_study":
+        return False
+    if method in {"time_series", "var_model", "cointegration"}:
+        return "06_compute/method_outputs/predictive_series.csv" not in csv_outputs
+    if method in {"regression", "panel_regression", "quantile_regression", "causal_forest", "factor_model", "backtest", "portfolio_optimization", "risk_model", "volatility_model"}:
+        return "06_compute/method_outputs/regression_design.csv" not in csv_outputs
+    return False
+
+
+def _materialize_method_compute_for_rerender(session_id: str, blueprint: dict[str, Any]) -> dict[str, Any]:
+    """
+    Recreate method-shaped compute artifacts for old sessions without launching a new research run.
+
+    This is intentionally scoped to rerender repair: it reads the locked Blueprint,
+    executes the canonical compute dispatcher, uploads verified CSV/JSON artifacts,
+    and returns the fresh package for the Writer context.
+    """
+    executed = execute_research_plan(blueprint)
+    for path, text in executed.get("csv_outputs", {}).items():
+        if isinstance(text, str):
+            _write_text_artifact(session_id, path, text)
+    _write_json_artifact(
+        session_id,
+        "07_statistics/research_findings.json",
+        {
+            "method_family": executed.get("context", {}).get("method_family"),
+            "primary_numbers": executed.get("primary_numbers", {}),
+            "evidence_conclusion": executed.get("evidence_conclusion"),
+            "economic_interpretation": executed.get("economic_interpretation"),
+        },
+    )
+    _write_json_artifact(session_id, "07_statistics/results_tables/main_results.json", executed.get("robustness_results", {}))
+    _write_json_artifact(session_id, "08_stats/stats_summary.json", executed.get("stats_summary", {}))
+    return executed
+
+
 def _dataframe_from_csv_text(csv_text: str):
     import pandas as pd
 
@@ -2301,12 +2346,29 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
     economic_significance = _safe_artifact_json(session_id, "07_statistics/economic_significance.json", {})
 
     csv_outputs = _csv_artifacts_for_writer(session_id, artifacts_list)
-    stats_summary_csv = csv_outputs.get("08_stats/stats_summary.csv", "")
     primary_numbers = {}
     if isinstance(research_findings, dict):
         primary_numbers.update(research_findings.get("primary_numbers") or {})
     if isinstance(profile, dict):
         primary_numbers.update((profile.get("findings") or {}).get("primary_numbers") or {})
+
+    if _needs_method_specific_rerender_refresh(merged_blueprint, csv_outputs):
+        try:
+            refreshed = _materialize_method_compute_for_rerender(session_id, merged_blueprint)
+            csv_outputs = refreshed.get("csv_outputs", {}) or csv_outputs
+            primary_numbers = refreshed.get("primary_numbers", {}) or primary_numbers
+            stats_summary_json = refreshed.get("stats_summary", {}) or stats_summary_json
+            research_findings = {
+                "method_family": refreshed.get("context", {}).get("method_family"),
+                "primary_numbers": primary_numbers,
+                "evidence_conclusion": refreshed.get("evidence_conclusion"),
+                "economic_interpretation": refreshed.get("economic_interpretation"),
+            }
+            main_results = refreshed.get("robustness_results", {}) or main_results
+        except Exception as exc:  # noqa: BLE001 - rerender can still proceed with historical artifacts
+            logger.warning("Method-specific rerender refresh failed for %s: %s", session_id, exc)
+
+    stats_summary_csv = csv_outputs.get("08_stats/stats_summary.csv", "")
     figure_artifacts = _generate_figures_from_csv_outputs(session_id, csv_outputs, primary_numbers, merged_blueprint)
 
     return {
