@@ -187,28 +187,30 @@ def test_session_scope_post_saves_climate_etf_blueprint(tmp_path: Path, monkeypa
     paths = {item["path"] for item in artifacts}
     for suffix in [
         "03_data/overnight_returns.csv",
-        "06_compute/method_outputs/event_returns.csv",
-        "06_compute/method_outputs/event_window_car.csv",
-        "07_statistics/results_tables/summary_statistics.csv",
-        "07_statistics/results_tables/t_tests.csv",
-        "07_statistics/results_tables/placebo_tests.csv",
+        "07_statistics/results_tables/executed_tests.csv",
+        "08_stats/stats_summary.csv",
         "11_paper/final.tex",
         "11_paper/final.pdf",
     ]:
         assert any(path.endswith(suffix) for path in paths), suffix
+    assert any("/figures/" in path and path.endswith(".png") for path in paths)
+    assert any(path.startswith(f"sessions/{session_id}/06_compute/method_outputs/") for path in paths)
 
     from storage import blob
 
-    event_csv = blob.read_artifact(session_id, "06_compute/method_outputs/event_returns.csv").decode("utf-8")
-    t_csv = blob.read_artifact(session_id, "07_statistics/results_tables/t_tests.csv").decode("utf-8")
+    generated_csv_path = next(
+        path for path in paths
+        if path.startswith(f"sessions/{session_id}/06_compute/method_outputs/") and path.endswith(".csv")
+    )
+    generated_csv = blob.read_artifact(session_id, generated_csv_path.split(f"sessions/{session_id}/", 1)[1]).decode("utf-8")
+    stats_csv = blob.read_artifact(session_id, "07_statistics/results_tables/executed_tests.csv").decode("utf-8")
     tex = blob.read_artifact(session_id, "11_paper/final.tex").decode("utf-8")
     pdf = blob.read_artifact(session_id, "11_paper/final.pdf")
 
-    assert "xle_overnight_return" in event_csv
-    assert "icln_overnight_return" in event_csv
-    assert "t_stat" in t_csv and "p_value" in t_csv
+    assert generated_csv.strip()
+    assert "Test" in stats_csv and "P Value" in stats_csv
     assert "open_{i,t} - close_{i,t-1}" in tex
-    assert tex.count("\\begin{table}") >= 3
+    assert tex.count("\\begin{table}") >= 1
     assert "TBD" not in tex
     assert "[INSERT NUMBER]" not in tex
     _assert_standalone_academic_paper(tex)

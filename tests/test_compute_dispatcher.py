@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+
 
 def _base_blueprint(method: str) -> dict:
     identifiers = ["VIX", "VIX3M", "SPY"] if method == "time_series" else ["SPY", "QQQ", "IWM"]
@@ -14,61 +16,65 @@ def _base_blueprint(method: str) -> dict:
     }
 
 
-def test_compute_dispatcher_preserves_event_study_shape(monkeypatch):
+def test_compute_dispatcher_executes_llm_authored_code(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
     from api.compute_dispatcher import dispatch_compute
 
-    result = dispatch_compute("unit-event", _base_blueprint("event_study"))
+    result = dispatch_compute("unit-llm-code", _base_blueprint("time_series"))
 
-    assert result["primary_numbers"]["primary_analysis_type"] == "event_study"
-    assert "06_compute/method_outputs/event_returns.csv" in result["csv_outputs"]
-    assert "06_compute/method_outputs/event_window_car.csv" in result["csv_outputs"]
-    assert result["primary_numbers"]["event_count"] > 0
+    assert "analysis_code" in result
+    assert "DATA_CSV_PATH" in result["analysis_code"]
+    assert result["csv_outputs"]
+    assert "03_data/overnight_returns.csv" in result["csv_outputs"]
+    assert any(path.startswith("07_statistics/results_tables/") for path in result["csv_outputs"])
+    assert result["figure_artifacts"]
+    assert result["primary_numbers"]["primary_label"]
 
 
-def test_compute_dispatcher_time_series_not_event_shaped(monkeypatch):
+def test_compute_dispatcher_has_no_method_specific_python_branches():
+    import api.compute_dispatcher as cd
+
+    source = inspect.getsource(cd.dispatch_compute)
+    forbidden = [
+        "compute_" + suffix
+        for suffix in [
+            "event_study",
+            "time_series",
+            "regression",
+            "factor_model",
+            "descriptive",
+            "generic",
+        ]
+    ]
+    for token in forbidden:
+        assert token not in source
+    assert "_llm_write_analysis_code" in source
+    assert "_execute_analysis_code" in source
+    assert "_llm_format_results" in source
+
+
+def test_compute_dispatcher_does_not_emit_old_event_outputs_for_non_event(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
     from api.compute_dispatcher import dispatch_compute
 
     result = dispatch_compute("unit-ts", _base_blueprint("time_series"))
 
-    assert result["primary_numbers"]["primary_analysis_type"] == "time_series"
-    assert "06_compute/method_outputs/predictive_series.csv" in result["csv_outputs"]
-    assert "06_compute/method_outputs/time_series_regression.csv" in result["csv_outputs"]
     assert "06_compute/method_outputs/event_returns.csv" not in result["csv_outputs"]
-    assert result["primary_numbers"]["event_count"] == "not computed for this design"
+    assert "06_compute/method_outputs/event_window_car.csv" not in result["csv_outputs"]
+    assert result["primary_numbers"].get("primary_analysis_type") == "time_series"
 
 
-def test_compute_dispatcher_regression_not_event_shaped(monkeypatch):
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
-    from api.compute_dispatcher import dispatch_compute
-
-    result = dispatch_compute("unit-reg", _base_blueprint("regression"))
-
-    assert result["primary_numbers"]["primary_analysis_type"] == "regression"
-    assert "06_compute/method_outputs/regression_design.csv" in result["csv_outputs"]
-    assert "06_compute/method_outputs/regression_results.csv" in result["csv_outputs"]
-    assert "06_compute/method_outputs/event_returns.csv" not in result["csv_outputs"]
-
-
-def test_figure_generator_uses_method_shaped_outputs(monkeypatch):
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
-    from api.compute_dispatcher import dispatch_compute
+def test_figure_generator_is_compute_artifact_inventory_only():
     from api.figure_generator import generate_figures_for_study
 
-    ts_blueprint = _base_blueprint("time_series")
-    ts_result = dispatch_compute("unit-fig-ts", ts_blueprint)
-    ts_figures = generate_figures_for_study("unit-fig-ts", ts_blueprint, ts_result["csv_outputs"], ts_result["primary_numbers"])
-    assert "fig1_time_series" in ts_figures
-    assert "fig2_predictive_scatter" in ts_figures
-    assert "fig2_event_returns" not in ts_figures
-
-    reg_blueprint = _base_blueprint("regression")
-    reg_result = dispatch_compute("unit-fig-reg", reg_blueprint)
-    reg_figures = generate_figures_for_study("unit-fig-reg", reg_blueprint, reg_result["csv_outputs"], reg_result["primary_numbers"])
-    assert "fig1_regression_scatter" in reg_figures
-    assert "fig2_event_returns" not in reg_figures
+    existing = {
+        "fig1": {
+            "filename": "analysis.png",
+            "path": "figures/analysis.png",
+            "label": "fig:analysis",
+        }
+    }
+    assert generate_figures_for_study("unit", {}, {}, {"figure_artifacts": existing}) == existing
+    assert generate_figures_for_study("unit", {}, {}, {}) == {}

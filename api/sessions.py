@@ -550,13 +550,13 @@ def _clean_float(value: Any, digits: int = 6) -> float | None:
     return rounded if rounded is not None else None
 
 
-def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
+def _execution_profile(blueprint: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
     topic = _topic_text(blueprint)
     method = _method_family(blueprint)
     evidence = _evidence_source(blueprint)
     flavor = _topic_flavor(topic, method, evidence)
     title = topic.split("\n", 1)[0].strip() or "Thrivarc Research Run"
-    executed = execute_research_plan(blueprint)
+    executed = execute_research_plan(blueprint, session_id=session_id)
     primary_numbers = executed["primary_numbers"]
     spec = method_definition(method)
     compute_path = spec.get("compute_path", f"06_compute/method_outputs/{method}_results.json")
@@ -605,6 +605,7 @@ def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
         spec.get("primary_test", "Artifact-backed statistical test"),
     )
     profile["csv_outputs"] = executed.get("csv_outputs", {})
+    profile["figure_artifacts"] = executed.get("figure_artifacts", {})
     profile["verified_csv_artifacts"] = compute["verified_csv_artifacts"]
     profile["statistics"].update(
         {
@@ -623,7 +624,7 @@ def _execution_profile(blueprint: dict[str, Any]) -> dict[str, Any]:
             "robustness_results": executed.get("robustness_results", {}),
             "economic_significance_assessment": profile["economic_significance"],
             "evidence_conclusion": executed.get("evidence_conclusion"),
-            "claim_language": "Writer must describe exactly what the artifact-backed estimates support and must not broaden the claim.",
+            "claim_language": "Writer must describe exactly what the evidence-backed estimates support and must not broaden the claim.",
         }
     )
     profile["data_passport"].update(
@@ -1234,7 +1235,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         _event(conn, session_id, "phase_update", {"summary": "Building the execution profile from the locked Blueprint."}, "Research Architect", "running")
         _commit(conn)
 
-    profile = _execution_profile(blueprint)
+    profile = _execution_profile(blueprint, session_id=session_id)
     contracts = _build_agent_contracts(session_id, blueprint, profile)
     agent_blueprint = contracts["agent_blueprint"]
     with _with_conn() as conn:
@@ -1281,12 +1282,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
     compute_bytes = json.dumps(profile["compute"], sort_keys=True).encode("utf-8")
     data_hash = hashlib.sha256(compute_bytes).hexdigest()
     profile["data_passport"]["sha256"] = data_hash
-    profile["figure_artifacts"] = _generate_figures_from_csv_outputs(
-        session_id,
-        profile.get("csv_outputs", {}),
-        profile.get("findings", {}).get("primary_numbers", {}),
-        blueprint,
-    )
+    profile["figure_artifacts"] = profile.get("figure_artifacts", {})
     profile["verification"]["figure_artifacts"] = profile["figure_artifacts"]
     code_audit_blocks = bool(contracts.get("code_audit", {}).get("blocks_pipeline"))
     scorecard: dict[str, Any] | None = None
@@ -2007,7 +2003,7 @@ def _materialize_method_compute_for_rerender(session_id: str, blueprint: dict[st
     executes the canonical compute dispatcher, uploads verified CSV/JSON artifacts,
     and returns the fresh package for the Writer context.
     """
-    executed = execute_research_plan(blueprint)
+    executed = execute_research_plan(blueprint, session_id=session_id)
     for path, text in executed.get("csv_outputs", {}).items():
         if isinstance(text, str):
             _write_text_artifact(session_id, path, text)
@@ -2026,249 +2022,26 @@ def _materialize_method_compute_for_rerender(session_id: str, blueprint: dict[st
     return executed
 
 
-def _dataframe_from_csv_text(csv_text: str):
-    import pandas as pd
-
-    if not csv_text:
-        return None
-    try:
-        return pd.read_csv(io.StringIO(csv_text))
-    except Exception as exc:  # noqa: BLE001 - historical artifacts may be partial
-        logger.warning("Could not parse CSV artifact for figure generation: %s", exc)
-        return None
-
-
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        if value is None or value == "":
-            return default
-        return float(value)
-    except Exception:
-        return default
-
-
-def _numeric_columns_with_suffix(columns: Any, suffix: str, *, exclude_prefixes: tuple[str, ...] = ()) -> list[str]:
-    out: list[str] = []
-    for column in columns:
-        name = str(column)
-        if not name.endswith(suffix):
-            continue
-        if any(name.startswith(prefix) for prefix in exclude_prefixes):
-            continue
-        out.append(name)
-    return out
-
-
-def _series_label(column: str, suffix: str) -> str:
-    label = str(column)
-    if label.endswith(suffix):
-        label = label[: -len(suffix)]
-    return label.replace("_", " ").upper()
-
-
-def _figure_ref(key: str, filename: str, caption: str, label: str, artifact_ref: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "key": key,
-        "path": f"figures/{filename}",
-        "blob_path": artifact_ref.get("blob_path"),
-        "filename": filename,
-        "caption": caption,
-        "label": label,
-        "sha256": artifact_ref.get("sha256"),
-        "bytes": artifact_ref.get("bytes"),
-    }
-
-
-def _generate_figures(session_id: str, overnight_df, event_df, car_df, stats_dict: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Generate verified figure artifacts from computed data and upload them to Blob Storage."""
+def _existing_figure_artifacts(session_id: str, artifacts_list: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     figures: dict[str, dict[str, Any]] = {}
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import numpy as np
-        import pandas as pd
-    except Exception as exc:  # pragma: no cover - dependency is validated in deployment/tests
-        logger.warning("Matplotlib unavailable; figure artifacts skipped for %s: %s", session_id, exc)
-        return figures
-
-    stats_dict = stats_dict or {}
-    primary_numbers = stats_dict.get("primary_numbers") if isinstance(stats_dict.get("primary_numbers"), dict) else stats_dict
-
-    def upload_figure(key: str, filename: str, caption: str, label: str, fig) -> None:
-        path = os.path.join(tmpdir, filename)
-        fig.savefig(path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
-        with open(path, "rb") as handle:
-            artifact_ref = write_artifact(session_id, f"figures/{filename}", handle.read())
-        figures[key] = _figure_ref(key, filename, caption, label, artifact_ref)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        if overnight_df is not None and len(overnight_df) > 0 and {"ticker", "date", "overnight_return"}.issubset(set(overnight_df.columns)):
-            try:
-                frame = overnight_df.copy()
-                frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
-                frame = frame.dropna(subset=["date", "overnight_return"]).sort_values("date")
-                tickers = list(dict.fromkeys(frame["ticker"].astype(str).tolist()))[:2]
-                if tickers:
-                    fig, axes = plt.subplots(len(tickers), 1, figsize=(12, 3.2 * len(tickers)), sharex=True)
-                    if len(tickers) == 1:
-                        axes = [axes]
-                    colors = ["#8B4513", "#228B22", "#145f52"]
-                    for ax, ticker, color in zip(axes, tickers, colors):
-                        df = frame[frame["ticker"].astype(str) == ticker].copy()
-                        df["overnight_return"] = df["overnight_return"].astype(float)
-                        df["cum_return"] = (1 + df["overnight_return"] / 100.0).cumprod()
-                        ax.plot(df["date"], df["cum_return"], color=color, linewidth=0.9, label=ticker)
-                        ax.set_ylabel("Cumulative return", fontsize=9)
-                        ax.legend(loc="upper left", fontsize=9)
-                        ax.grid(True, alpha=0.3)
-                    axes[-1].set_xlabel("Date")
-                    fig.suptitle("Cumulative Overnight Returns Over the Sample", fontsize=11)
-                    fig.tight_layout()
-                    upload_figure(
-                        "fig1_price_history",
-                        "fig1_price_history.png",
-                        "Cumulative overnight returns over the verified sample period.",
-                        "fig:price_history",
-                        fig,
-                    )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Figure 1 generation failed for %s: %s", session_id, exc)
-
-        event_return_cols = _numeric_columns_with_suffix(
-            getattr(event_df, "columns", []),
-            "_overnight_return",
-            exclude_prefixes=("direction_aligned", "second_minus_first"),
-        )[:2]
-        if event_df is not None and len(event_df) > 0 and len(event_return_cols) >= 2:
-            try:
-                fig, ax = plt.subplots(figsize=(12, 5))
-                n = len(event_df)
-                x = np.arange(n)
-                width = 0.35
-                first_col, second_col = event_return_cols
-                first_label = _series_label(first_col, "_overnight_return")
-                second_label = _series_label(second_col, "_overnight_return")
-                ax.bar(x - width / 2, event_df[first_col].astype(float), width, label=first_label, color="#8B4513", alpha=0.85)
-                ax.bar(x + width / 2, event_df[second_col].astype(float), width, label=second_label, color="#228B22", alpha=0.85)
-                ax.axhline(y=0, color="black", linewidth=0.8)
-                ax.set_xlabel("Event")
-                ax.set_ylabel("Overnight return")
-                ax.set_title(f"Event-Day Overnight Returns: {first_label} vs {second_label}")
-                labels = [
-                    f"E{idx + 1:02d}\n{str(row.get('event_date', ''))[:7]}\n({str(row.get('direction', ''))[:5]})"
-                    for idx, (_, row) in enumerate(event_df.iterrows())
-                ]
-                ax.set_xticks(x)
-                ax.set_xticklabels(labels, fontsize=7)
-                ax.legend(fontsize=9)
-                ax.grid(True, alpha=0.3, axis="y")
-                fig.tight_layout()
-                upload_figure(
-                    "fig2_event_returns",
-                    "fig2_event_returns.png",
-                    f"Event-day overnight returns for {first_label} and {second_label} around the verified event dates.",
-                    "fig:event_returns",
-                    fig,
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Figure 2 generation failed for %s: %s", session_id, exc)
-
-        car_cols = _numeric_columns_with_suffix(
-            getattr(car_df, "columns", []),
-            "_CAR",
-            exclude_prefixes=("direction_aligned", "second_minus_first"),
-        )[:2]
-        if car_df is not None and len(car_df) > 0 and "window" in car_df.columns and len(car_cols) >= 2:
-            try:
-                desired_windows = ["[-1,1]", "[-3,3]", "[-5,5]"]
-                windows = [window for window in desired_windows if window in set(car_df["window"].astype(str))]
-                if windows:
-                    first_col, second_col = car_cols
-                    first_label = _series_label(first_col, "_CAR")
-                    second_label = _series_label(second_col, "_CAR")
-                    first_cars = [car_df[car_df["window"].astype(str) == window][first_col].astype(float).mean() for window in windows]
-                    second_cars = [car_df[car_df["window"].astype(str) == window][second_col].astype(float).mean() for window in windows]
-                    fig, ax = plt.subplots(figsize=(8, 5))
-                    x = np.arange(len(windows))
-                    ax.bar(x - 0.2, first_cars, 0.35, label=first_label, color="#8B4513", alpha=0.85)
-                    ax.bar(x + 0.2, second_cars, 0.35, label=second_label, color="#228B22", alpha=0.85)
-                    ax.axhline(y=0, color="black", linewidth=0.8)
-                    ax.set_xlabel("Event window")
-                    ax.set_ylabel("Average CAR")
-                    ax.set_title("Average Cumulative Abnormal Returns by Window")
-                    ax.set_xticks(x)
-                    ax.set_xticklabels(windows)
-                    ax.legend(fontsize=9)
-                    ax.grid(True, alpha=0.3, axis="y")
-                    fig.tight_layout()
-                    upload_figure(
-                        "fig3_car_windows",
-                        "fig3_car_windows.png",
-                        f"Average cumulative abnormal returns by event window for {first_label} and {second_label}.",
-                        "fig:car_windows",
-                        fig,
-                    )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Figure 3 generation failed for %s: %s", session_id, exc)
-
-        if overnight_df is not None and len(overnight_df) > 0 and "overnight_return" in overnight_df.columns:
-            try:
-                values = overnight_df["overnight_return"].astype(float).dropna().to_numpy()
-                observed = _safe_float(primary_numbers.get("mean_aligned_effect"), 0.0)
-                event_count = int(_safe_float(primary_numbers.get("event_count"), 10))
-                sample_size = max(1, min(event_count, len(values)))
-                rng = np.random.default_rng(20260515)
-                replace = len(values) < sample_size
-                draws = np.array([rng.choice(values, size=sample_size, replace=replace).mean() for _ in range(1000)])
-                fig, ax = plt.subplots(figsize=(8, 4))
-                ax.hist(draws, bins=50, color="#cccccc", edgecolor="white", alpha=0.85, label="Placebo distribution")
-                ax.axvline(x=observed, color="red", linewidth=2, label=f"Observed = {observed:.3f}")
-                ax.set_xlabel("Direction-aligned spread")
-                ax.set_ylabel("Frequency")
-                ax.set_title("Placebo Test: Observed Statistic Versus Random Non-Event Draws")
-                ax.legend(fontsize=9)
-                fig.tight_layout()
-                upload_figure(
-                    "fig4_placebo",
-                    "fig4_placebo.png",
-                    "Placebo distribution from random non-event draws with the observed aligned spread marked in red.",
-                    "fig:placebo",
-                    fig,
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Figure 4 generation failed for %s: %s", session_id, exc)
-
-        if event_df is not None and len(event_df) > 0 and len(event_return_cols) >= 2:
-            try:
-                data = event_df[event_return_cols].astype(float).to_numpy()
-                vmax = max(abs(float(data.min())), abs(float(data.max())), 0.001)
-                fig, ax = plt.subplots(figsize=(6, 8))
-                image = ax.imshow(data, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
-                ax.set_xticks(range(len(event_return_cols)))
-                ax.set_xticklabels([_series_label(col, "_overnight_return") for col in event_return_cols])
-                labels = [f"E{idx + 1:02d} {str(row.get('event_date', ''))[:10]}" for idx, (_, row) in enumerate(event_df.iterrows())]
-                ax.set_yticks(range(len(event_df)))
-                ax.set_yticklabels(labels, fontsize=8)
-                fig.colorbar(image, ax=ax, label="Overnight return")
-                ax.set_title("Event-Day Overnight Return Heatmap", fontsize=11)
-                for i in range(len(event_df)):
-                    for j, col in enumerate(event_return_cols):
-                        value = float(event_df.iloc[i][col])
-                        ax.text(j, i, f"{value:.3f}", ha="center", va="center", fontsize=7, color="black" if abs(value) < vmax * 0.6 else "white")
-                fig.tight_layout()
-                upload_figure(
-                    "fig5_heatmap",
-                    "fig5_heatmap.png",
-                    "Heatmap of event-day overnight returns by event and measured series.",
-                    "fig:event_heatmap",
-                    fig,
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Figure 5 generation failed for %s: %s", session_id, exc)
-
+    for item in artifacts_list:
+        relative = _artifact_relative_path(session_id, str(item.get("path") or ""))
+        if not relative.startswith("figures/"):
+            continue
+        filename = os.path.basename(relative)
+        if not filename.lower().endswith((".png", ".pdf")):
+            continue
+        key = f"fig{len(figures) + 1}_{os.path.splitext(filename)[0]}"
+        figures[key] = {
+            "key": key,
+            "path": relative,
+            "blob_path": item.get("path"),
+            "filename": filename,
+            "caption": os.path.splitext(filename)[0].replace("_", " ").replace("-", " ").title(),
+            "label": f"fig:{os.path.splitext(filename)[0]}",
+            "sha256": item.get("sha256"),
+            "bytes": item.get("bytes"),
+        }
     return figures
 
 
@@ -2352,12 +2125,14 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
     if isinstance(profile, dict):
         primary_numbers.update((profile.get("findings") or {}).get("primary_numbers") or {})
 
+    figure_artifacts = _existing_figure_artifacts(session_id, artifacts_list)
     if _needs_method_specific_rerender_refresh(merged_blueprint, csv_outputs):
         try:
             refreshed = _materialize_method_compute_for_rerender(session_id, merged_blueprint)
             csv_outputs = refreshed.get("csv_outputs", {}) or csv_outputs
             primary_numbers = refreshed.get("primary_numbers", {}) or primary_numbers
             stats_summary_json = refreshed.get("stats_summary", {}) or stats_summary_json
+            figure_artifacts = refreshed.get("figure_artifacts", {}) or figure_artifacts
             research_findings = {
                 "method_family": refreshed.get("context", {}).get("method_family"),
                 "primary_numbers": primary_numbers,
@@ -2369,7 +2144,6 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
             logger.warning("Method-specific rerender refresh failed for %s: %s", session_id, exc)
 
     stats_summary_csv = csv_outputs.get("08_stats/stats_summary.csv", "")
-    figure_artifacts = _generate_figures_from_csv_outputs(session_id, csv_outputs, primary_numbers, merged_blueprint)
 
     return {
         "topic": topic,

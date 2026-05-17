@@ -316,7 +316,7 @@ Return ONLY JSON:
   "gate_failure_reason": "<if failed, which dimensions failed and why>",
   "top_3_issues": ["<most critical issue>", "<second issue>", "<third issue>"],
   "reviewer_letter_opening": "<one paragraph referee-style summary>",
-  "what_would_make_this_accept": "<specific artifact-backed changes>"
+  "what_would_make_this_accept": "<specific evidence-backed changes>"
 }}
 Return ONLY valid JSON. No preamble. No markdown.
 """

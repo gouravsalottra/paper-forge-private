@@ -483,9 +483,14 @@ def execute_test_battery(ctx: ExecutionContext, stats_spec: dict[str, Any] | Non
     return {"results": results, "rows": rows, "summary": {"executed_tests": [key for key, value in results.items() if value.get("status") == "complete"], "skipped_tests": {key: value.get("reason") for key, value in results.items() if value.get("status") != "complete"}}}
 
 
-def execute_research_plan(blueprint: dict[str, Any], stats_spec: dict[str, Any] | None = None) -> dict[str, Any]:
+def execute_research_plan(
+    blueprint: dict[str, Any],
+    stats_spec: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
     # Compatibility shim: the canonical compute path now lives in
-    # api.compute_dispatcher and dispatches by Blueprint method_style.
+    # api.compute_dispatcher. The LLM writes the analysis code; Python only
+    # executes it.
     from api.compute_dispatcher import dispatch_compute
 
-    return dispatch_compute(None, blueprint)
+    return dispatch_compute(session_id, blueprint)
