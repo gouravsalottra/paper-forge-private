@@ -1987,7 +1987,7 @@ def _method_style_for_compute(blueprint: dict[str, Any]) -> str:
 
 def _needs_method_specific_rerender_refresh(blueprint: dict[str, Any], csv_outputs: dict[str, str]) -> bool:
     """Historical sessions may have event-study artifacts even when the Blueprint is not event-study."""
-    if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
+    if os.getenv("PYTEST_CURRENT_TEST"):
         return False
     method = _method_style_for_compute(blueprint)
     if method == "event_study":
