@@ -1187,24 +1187,7 @@ def clean_latex_escaping(text: str) -> str:
     return text
 
 
-def _download_figures_to_compile_dir(session_id: str, tmpdir: str) -> None:
-    """Hydrate all verified figure artifacts beside final.tex before pdflatex."""
-    figure_prefix = f"sessions/{str(session_id).strip().strip('/')}/figures/"
-    try:
-        figure_blobs = list_blobs(figure_prefix)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not list figure blobs for %s before LaTeX compile: %s", session_id, exc)
-        return
-    for blob_path in figure_blobs:
-        filename = os.path.basename(str(blob_path))
-        if not filename or not filename.lower().endswith((".png", ".pdf", ".jpg", ".jpeg")):
-            continue
-        local_path = os.path.join(tmpdir, filename)
-        try:
-            with open(local_path, "wb") as figure_file:
-                figure_file.write(download_blob(blob_path))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not download figure blob %s before LaTeX compile: %s", blob_path, exc)
+
 
 
 def _render_latex_source_pdf(latex: str, title: str, assets: dict[str, bytes] | None = None, session_id: str | None = None) -> bytes:
@@ -1226,8 +1209,26 @@ def _render_latex_source_pdf(latex: str, title: str, assets: dict[str, bytes] | 
                 continue
             with open(os.path.join(tmpdir, safe_name), "wb") as asset_file:
                 asset_file.write(bytes(data))
+                
+        downloaded_figures = []
         if session_id:
-            _download_figures_to_compile_dir(session_id, tmpdir)
+            from api.artifact_contract import prepare_compile_directory, WriterArtifacts, validate_or_raise
+            downloaded_figures = prepare_compile_directory(session_id, latex, tmpdir)
+            
+            writer_artifacts = WriterArtifacts(
+                session_id=session_id,
+                latex_source=latex,
+                figure_local_paths=downloaded_figures,
+            )
+            errors = writer_artifacts.validate_before_compile(tmpdir)
+            if errors:
+                for err in errors:
+                    if 'Figure referenced' in err:
+                        fname = err.split(': ')[-1]
+                        # Try fuzzy download one more time if needed, but prepare_compile_directory handles it
+                errors = writer_artifacts.validate_before_compile(tmpdir)
+                if errors:
+                    raise ValueError(f"Cannot compile: {errors}")
         
         for _ in range(2):
             subprocess.run(
@@ -1236,9 +1237,17 @@ def _render_latex_source_pdf(latex: str, title: str, assets: dict[str, bytes] | 
             )
             
         pdf_file = os.path.join(tmpdir, "paper.pdf")
+        pdf_bytes = None
         if os.path.exists(pdf_file):
             with open(pdf_file, "rb") as f:
-                return f.read()
+                pdf_bytes = f.read()
+        
+        if session_id:
+            writer_artifacts.pdf_bytes = pdf_bytes
+            validate_or_raise(writer_artifacts, "Writer phase")
+            
+        if pdf_bytes:
+            return pdf_bytes
                 
         log_file = os.path.join(tmpdir, "paper.log")
         log_tail = ""
@@ -2153,6 +2162,44 @@ def _latest_reviewer_scorecard(session_id: str) -> dict[str, Any]:
     return artifact_scorecard if isinstance(artifact_scorecard, dict) else {}
 
 
+def _load_or_recompute_stats(session_id, blueprint, tmpdir):
+    """Load existing stats or recompute if missing."""
+    from storage.blob import download_blob
+    
+    # Try loading existing stats
+    stats_paths = [
+        f"sessions/{session_id}/08_stats/stats_summary.json",
+        f"sessions/{session_id}/07_statistics/results_tables/t_tests.csv",
+    ]
+    
+    stats_data = {}
+    for path in stats_paths:
+        try:
+            data = download_blob(path)
+            if data:
+                key = path.split('/')[-1]
+                stats_data[key] = data.decode('utf-8')
+        except:
+            pass
+    
+    if not stats_data:
+        # No stats found — recompute from existing data CSV
+        print(f"No stats found for {session_id}, recomputing...")
+        data_path = f"sessions/{session_id}/03_data/overnight_returns.csv"
+        try:
+            data_bytes = download_blob(data_path)
+            if data_bytes:
+                local_csv = os.path.join(tmpdir, "data.csv")
+                with open(local_csv, 'wb') as f:
+                    f.write(data_bytes)
+                from api.compute_dispatcher import dispatch_compute
+                result = dispatch_compute(session_id, blueprint, local_csv, None)
+                stats_data = result.get('stats_summary', {})
+        except Exception as e:
+            print(f"ERROR recomputing stats: {e}")
+    
+    return stats_data
+
 def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
     with _with_conn() as conn:
         session = _session_row(conn, session_id)
@@ -2174,7 +2221,14 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
     method_spec = _safe_artifact_json(session_id, "06_compute/method_spec.json", {})
     if not method_spec and isinstance(contracts, dict):
         method_spec = contracts.get("method_spec", {})
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stats_data_recomputed = _load_or_recompute_stats(session_id, merged_blueprint, tmpdir)
+    
     stats_summary_json = _safe_artifact_json(session_id, "08_stats/stats_summary.json", {})
+    if not stats_summary_json and stats_data_recomputed:
+        stats_summary_json = stats_data_recomputed
+
     research_findings = _safe_artifact_json(session_id, "07_statistics/research_findings.json", {})
     main_results = _safe_artifact_json(session_id, "07_statistics/results_tables/main_results.json", {})
     economic_significance = _safe_artifact_json(session_id, "07_statistics/economic_significance.json", {})

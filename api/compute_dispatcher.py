@@ -525,7 +525,38 @@ def dispatch_compute(session_id: str | None, blueprint: dict[str, Any], data_csv
 
 def execute_research_plan(blueprint: dict[str, Any], stats_spec: dict[str, Any] | None = None, session_id: str | None = None) -> dict[str, Any]:
     """Compatibility entrypoint used by session orchestration and tests."""
-    return dispatch_compute(session_id, blueprint)
+    result = dispatch_compute(session_id, blueprint)
+    
+    from api.artifact_contract import ComputeArtifacts, validate_or_raise
+    
+    primary = result.get('primary_numbers', {})
+    mapped_primary = {
+        'label': primary.get('primary_label'),
+        'statistic': primary.get('primary_t_stat'),
+        'p_value': primary.get('primary_p_value'),
+        'coefficient': primary.get('coefficient')
+    }
+    
+    stats_data = result.get('stats_summary', {}).get('formatted', {})
+    if isinstance(stats_data, dict):
+        for k, v in stats_data.items():
+            if isinstance(v, dict) and 'status' not in v:
+                v['status'] = 'complete' if v.get('statistic') is not None or v.get('p_value') is not None else 'failed'
+                if v['status'] == 'failed' and not v.get('interpretation'):
+                    v['interpretation'] = 'Test failed to produce valid statistics.'
+    else:
+        stats_data = {}
+        
+    artifacts = ComputeArtifacts(
+        session_id=session_id or 'local',
+        data_csv_paths=list(result.get('csv_outputs', {}).keys()),
+        primary_result=mapped_primary,
+        stats_summary=stats_data,
+        figure_blob_paths=[f.get('blob_path', '') for f in result.get('figure_artifacts', {}).values()]
+    )
+    validate_or_raise(artifacts, "Compute phase")
+    
+    return result
 
 
 # Test-only stand-in for LLM responses. Production requires OPENAI_API_KEY and

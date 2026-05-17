@@ -1148,9 +1148,45 @@ Future work should increase statistical power, improve measurement, and test the
     }
 
 
+def _conclusion_statement(primary_result: dict[str, Any]) -> str:
+    p = primary_result.get('p_value')
+    coef = primary_result.get('coefficient')
+    label = primary_result.get('label', 'primary test')
+    
+    if p is None:
+        return ("The evidence is interpreted within the limits "
+                "of the locked design.")
+    
+    if p < 0.01:
+        sig = "highly statistically significant (p < 0.01)"
+    elif p < 0.05:
+        sig = "statistically significant at the 5% level"
+    elif p < 0.10:
+        sig = "marginally significant at the 10% level"
+    else:
+        sig = "not statistically significant at conventional levels"
+    
+    direction = ""
+    if coef is not None:
+        try:
+            direction = ("positive" if float(coef) > 0 else "negative")
+        except:
+            pass
+            
+    return (f"The {label} yields a {direction} estimate "
+            f"that is {sig}. The paper interprets this "
+            f"result within the limits of the locked design "
+            f"and available sample.")
+
+
 async def write_paper_latex(context: dict[str, Any], client=None) -> dict[str, Any]:
     if client is None:
         return _fallback_latex(context)
+    
+    stats_results = context.get("stats_results", {})
+    primary = stats_results.get("primary_numbers", {})
+    stats_results["conclusion_statement"] = _conclusion_statement(primary)
+
     
     prose_prompt = WRITER_PROSE_PROMPT.format(
         topic=context.get("topic", ""),
