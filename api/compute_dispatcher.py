@@ -181,6 +181,23 @@ REQUIREMENTS:
   "economic_interpretation": "one paragraph in plain English"
 }}
 
+ECONOMETRIC CORRECTNESS RULES:
+- For VIX term-structure studies, compute the spread as the difference in
+  closing PRICE LEVELS of the two volatility index series, e.g.
+  VIX close level minus VIX3M close level. Do not compute the term-structure
+  spread from overnight returns or percentage returns. VIX and VIX3M are
+  volatility indices measured in percentage points, not return series.
+- If you report a bootstrap confidence interval for a regression coefficient,
+  bootstrap that same coefficient from the same regression. Resample rows with
+  replacement, refit the identical regression in each draw, collect the same
+  coefficient, and report the 2.5th and 97.5th percentiles. The confidence
+  interval must correspond to, and normally contain, the reported point
+  estimate unless the bootstrap distribution itself is degenerate or invalid.
+- If an out-of-sample R-squared is computed, write the numeric value to the
+  CSV and JSON summary. Do not report only that the check completed.
+- If a method is inapplicable to the available schema, skip it with a
+  plain-English reason instead of printing Python exceptions into results.
+
 STRICT RULES:
 - Write only Python code. No markdown fences. No explanation.
 - Do not hardcode research-topic-specific content. Read the Blueprint and schema.
@@ -206,6 +223,14 @@ BROKEN CODE:
 
 ERROR:
 {error[-3000:]}
+
+Preserve econometric intent while fixing the code:
+- VIX term-structure spread means close-level VIX minus close-level VIX3M, not
+  a return spread.
+- Bootstrap confidence intervals for regression coefficients must resample and
+  refit the same regression coefficient being reported.
+- Failed or inapplicable tests should be skipped with plain-English reasons,
+  not written as Python exception text.
 
 Return only fixed Python code. No markdown fences. No explanation.
 """

@@ -158,6 +158,40 @@ def _row_has_error(row: dict[str, str]) -> bool:
     return any(marker in text for marker in markers)
 
 
+def _row_get_any(row: dict[str, Any], names: list[str]) -> Any:
+    """Read a CSV value regardless of human-readable or snake_case headers."""
+    normalized = {re.sub(r"[^a-z0-9]+", "", str(key).lower()): value for key, value in row.items()}
+    for name in names:
+        key = re.sub(r"[^a-z0-9]+", "", str(name).lower())
+        if key in normalized:
+            return normalized[key]
+    return None
+
+
+def _row_test_name(row: dict[str, Any]) -> str:
+    return str(_row_get_any(row, ["test_name", "Test", "Model", "Relationship", "label"]) or "").strip()
+
+
+def _row_status(row: dict[str, Any]) -> str:
+    return str(_row_get_any(row, ["status", "Status"]) or "").strip()
+
+
+def _row_statistic(row: dict[str, Any]) -> str:
+    for names, label in [
+        (["t_stat", "T Statistic", "t-statistic"], "t"),
+        (["Z_stat", "Z Statistic", "Z-statistic"], "Z"),
+        (["coefficient", "Coefficient", "estimate", "Estimate"], "coef"),
+        (["oos_r2", "Out Of Sample R Squared", "Out-of-sample R-squared"], "OOS $R^2$"),
+        (["r2", "R Squared", "R-squared"], "$R^2$"),
+        (["statistic", "Statistic"], ""),
+    ]:
+        value = _row_get_any(row, names)
+        if value not in (None, ""):
+            formatted = _fmt_num(value)
+            return f"{label}={formatted}" if label else formatted
+    return ""
+
+
 def _primary_numbers_from_context(context: dict[str, Any]) -> dict[str, Any]:
     stats_results = context.get("stats_results", {}) if isinstance(context.get("stats_results"), dict) else {}
     primary_numbers = dict(stats_results.get("primary_numbers") or {})
@@ -476,8 +510,10 @@ def _compact_results_table(csv_artifacts: dict[str, str], suffix: str, caption: 
     if not rows:
         return ""
     preferred = [
-        "model", "predictor", "outcome", "status", "coefficient", "HAC_se", "HC3_se",
-        "t_stat", "p_value", "r2", "oos_r2", "nobs", "reason",
+        "model", "Model", "predictor", "Predictor", "outcome", "Outcome", "status", "Status",
+        "coefficient", "Coefficient", "HAC_se", "HAC Standard Error", "HC3_se", "HC3 Standard Error",
+        "t_stat", "T Statistic", "p_value", "P Value", "r2", "R Squared", "oos_r2",
+        "Out-of-sample R-squared", "nobs", "Observations", "reason", "Reason",
     ]
     headers = [col for col in preferred if col in rows[0]][:8]
     if len(headers) < 2:
@@ -488,14 +524,30 @@ def _compact_results_table(csv_artifacts: dict[str, str], suffix: str, caption: 
             table_rows.append([row.get("model") or row.get("test_name") or "estimator", "skipped", "--", "Insufficient data structure"])
             headers = ["Model", "Status", "p-value", "Interpretation"]
             continue
-        table_rows.append([_fmt_num(row.get(col)) if col in {"coefficient", "HAC_se", "HC3_se", "t_stat", "p_value", "r2", "oos_r2"} else row.get(col, "") for col in headers])
+        table_rows.append([
+            _fmt_num(row.get(col)) if re.search(r"(coefficient|standard error|hac|hc3|t.stat|p.value|r.?squared|oos|nobs|observations)", col, re.I)
+            else row.get(col, "")
+            for col in headers
+        ])
+    if len(headers) <= 4:
+        if "Interpretation" in headers:
+            column_spec = "llrp{5cm}"
+        else:
+            compact_specs = ["p{4cm}", "p{3cm}", "r", "r"]
+            column_spec = "".join(compact_specs[: max(1, len(headers))])
+    elif len(headers) == 5:
+        column_spec = "p{3cm}p{3cm}p{2cm}rp{4cm}"
+    elif len(headers) == 6:
+        column_spec = "p{2.7cm}p{3cm}p{2.5cm}rp{3cm}p{5cm}"
+    else:
+        column_spec = "p{2.5cm}p{2.7cm}p{2.7cm}p{1.8cm}rrrr"
     return _make_latex_table_with_spec(
         caption,
         label,
         [header.replace("_", " ").title() for header in headers],
         table_rows,
         "This table reports the primary model output generated for the method family selected in the locked design.",
-        "l" * max(1, len(headers)),
+        column_spec,
     )
 
 
@@ -504,47 +556,50 @@ def _inference_table(csv_artifacts: dict[str, str]) -> str:
     table_rows: list[list[Any]] = []
     seen: set[str] = set()
     for row in rows:
-        test_name = str(row.get("test_name") or "").strip()
+        test_name = _row_test_name(row)
         if not test_name or test_name in seen:
             continue
         seen.add(test_name)
-        status = str(row.get("status") or "").strip()
-        if status == "failed" or _row_has_error(row):
+        status = _row_status(row)
+        if status.lower() == "failed" or _row_has_error(row):
             reason = "Insufficient panel structure" if "panel" in test_name.lower() else "Insufficient data"
             table_rows.append([test_name.replace("_", " "), "skipped", "---", reason])
             continue
-        if test_name == "event_study_car":
+        normalized_test = test_name.lower().replace(" ", "_").replace("-", "_")
+        if normalized_test == "event_study_car":
             statistic = f"t={_fmt_num(row.get('t_stat'))}; mean={_fmt_num(row.get('mean_aligned_effect'))}"
             p_value = _fmt_p(row.get("p_value"))
             interpretation = _interpret_p(row.get("p_value"))
-        elif test_name == "newey_west_hac":
+        elif normalized_test == "newey_west_hac":
             statistic = f"t={_fmt_num(row.get('t_stat'))}; coef={_fmt_num(row.get('coefficient'))}"
             p_value = _fmt_p(row.get("p_value"))
             interpretation = _interpret_p(row.get("p_value"))
-        elif test_name == "patell_test":
+        elif normalized_test == "patell_test":
             statistic = f"Z={_fmt_num(row.get('Z_stat'))}"
             p_value = _fmt_p(row.get("p_value"))
             interpretation = _interpret_p(row.get("p_value"))
-        elif test_name == "placebo_test":
+        elif normalized_test == "placebo_test":
             statistic = f"observed={_fmt_num(row.get('observed_stat'))}; draws={row.get('draws') or ''}"
             p_value = _fmt_p(row.get("empirical_p_value"))
             interpretation = "placebo does not reject the observed statistic" if (_as_float(row.get("empirical_p_value")) or 1) > 0.10 else "placebo rejects at conventional levels"
-        elif test_name == "bootstrap_ci":
+        elif normalized_test == "bootstrap_ci":
             statistic = f"95% CI [{_fmt_num(row.get('ci_lower'))}, {_fmt_num(row.get('ci_upper'))}]"
             p_value = ""
             interpretation = "confidence interval excludes zero" if (_as_float(row.get("ci_lower")) or 0) > 0 or (_as_float(row.get("ci_upper")) or 0) < 0 else "confidence interval includes zero"
-        elif test_name == "subsample_analysis":
+        elif normalized_test == "subsample_analysis":
             statistic = f"t={_fmt_num(row.get('t_stat'))}; diff={_fmt_num(row.get('difference'))}"
             p_value = _fmt_p(row.get("p_value"))
             interpretation = _interpret_p(row.get("p_value"))
-        elif test_name == "bh_correction":
+        elif normalized_test == "bh_correction":
             statistic = f"alpha={_fmt_num(row.get('alpha'))}"
             p_value = ""
             interpretation = "multiple-testing correction applied"
         else:
-            statistic = _fmt_num(row.get("t_stat") or row.get("Z_stat") or row.get("coefficient") or row.get("estimate"))
-            p_value = _fmt_p(row.get("p_value") or row.get("empirical_p_value"))
-            interpretation = _interpret_p(row.get("p_value") or row.get("empirical_p_value")) if p_value else status or "reported"
+            statistic = _row_statistic(row)
+            p_value = _fmt_p(_row_get_any(row, ["p_value", "P Value", "empirical_p_value", "Empirical P Value"]))
+            interpretation = str(_row_get_any(row, ["interpretation", "Interpretation", "reason", "Reason"]) or "").strip()
+            if not interpretation:
+                interpretation = _interpret_p(_row_get_any(row, ["p_value", "P Value", "empirical_p_value", "Empirical P Value"])) if p_value else status or "reported"
         table_rows.append([test_name.replace("_", " "), statistic, p_value or "--", _truncate_text(interpretation, 60)])
     return _make_latex_table_with_spec(
         "Statistical Inference and Robustness Tests",

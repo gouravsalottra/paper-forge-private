@@ -36,7 +36,7 @@ from api.figure_generator import generate_figures_for_study
 from api.writer_agent import write_paper_latex
 from db.connection import DatabaseUnavailableError, get_db_connection
 from integrity.pdf import render_pdf
-from storage.blob import BlobStorageUnavailableError, get_artifact_url, list_artifacts, read_artifact, write_artifact
+from storage.blob import BlobStorageUnavailableError, download_blob, get_artifact_url, list_artifacts, list_blobs, read_artifact, write_artifact
 
 router = APIRouter(prefix="/api/sessions")
 logger = logging.getLogger(__name__)
@@ -1187,7 +1187,27 @@ def clean_latex_escaping(text: str) -> str:
     return text
 
 
-def _render_latex_source_pdf(latex: str, title: str, assets: dict[str, bytes] | None = None) -> bytes:
+def _download_figures_to_compile_dir(session_id: str, tmpdir: str) -> None:
+    """Hydrate all verified figure artifacts beside final.tex before pdflatex."""
+    figure_prefix = f"sessions/{str(session_id).strip().strip('/')}/figures/"
+    try:
+        figure_blobs = list_blobs(figure_prefix)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not list figure blobs for %s before LaTeX compile: %s", session_id, exc)
+        return
+    for blob_path in figure_blobs:
+        filename = os.path.basename(str(blob_path))
+        if not filename or not filename.lower().endswith((".png", ".pdf", ".jpg", ".jpeg")):
+            continue
+        local_path = os.path.join(tmpdir, filename)
+        try:
+            with open(local_path, "wb") as figure_file:
+                figure_file.write(download_blob(blob_path))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not download figure blob %s before LaTeX compile: %s", blob_path, exc)
+
+
+def _render_latex_source_pdf(latex: str, title: str, assets: dict[str, bytes] | None = None, session_id: str | None = None) -> bytes:
     pdflatex = shutil.which("pdflatex")
     if not pdflatex:
         if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
@@ -1206,6 +1226,8 @@ def _render_latex_source_pdf(latex: str, title: str, assets: dict[str, bytes] | 
                 continue
             with open(os.path.join(tmpdir, safe_name), "wb") as asset_file:
                 asset_file.write(bytes(data))
+        if session_id:
+            _download_figures_to_compile_dir(session_id, tmpdir)
         
         for _ in range(2):
             subprocess.run(
@@ -1444,6 +1466,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
             paper,
             profile["title"],
             assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+            session_id=session_id,
         )
         profile["verification"]["writer_numbers_used"] = writer_result.get("numbers_used", [])
         profile["verification"]["writer_agent"] = {k: v for k, v in writer_result.items() if k != "latex"}
@@ -2183,6 +2206,7 @@ async def rerender_paper(session_id: str) -> JSONResponse:
             paper,
             writer_context.get("topic", "Research Paper"),
             assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+            session_id=session_id,
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM rerender failed for %s; retrying deterministic Writer fallback: %s", session_id, exc)
@@ -2193,6 +2217,7 @@ async def rerender_paper(session_id: str) -> JSONResponse:
                 paper,
                 writer_context.get("topic", "Research Paper"),
                 assets=_figure_assets_for_compile(session_id, writer_result.get("figure_artifacts") or writer_context.get("figure_artifacts", {})),
+                session_id=session_id,
             )
         except Exception as fallback_exc:  # noqa: BLE001
             logger.exception("Rerender failed for %s", session_id)

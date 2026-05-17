@@ -104,6 +104,27 @@ def _download_bytes(blob_path: str) -> bytes:
         raise BlobStorageUnavailableError("Artifact could not be read from storage.") from exc
 
 
+def download_blob(blob_path: str) -> bytes:
+    """Download a blob by its absolute Blob Storage path."""
+    clean_path = str(blob_path).strip().strip("/")
+    if not clean_path:
+        raise BlobStorageUnavailableError("Blob path is required.")
+    return _download_bytes(clean_path)
+
+
+def list_blobs(prefix: str) -> list[str]:
+    """List absolute blob paths under a prefix."""
+    clean_prefix = str(prefix).strip().strip("/")
+    if _is_mock_backend():
+        return sorted(path for path in _MOCK_BLOBS if path.startswith(clean_prefix))
+    client = _get_blob_service_client()
+    try:
+        container = client.get_container_client(CONTAINER_NAME)
+        return [item.name for item in container.list_blobs(name_starts_with=clean_prefix)]
+    except Exception as exc:  # pragma: no cover - Azure service behavior is integration tested
+        raise BlobStorageUnavailableError("Blob list could not be read from storage.") from exc
+
+
 def write_artifact(session_id: str, path: str, content: Any, *, version: int | None = None) -> dict[str, Any]:
     """Write an artifact under sessions/{session_id}/ and return its storage reference."""
     blob_path = _normalize_path(session_id, path, version=version)
