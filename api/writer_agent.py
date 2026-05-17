@@ -154,7 +154,7 @@ def _truncate_text(value: Any, limit: int = 60) -> str:
 
 def _row_has_error(row: dict[str, str]) -> bool:
     text = " ".join(str(value or "") for value in row.values()).lower()
-    markers = ["traceback", "exception", "failed:", "error:", "error -", "must be", "index on the time dimension"]
+    markers = ["traceback", "exception", "failed:", "error:", "error -", "index on the time dimension"]
     return any(marker in text for marker in markers)
 
 
