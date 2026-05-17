@@ -940,7 +940,7 @@ The rest of the paper proceeds as follows. Section 2 reviews the related literat
 \paragraph{{Gap and contribution.}} {gap_statement}
 
 \section{{Data}}
-The empirical sample is built from {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))} observations for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. The verified data table contains {_latex_escape(rows)} observations after aligning the analysis unit and removing rows without the required measurement inputs. {_latex_escape(figure_overview)}
+The empirical sample is built from {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))} observations for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. The verified data table contains {_latex_escape(rows)} observations after aligning the analysis unit and removing rows without the required measurement inputs. {figure_overview}
 
 The main variable follows the locked return definition. When the design uses overnight returns, the paper computes $overnight\_return_{{i,t}} = open_{{i,t}} - close_{{i,t-1}}$. The previous close is the last available trading observation before the measurement date, not a calendar placeholder. This timing rule matters because using information from the wrong trading day would mechanically contaminate the result.
 
