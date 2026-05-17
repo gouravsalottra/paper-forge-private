@@ -333,7 +333,7 @@ def _make_latex_table(caption: str, label: str, headers: list[str], rows: list[l
 \label{{{_latex_identifier(label, 'tab:table')}}}
 \begin{{tabular}}{{{columns}}}
 \toprule
-{' & '.join(_latex_escape(header) for header in headers)} \\
+{' & '.join(_latex_escape(_paper_cell(header)) for header in headers)} \\
 \midrule
 {chr(10).join(body_lines)}
 \bottomrule
@@ -367,7 +367,7 @@ def _make_latex_table_with_spec(
 \label{{{_latex_identifier(label, 'tab:table')}}}
 \begin{{tabular}}{{{column_spec}}}
 \toprule
-{' & '.join(_latex_escape(header) for header in headers)} \\
+{' & '.join(_latex_escape(_paper_cell(header)) for header in headers)} \\
 \midrule
 {chr(10).join(body_lines)}
 \bottomrule
@@ -962,7 +962,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
             f"The recorded SHA-256 is {_latex_escape(event_sha)} when available. Directional signing is applied only for designs that explicitly require it."
         )
         summary_sentence = (
-            f"Table \ref{{tab:summary}} reports summary statistics for the daily event-measurement series. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The volatility difference matters because weak inference around event dates can reflect genuine absence of a response or the difficulty of detecting small announcement effects against noisy returns."
+            f"Table \\ref{{tab:summary}} reports summary statistics for the daily event-measurement series. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The volatility difference matters because weak inference around event dates can reflect genuine absence of a response or the difficulty of detecting small announcement effects against noisy returns."
         )
         conclusion_sentence = (
             "The paper finds evidence that is best interpreted within the limits of the locked event-study design. The mean aligned statistic is positive when reported, and some observations move in the hypothesized direction, but the primary test does not necessarily reject the null at conventional levels."
@@ -976,7 +976,7 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
             "The sample is constructed directly from the verified market-data panel. No external event calendar is used for this design. Predictive and regression designs report coefficients, confidence intervals, and model diagnostics rather than directionally signed event responses."
         )
         summary_sentence = (
-            f"Table \ref{{tab:summary}} reports summary statistics for the analysis series used in the predictive design. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The dispersion matters because noisy predictors and outcomes can produce economically suggestive but statistically weak forecasting estimates."
+            f"Table \\ref{{tab:summary}} reports summary statistics for the analysis series used in the predictive design. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The dispersion matters because noisy predictors and outcomes can produce economically suggestive but statistically weak forecasting estimates."
         )
         conclusion_sentence = (
             "The paper finds evidence that is best interpreted within the limits of the locked predictive design. The estimated predictive coefficient is reported directly, but the primary test does not reject the null at conventional levels, so the paper treats the signal as suggestive rather than tradable forecasting evidence."
