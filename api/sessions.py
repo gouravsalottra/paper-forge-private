@@ -2004,11 +2004,49 @@ def _method_style_for_compute(blueprint: dict[str, Any]) -> str:
     return str(blueprint.get("method_style") or blueprint.get("method_family") or "descriptive").strip().lower()
 
 
+def _csv_rows_from_text(text: str) -> list[dict[str, str]]:
+    try:
+        return list(csv.DictReader(io.StringIO(text or "")))
+    except Exception:
+        return []
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _has_incoherent_bootstrap_ci(csv_outputs: dict[str, str]) -> bool:
+    """Return true when an existing bootstrap CI cannot belong to the reported coefficient."""
+    stats_text = csv_outputs.get("08_stats/stats_summary.csv") or csv_outputs.get("07_statistics/results_tables/executed_tests.csv") or ""
+    rows = _csv_rows_from_text(stats_text)
+    coefficient: float | None = None
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    for row in rows:
+        test_name = str(row.get("test_name") or row.get("Test") or "").lower()
+        if coefficient is None and ("regression" in test_name or row.get("coefficient")):
+            coefficient = _float_or_none(row.get("coefficient") or row.get("Coefficient"))
+        if "bootstrap" in test_name:
+            ci_lower = _float_or_none(row.get("ci_lower") or row.get("CI Lower") or row.get("Lower"))
+            ci_upper = _float_or_none(row.get("ci_upper") or row.get("CI Upper") or row.get("Upper"))
+    if coefficient is None or ci_lower is None or ci_upper is None:
+        return False
+    lower, upper = sorted([ci_lower, ci_upper])
+    return not (lower <= coefficient <= upper)
+
+
 def _needs_method_specific_rerender_refresh(blueprint: dict[str, Any], csv_outputs: dict[str, str]) -> bool:
     """Historical sessions may have event-study artifacts even when the Blueprint is not event-study."""
     if os.getenv("PYTEST_CURRENT_TEST"):
         return False
     method = _method_style_for_compute(blueprint)
+    if _has_incoherent_bootstrap_ci(csv_outputs):
+        return True
     if method == "event_study":
         return False
     if method in {"time_series", "var_model", "cointegration"}:
