@@ -2000,6 +2000,25 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _numeric_columns_with_suffix(columns: Any, suffix: str, *, exclude_prefixes: tuple[str, ...] = ()) -> list[str]:
+    out: list[str] = []
+    for column in columns:
+        name = str(column)
+        if not name.endswith(suffix):
+            continue
+        if any(name.startswith(prefix) for prefix in exclude_prefixes):
+            continue
+        out.append(name)
+    return out
+
+
+def _series_label(column: str, suffix: str) -> str:
+    label = str(column)
+    if label.endswith(suffix):
+        label = label[: -len(suffix)]
+    return label.replace("_", " ").upper()
+
+
 def _figure_ref(key: str, filename: str, caption: str, label: str, artifact_ref: dict[str, Any]) -> dict[str, Any]:
     return {
         "key": key,
@@ -2071,18 +2090,26 @@ def _generate_figures(session_id: str, overnight_df, event_df, car_df, stats_dic
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Figure 1 generation failed for %s: %s", session_id, exc)
 
-        if event_df is not None and len(event_df) > 0 and {"xle_overnight_return", "icln_overnight_return"}.issubset(set(event_df.columns)):
+        event_return_cols = _numeric_columns_with_suffix(
+            getattr(event_df, "columns", []),
+            "_overnight_return",
+            exclude_prefixes=("direction_aligned", "second_minus_first"),
+        )[:2]
+        if event_df is not None and len(event_df) > 0 and len(event_return_cols) >= 2:
             try:
                 fig, ax = plt.subplots(figsize=(12, 5))
                 n = len(event_df)
                 x = np.arange(n)
                 width = 0.35
-                ax.bar(x - width / 2, event_df["xle_overnight_return"].astype(float), width, label="XLE", color="#8B4513", alpha=0.85)
-                ax.bar(x + width / 2, event_df["icln_overnight_return"].astype(float), width, label="ICLN", color="#228B22", alpha=0.85)
+                first_col, second_col = event_return_cols
+                first_label = _series_label(first_col, "_overnight_return")
+                second_label = _series_label(second_col, "_overnight_return")
+                ax.bar(x - width / 2, event_df[first_col].astype(float), width, label=first_label, color="#8B4513", alpha=0.85)
+                ax.bar(x + width / 2, event_df[second_col].astype(float), width, label=second_label, color="#228B22", alpha=0.85)
                 ax.axhline(y=0, color="black", linewidth=0.8)
                 ax.set_xlabel("Event")
                 ax.set_ylabel("Overnight return")
-                ax.set_title("Event-Day Overnight Returns: XLE vs ICLN")
+                ax.set_title(f"Event-Day Overnight Returns: {first_label} vs {second_label}")
                 labels = [
                     f"E{idx + 1:02d}\n{str(row.get('event_date', ''))[:7]}\n({str(row.get('direction', ''))[:5]})"
                     for idx, (_, row) in enumerate(event_df.iterrows())
@@ -2095,24 +2122,32 @@ def _generate_figures(session_id: str, overnight_df, event_df, car_df, stats_dic
                 upload_figure(
                     "fig2_event_returns",
                     "fig2_event_returns.png",
-                    "Event-day overnight returns for XLE and ICLN around the verified policy announcement dates.",
+                    f"Event-day overnight returns for {first_label} and {second_label} around the verified event dates.",
                     "fig:event_returns",
                     fig,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Figure 2 generation failed for %s: %s", session_id, exc)
 
-        if car_df is not None and len(car_df) > 0 and {"window", "xle_CAR", "icln_CAR"}.issubset(set(car_df.columns)):
+        car_cols = _numeric_columns_with_suffix(
+            getattr(car_df, "columns", []),
+            "_CAR",
+            exclude_prefixes=("direction_aligned", "second_minus_first"),
+        )[:2]
+        if car_df is not None and len(car_df) > 0 and "window" in car_df.columns and len(car_cols) >= 2:
             try:
                 desired_windows = ["[-1,1]", "[-3,3]", "[-5,5]"]
                 windows = [window for window in desired_windows if window in set(car_df["window"].astype(str))]
                 if windows:
-                    xle_cars = [car_df[car_df["window"].astype(str) == window]["xle_CAR"].astype(float).mean() for window in windows]
-                    icln_cars = [car_df[car_df["window"].astype(str) == window]["icln_CAR"].astype(float).mean() for window in windows]
+                    first_col, second_col = car_cols
+                    first_label = _series_label(first_col, "_CAR")
+                    second_label = _series_label(second_col, "_CAR")
+                    first_cars = [car_df[car_df["window"].astype(str) == window][first_col].astype(float).mean() for window in windows]
+                    second_cars = [car_df[car_df["window"].astype(str) == window][second_col].astype(float).mean() for window in windows]
                     fig, ax = plt.subplots(figsize=(8, 5))
                     x = np.arange(len(windows))
-                    ax.bar(x - 0.2, xle_cars, 0.35, label="XLE", color="#8B4513", alpha=0.85)
-                    ax.bar(x + 0.2, icln_cars, 0.35, label="ICLN", color="#228B22", alpha=0.85)
+                    ax.bar(x - 0.2, first_cars, 0.35, label=first_label, color="#8B4513", alpha=0.85)
+                    ax.bar(x + 0.2, second_cars, 0.35, label=second_label, color="#228B22", alpha=0.85)
                     ax.axhline(y=0, color="black", linewidth=0.8)
                     ax.set_xlabel("Event window")
                     ax.set_ylabel("Average CAR")
@@ -2125,7 +2160,7 @@ def _generate_figures(session_id: str, overnight_df, event_df, car_df, stats_dic
                     upload_figure(
                         "fig3_car_windows",
                         "fig3_car_windows.png",
-                        "Average cumulative abnormal returns by event window for XLE and ICLN.",
+                        f"Average cumulative abnormal returns by event window for {first_label} and {second_label}.",
                         "fig:car_windows",
                         fig,
                     )
@@ -2159,28 +2194,28 @@ def _generate_figures(session_id: str, overnight_df, event_df, car_df, stats_dic
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Figure 4 generation failed for %s: %s", session_id, exc)
 
-        if event_df is not None and len(event_df) > 0 and {"xle_overnight_return", "icln_overnight_return"}.issubset(set(event_df.columns)):
+        if event_df is not None and len(event_df) > 0 and len(event_return_cols) >= 2:
             try:
-                data = event_df[["xle_overnight_return", "icln_overnight_return"]].astype(float).to_numpy()
+                data = event_df[event_return_cols].astype(float).to_numpy()
                 vmax = max(abs(float(data.min())), abs(float(data.max())), 0.001)
                 fig, ax = plt.subplots(figsize=(6, 8))
                 image = ax.imshow(data, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
-                ax.set_xticks([0, 1])
-                ax.set_xticklabels(["XLE", "ICLN"])
+                ax.set_xticks(range(len(event_return_cols)))
+                ax.set_xticklabels([_series_label(col, "_overnight_return") for col in event_return_cols])
                 labels = [f"E{idx + 1:02d} {str(row.get('event_date', ''))[:10]}" for idx, (_, row) in enumerate(event_df.iterrows())]
                 ax.set_yticks(range(len(event_df)))
                 ax.set_yticklabels(labels, fontsize=8)
                 fig.colorbar(image, ax=ax, label="Overnight return")
                 ax.set_title("Event-Day Overnight Return Heatmap", fontsize=11)
                 for i in range(len(event_df)):
-                    for j, col in enumerate(["xle_overnight_return", "icln_overnight_return"]):
+                    for j, col in enumerate(event_return_cols):
                         value = float(event_df.iloc[i][col])
                         ax.text(j, i, f"{value:.3f}", ha="center", va="center", fontsize=7, color="black" if abs(value) < vmax * 0.6 else "white")
                 fig.tight_layout()
                 upload_figure(
                     "fig5_heatmap",
                     "fig5_heatmap.png",
-                    "Heatmap of event-day overnight returns by event and ETF.",
+                    "Heatmap of event-day overnight returns by event and measured series.",
                     "fig:event_heatmap",
                     fig,
                 )

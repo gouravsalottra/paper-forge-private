@@ -165,11 +165,28 @@ def _significant_sentence(label: str, stat: Any, p_value: Any) -> str:
     return f"{label} yields t={stat_text}, p={p_text}, which is {_interpret_p(p_value)}."
 
 
+def _series_columns(row: dict[str, Any], suffix: str, *, exclude_prefixes: tuple[str, ...] = ()) -> list[str]:
+    columns = []
+    for key in row:
+        if not str(key).endswith(suffix):
+            continue
+        if any(str(key).startswith(prefix) for prefix in exclude_prefixes):
+            continue
+        columns.append(str(key))
+    return columns
+
+
+def _label_from_series_column(column: str, suffix: str) -> str:
+    label = str(column)
+    if label.endswith(suffix):
+        label = label[: -len(suffix)]
+    return label.replace("_", " ").upper()
+
+
 def _directional_summary(csv_artifacts: dict[str, str]) -> dict[str, Any]:
     rows = _all_csv_rows(_csv_by_suffix(csv_artifacts, "event_returns.csv"))
     if not rows:
         return {}
-    pro_clean = [row for row in rows if str(row.get("direction", "")).lower() == "pro_clean"]
     aligned = [_as_float(row.get("direction_aligned_spread")) for row in rows]
     aligned_clean = [value for value in aligned if value is not None]
     positive_count = sum(1 for value in aligned_clean if value > 0)
@@ -183,13 +200,15 @@ def _directional_summary(csv_artifacts: dict[str, str]) -> dict[str, Any]:
         "mean_aligned_spread": aligned_mean,
         "aligned_spread_std": aligned_std,
     }
-    if pro_clean:
+    return_cols = _series_columns(rows[0], "_overnight_return", exclude_prefixes=("direction_aligned", "second_minus_first"))
+    if len(return_cols) >= 2:
+        first_col, second_col = return_cols[:2]
         summary.update(
             {
-                "pro_clean_count": len(pro_clean),
-                "pro_clean_icln_mean": _mean([_as_float(row.get("icln_overnight_return")) for row in pro_clean]),
-                "pro_clean_xle_mean": _mean([_as_float(row.get("xle_overnight_return")) for row in pro_clean]),
-                "pro_clean_aligned_mean": _mean([_as_float(row.get("direction_aligned_spread")) for row in pro_clean]),
+                "first_series_label": _label_from_series_column(first_col, "_overnight_return"),
+                "second_series_label": _label_from_series_column(second_col, "_overnight_return"),
+                "first_series_mean": _mean([_as_float(row.get(first_col)) for row in rows]),
+                "second_series_mean": _mean([_as_float(row.get(second_col)) for row in rows]),
             }
         )
     return summary
@@ -324,22 +343,29 @@ def _summary_statistics_table(csv_artifacts: dict[str, str]) -> str:
 
 def _event_returns_table(csv_artifacts: dict[str, str]) -> str:
     rows = _all_csv_rows(_csv_by_suffix(csv_artifacts, "event_returns.csv"))
+    if not rows:
+        return ""
+    return_cols = _series_columns(rows[0], "_overnight_return", exclude_prefixes=("direction_aligned", "second_minus_first"))
+    extra_cols = [col for col in ["second_minus_first_spread", "direction_aligned_spread"] if col in rows[0]]
+    headers = ["Event", "Date", "Direction"] + [_label_from_series_column(col, "_overnight_return") for col in return_cols] + [
+        "Spread" if col == "second_minus_first_spread" else "Aligned" for col in extra_cols
+    ]
     table_rows = [
-        [
+        (
+            [
             row.get("event_id", ""),
             row.get("event_date", ""),
             row.get("direction", "").replace("_", "-"),
-            _fmt_num(row.get("xle_overnight_return")),
-            _fmt_num(row.get("icln_overnight_return")),
-            _fmt_num(row.get("second_minus_first_spread")),
-            _fmt_num(row.get("direction_aligned_spread")),
-        ]
+            ]
+            + [_fmt_num(row.get(col)) for col in return_cols]
+            + [_fmt_num(row.get(col)) for col in extra_cols]
+        )
         for row in rows[:20]
     ]
     return _make_latex_table(
         "Event-Day Overnight Returns",
         "tab:event_returns",
-        ["Event", "Date", "Direction", "XLE", "ICLN", "Spread", "Aligned"],
+        headers,
         table_rows,
         "Returns are measured from the previous close to the event trading day's open. The aligned spread is signed so that positive values support the directional hypothesis.",
     )
@@ -347,6 +373,13 @@ def _event_returns_table(csv_artifacts: dict[str, str]) -> str:
 
 def _car_table(csv_artifacts: dict[str, str]) -> str:
     rows = _all_csv_rows(_csv_by_suffix(csv_artifacts, "event_window_car.csv"))
+    if not rows:
+        return ""
+    car_cols = _series_columns(rows[0], "_CAR", exclude_prefixes=("direction_aligned", "second_minus_first"))
+    extra_cols = [col for col in ["second_minus_first_CAR", "direction_aligned_CAR"] if col in rows[0]]
+    headers = ["Window", "Events"] + [_label_from_series_column(col, "_CAR") + " CAR" for col in car_cols] + [
+        "Spread CAR" if col == "second_minus_first_CAR" else "Aligned CAR" for col in extra_cols
+    ]
     by_window: dict[str, list[dict[str, str]]] = {}
     for row in rows:
         by_window.setdefault(str(row.get("window", "")), []).append(row)
@@ -357,16 +390,14 @@ def _car_table(csv_artifacts: dict[str, str]) -> str:
             [
                 window,
                 len(group),
-                _fmt_num(_mean([_as_float(row.get("xle_CAR")) for row in group])),
-                _fmt_num(_mean([_as_float(row.get("icln_CAR")) for row in group])),
-                _fmt_num(_mean([_as_float(row.get("second_minus_first_CAR")) for row in group])),
-                _fmt_num(_mean([_as_float(row.get("direction_aligned_CAR")) for row in group])),
             ]
+            + [_fmt_num(_mean([_as_float(row.get(col)) for row in group])) for col in car_cols]
+            + [_fmt_num(_mean([_as_float(row.get(col)) for row in group])) for col in extra_cols]
         )
     return _make_latex_table(
         "Average Event-Window Cumulative Abnormal Returns",
         "tab:car",
-        ["Window", "Events", "XLE CAR", "ICLN CAR", "Spread CAR", "Aligned CAR"],
+        headers,
         table_rows,
         "CARs are averaged within each event window. The aligned CAR signs each event according to the pre-specified policy direction.",
     )
@@ -449,10 +480,37 @@ def _deterministic_tables(context: dict[str, Any]) -> tuple[str, list[str]]:
     return "\n".join(tables), captions
 
 
+def _executed_test_labels(csv_artifacts: dict[str, str]) -> list[str]:
+    rows = _all_csv_rows(_csv_by_suffix(csv_artifacts, "executed_tests.csv"))
+    labels: list[str] = []
+    for row in rows:
+        test_name = str(row.get("test_name") or "").strip()
+        status = str(row.get("status") or "").strip().lower()
+        if not test_name or status == "failed" or _row_has_error(row):
+            continue
+        labels.append(test_name.replace("_", " "))
+    return labels
+
+
 def _clean_topic_fragment(topic: str) -> str:
     fragment = re.sub(r"\s+", " ", str(topic or "")).strip().rstrip("?")
     fragment = re.sub(r"^(does|do|can|will|is|are|when|what is|what are)\s+", "", fragment, flags=re.I)
     return fragment[:1].upper() + fragment[1:] if fragment else "The empirical relation under study"
+
+
+def _subject_without_leading_article(text: str) -> str:
+    subject = re.sub(r"\s+", " ", str(text or "")).strip()
+    subject = re.sub(r"^(the|a|an)\s+", "", subject, flags=re.I)
+    subject = re.sub(r"\bterm structure\b", "term-structure", subject, flags=re.I)
+    return subject[:1].upper() + subject[1:] if subject else "The measured signal"
+
+
+def _predictive_hook_subject(text: str) -> str:
+    subject = _subject_without_leading_article(text)
+    mass_nouns = ("activity", "pressure", "flow", "sentiment", "risk", "volatility", "liquidity")
+    if subject.lower().endswith(mass_nouns):
+        return subject
+    return f"A {subject}"
 
 
 def _infer_mechanism_terms(topic: str, predictor_text: str, outcome: str) -> tuple[str, str, str]:
@@ -648,32 +706,28 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     ci_lower = primary_numbers.get("bootstrap_ci_lower")
     ci_upper = primary_numbers.get("bootstrap_ci_upper")
     rows = primary_numbers.get("row_count") or data_passport.get("rows")
+    executed_test_labels = _executed_test_labels(csv_artifacts if isinstance(csv_artifacts, dict) else {})
+    executed_test_text = ", ".join(executed_test_labels[:6]) if executed_test_labels else "the executed inference checks"
 
-    if "energy transition" in str(topic).lower() and "XLE" in str(topic) and "ICLN" in str(topic):
+    if re.search(r"\bpredict(?:s|ed|ing)?\b|\bforecast(?:s|ed|ing)?\b", str(topic or ""), flags=re.I):
         hook = (
-            "Energy-transition announcements create a sharp test of whether sector ETFs reprice policy news before the next trading session begins. "
-            "A pro-clean announcement should favor clean-energy exposure and pressure fossil-fuel exposure; a pro-fossil announcement should have the opposite sign. "
-            "Because the overnight window is measured before intraday trading noise accumulates, it is a natural place to look for institutional repositioning around policy shocks."
-        )
-    elif "vix" in str(topic).lower():
-        hook = (
-            "A VIX term-structure inversion is a compact warning signal that option markets are demanding unusually high near-term crash insurance. "
-            "If that insurance demand reflects imminent deleveraging pressure, sector momentum portfolios should be most fragile after the inversion rather than during ordinary volatility regimes. "
-            "The question is whether this warning signal arrives early enough to forecast the next momentum crash rather than merely describe one after it has happened."
+            f"{_predictive_hook_subject(x_term)} is a compact warning signal because it condenses information that may arrive before "
+            f"{y_term} is fully reflected in prices. The empirical question is whether that signal moves ahead of the "
+            "outcome with enough regularity to be economically useful, not merely whether the sign is intuitive in hindsight."
         )
     else:
         hook = (
-            f"{_clean_topic_fragment(topic)} matters because it links a specific financial signal, shock, or institutional mechanism to a measurable market outcome. "
-            "The economic question is whether prices adjust in the direction implied by the mechanism, whether the adjustment is large enough to matter, and whether the evidence survives standard inference rather than narrative appeal."
+            f"{_clean_topic_fragment(topic)} matters because it links an observable financial signal, shock, or institutional mechanism "
+            "to a measurable market outcome. The empirical question is whether the outcome moves in the direction implied by the mechanism, "
+            "whether the magnitude is economically meaningful, and whether the evidence survives standard inference rather than narrative appeal."
         )
 
-    pro_clean_sentence = ""
-    if directional.get("pro_clean_count"):
-        pro_clean_sentence = (
-            f"Among the {directional.get('pro_clean_count')} pro-clean events, ICLN averages "
-            f"{_fmt_num(directional.get('pro_clean_icln_mean'))} while XLE averages "
-            f"{_fmt_num(directional.get('pro_clean_xle_mean'))} in overnight return units; "
-            f"the mean aligned spread is {_fmt_num(directional.get('pro_clean_aligned_mean'))}."
+    comparison_sentence = ""
+    if directional.get("first_series_label") and directional.get("second_series_label"):
+        comparison_sentence = (
+            f"Across the primary event observations, {directional.get('second_series_label')} averages "
+            f"{_fmt_num(directional.get('second_series_mean'))} while {directional.get('first_series_label')} averages "
+            f"{_fmt_num(directional.get('first_series_mean'))} in the reported return units."
         )
     direction_sentence = ""
     if directional:
@@ -683,23 +737,23 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
             f"{_fmt_num(directional.get('mean_aligned_spread'))}."
         )
     event_sentence = _significant_sentence("The event-day test", event_t, event_p)
-    nw_sentence = _significant_sentence("The Newey-West HAC specification", nw_t, nw_p)
+    nw_sentence = _significant_sentence("The dependence-robust specification", nw_t, nw_p)
     if nw_sentence and nw_coef not in (None, ""):
         nw_sentence = nw_sentence[:-1] + f" and an estimated coefficient of {_fmt_num(nw_coef)}."
     placebo_sentence = (
-        f"The placebo exercise reports an empirical p-value of {_fmt_p(placebo_p)}, so the observed statistic is not unusual relative to the placebo distribution."
+        f"The randomization check reports an empirical p-value of {_fmt_p(placebo_p)}, so the observed statistic is not unusual relative to its comparison distribution."
         if placebo_p not in (None, "")
-        else "The placebo exercise is reported in the inference table."
+        else "The randomization check is reported in the inference table."
     )
     ci_sentence = (
-        f"The bootstrap interval ranges from {_fmt_num(ci_lower)} to {_fmt_num(ci_upper)}, which keeps the estimated direction positive but should be interpreted alongside the weak event-day test."
+        f"The resampling interval ranges from {_fmt_num(ci_lower)} to {_fmt_num(ci_upper)}, which keeps the estimated direction positive but should be interpreted alongside the primary test."
         if ci_lower not in (None, "") and ci_upper not in (None, "")
-        else "The bootstrap interval is reported in the inference table."
+        else "The resampling interval is reported in the inference table."
     )
     main_finding = (
         f"Using {event_count or 'the'} events from {window_start} to {window_end}, the mean direction-aligned response is "
         f"{_fmt_num(aligned_effect)}. {event_sentence or 'The event-day test is reported in the inference table.'} "
-        f"{pro_clean_sentence} {direction_sentence}"
+        f"{comparison_sentence} {direction_sentence}"
     ).strip()
     abstract_numbers = (
         f"mean aligned response {_fmt_num(aligned_effect)}, event-day t-statistic {_fmt_num(event_t)}, and p-value {_fmt_p(event_p)}"
@@ -717,8 +771,9 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     fig4_placebo = _figure_block(figures.get("fig4_placebo", {}))
     fig5_heatmap = _figure_block(figures.get("fig5_heatmap", {}))
     summary_stats = _summary_stat_map(csv_artifacts if isinstance(csv_artifacts, dict) else {})
-    first_identifier = str((blueprint.get("inferred_identifiers") or blueprint.get("identifiers") or ["XLE"])[0])
-    second_identifier = str((blueprint.get("inferred_identifiers") or blueprint.get("identifiers") or ["XLE", "ICLN"])[1] if len(blueprint.get("inferred_identifiers") or blueprint.get("identifiers") or []) > 1 else "ICLN")
+    identifiers = list(blueprint.get("inferred_identifiers") or blueprint.get("identifiers") or [])
+    first_identifier = str(identifiers[0]) if identifiers else "the first series"
+    second_identifier = str(identifiers[1]) if len(identifiers) > 1 else "the comparison series"
     first_stats = summary_stats.get(first_identifier.upper(), {})
     second_stats = summary_stats.get(second_identifier.upper(), {})
     event_file = blueprint.get("event_file") or blueprint.get("uploaded_event_file") or "the locked event file"
@@ -736,8 +791,8 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     result_paragraphs = [
         main_finding,
         (
-            f"The HAC specification is the main time-series robustness check. {nw_sentence or 'The HAC result is reported in the inference table.'} "
-            "This matters because serial correlation and heteroskedasticity can make a raw event-day comparison look more precise than it is."
+            f"The dependence-robust specification is the main precision check where the design requires it. {nw_sentence or 'The dependence-robust result is reported in the inference table.'} "
+            "This matters because untreated dependence or heteroskedasticity can make an empirical contrast look more precise than it is."
         ),
         (
             f"{placebo_sentence} {ci_sentence} Together, these diagnostics support a cautious reading: the signs are economically interpretable, "
@@ -761,13 +816,13 @@ This paper examines {_latex_escape(topic)}. The study uses {_latex_escape(method
 \section{{Introduction}}
 {_latex_escape(hook)}
 
-The closest literature shows why this setting is empirically interesting. The most relevant retrieved studies include {citation_sentence}. Read together, these papers connect policy news, transition risk, volatility, and sector-level repricing, but they do not by themselves answer the narrower overnight-return question studied here.
+The closest literature shows why this setting is empirically interesting. The most relevant retrieved studies include {citation_sentence}. Read together, these papers establish the empirical and methodological boundary conditions for the question, but they do not by themselves answer the narrower claim tested here.
 
-The remaining gap is the short-horizon, direction-specific response. Prior work often studies broader climate-risk revaluation, longer return horizons, or market spillovers; it less often asks whether the sign of the announcement maps into opposite overnight moves across fossil-fuel and clean-energy exposures. That gap matters because the overnight window captures repricing before the trading day introduces additional liquidity, news, and portfolio-rebalancing noise.
+The remaining gap is the specific mechanism and measurement window. Prior work often studies related outcomes, broader horizons, or adjacent mechanisms; it less often asks whether {_latex_escape(x_term)} maps into {_latex_escape(y_term)} under the exact design used here. That gap matters because a credible empirical design must match the timing, comparison group, and outcome to the economic mechanism.
 
 This paper examines the gap directly. It uses {_latex_escape(method_names)} and {_latex_escape(return_definition)} for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. { _latex_escape(main_finding) }
 
-The contribution is threefold. First, the paper isolates a short event window in which repricing should occur before intraday noise dominates the signal. Second, it studies the direction of policy news rather than treating all announcements as interchangeable shocks. Third, it reports both economic magnitudes and inference tests, which keeps the interpretation tied to measured evidence rather than to the policy narrative alone.
+The contribution is threefold. First, the paper translates the research question into a locked empirical contrast rather than a post hoc narrative. Second, it reports both economic magnitudes and inference tests, keeping interpretation tied to measured evidence. Third, it exposes limitations directly, so weak or null evidence narrows the conclusion instead of being converted into an overclaim.
 
 The rest of the paper proceeds as follows. Section 2 reviews the related literature. Section 3 describes the data and variable construction. Section 4 presents the methodology. Section 5 reports the main results. Section 6 discusses robustness and limitations. Section 7 concludes. Tables appear after the references.
 
@@ -777,36 +832,36 @@ The rest of the paper proceeds as follows. Section 2 reviews the related literat
 \paragraph{{Gap and contribution.}} {gap_statement}
 
 \section{{Data}}
-The empirical sample is built from {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))} daily open and close prices for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. The verified data table contains {_latex_escape(rows)} ticker-day observations after aligning trading days and removing rows without usable open or prior-close prices. Figure \ref{{fig:price_history}} plots the cumulative overnight return path for each ETF, which provides the visual context for the event analysis: the two sector exposures share broad market dates but represent different economic claims on the energy transition.
+The empirical sample is built from {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))} observations for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. The verified data table contains {_latex_escape(rows)} observations after aligning the analysis unit and removing rows without the required measurement inputs. Figure \ref{{fig:price_history}} plots the cumulative path of the primary measured return series where such a time-series output is available, which provides visual context for the empirical test.
 
 {fig1_price_history}
 
-The main variable is the overnight return. For ticker $i$ on trading day $t$, the paper computes $overnight\_return_{{i,t}} = open_{{i,t}} - close_{{i,t-1}}$. The previous close is the last available trading-day close before the event trading day, not the calendar-day close before a weekend or holiday. This alignment is important because several policy announcements occur outside regular exchange trading hours. Measuring from the prior close to the next open isolates the repricing that occurs before intraday trading introduces liquidity shocks, additional news, and portfolio-flow effects.
+The main variable follows the locked return definition. When the design uses overnight returns, the paper computes $overnight\_return_{{i,t}} = open_{{i,t}} - close_{{i,t-1}}$. The previous close is the last available trading observation before the measurement date, not a calendar placeholder. This timing rule matters because using information from the wrong trading day would mechanically contaminate the result.
 
-The event file is {_latex_escape(event_file)}. It contains {_latex_escape(event_count)} policy announcement dates classified by direction so the analysis can sign the spread before looking at returns. The recorded event-file SHA-256 is {_latex_escape(event_sha)}. A pro-clean event is expected to produce a positive ICLN-minus-XLE response, while a pro-fossil event is expected to produce the opposite. This directional coding is what makes the aligned spread interpretable as evidence for or against the pre-specified mechanism.
+The event or sample-construction file is {_latex_escape(event_file)}. It contains {_latex_escape(event_count)} primary observations or events used by the design. The recorded file SHA-256 is {_latex_escape(event_sha)}. When the design contains directional coding, the aligned statistic is signed before looking at outcomes so that positive values have the same interpretation across observations.
 
 Table \ref{{tab:summary}} reports summary statistics for the daily overnight-return series. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The volatility difference matters because weak inference around event dates can reflect genuine absence of a policy response or simply the difficulty of detecting small announcement effects against noisy sector ETF returns.
 
 All results below use the locked data and event definitions described in this section. The paper does not use close-to-close returns for the primary test, does not reclassify events after observing returns, and does not change the ETF universe after computing the event outcomes.
 
-The unit of observation is intentionally conservative. XLE and ICLN are broad sector ETFs rather than individual firms, so the estimates capture portfolio-level repricing rather than firm-specific transition exposure. This design sacrifices cross-sectional detail for transparent tradability: both ETFs are liquid, observable at the open, and represent baskets that investors can actually use to express fossil-fuel or clean-energy views around policy news.
+The unit of observation is intentionally conservative. The design favors measurements that are observable, reproducible, and aligned with the claim over richer specifications that the available data cannot support. This choice can reduce cross-sectional detail, but it makes the reported estimates easier to audit and interpret.
 
 \section{{Methodology}}
-The empirical design is an event study of overnight sector ETF responses. The design asks whether the direction of policy news maps into the sign of the overnight return spread between fossil-fuel and clean-energy exposures. The identification assumption is not that policy dates are randomly assigned in a structural causal sense; rather, it is that the specific announcement timing creates a narrow window in which the relevant policy information is revealed before the next market open. This is why the overnight window is the primary measurement window.
+The empirical design follows the method specified before execution. It asks whether {_latex_escape(x_term)} is associated with the predicted movement in {_latex_escape(y_term)} over the locked measurement window. The identifying assumption is not stronger than the design allows: the analysis can support a causal interpretation only if the research design explains why the key variation is plausibly exogenous. Otherwise, the evidence is interpreted as predictive or associational.
 
-The primary statistic is the direction-aligned spread. Let $R^{{ICLN}}_e$ and $R^{{XLE}}_e$ denote the overnight returns on the event trading day for event $e$. For pro-clean events, the aligned spread is $R^{{ICLN}}_e - R^{{XLE}}_e$; for pro-fossil events, the sign is reversed. The null hypothesis is that the mean aligned spread equals zero. The alternative is that the aligned spread is positive, meaning the ETF pair moves in the direction implied by the policy classification.
+The primary statistic is the contrast or coefficient that answers the locked hypothesis. When the design compares two measured series around events, let $R^{{(1)}}_e$ and $R^{{(2)}}_e$ denote the two event-level outcomes. The aligned spread signs the contrast so that positive values indicate movement in the hypothesized direction. The null hypothesis is that the mean aligned contrast equals zero.
 
 Formally, the event-level statistic is
 \[
-A_e = s_e \left(R^{{ICLN}}_e - R^{{XLE}}_e\right),
+A_e = s_e \left(R^{{(2)}}_e - R^{{(1)}}_e\right),
 \]
-where $s_e=1$ for pro-clean events and $s_e=-1$ for pro-fossil events. The reported event-day test evaluates whether $\bar{{A}}$ differs from zero. The same signing convention is applied to cumulative abnormal returns in the $[-1,+1]$, $[-3,+3]$, and $[-5,+5]$ windows reported in Table \ref{{tab:car}}.
+where $s_e$ is the ex ante sign implied by the locked design. The reported test evaluates whether $\bar{{A}}$ differs from zero. The same signing convention is applied to any cumulative or multi-period outcome reported in Table \ref{{tab:car}}.
 
-The inference strategy deliberately separates economic direction from statistical significance. The raw event-day t-test asks whether the aligned spread differs from zero in the event sample. The Newey-West HAC specification allows for heteroskedasticity and serial correlation in the surrounding return series. The Patell-style standardized test checks whether the event response is unusual relative to estimated return variation. The placebo test compares the observed aligned spread with random non-event draws, and the bootstrap interval reports sampling uncertainty without relying only on asymptotic normality.
+The inference strategy deliberately separates economic direction from statistical significance. The executed checks in Table \ref{{tab:inference}} include {_latex_escape(executed_test_text)}. Each check is interpreted for the threat it addresses rather than treated as a mechanical hurdle. The point estimate answers the economic question; the surrounding inference asks whether the observed pattern is large relative to the uncertainty, dependence, and counterfactual variation in the available data.
 
-The design has important limitations. The event count is {_latex_escape(event_count)}, which gives the study limited power even if the signs are economically intuitive. The analysis uses ETF-level exposures rather than firm-level carbon exposure, so it cannot distinguish within-sector winners and losers. It also does not estimate a full market model with external factors in the primary specification. These limits mean the paper can speak to short-window ETF repricing around the selected events, but it should not be read as a broad causal estimate of climate policy on all energy securities.
+The design has important limitations. The effective event or observation count is {_latex_escape(event_count)}, which can limit power even when signs are economically intuitive. The analysis also inherits the limits of the available measurement units and controls. These limits mean the paper can speak to the locked claim and sample, but it should not be read as a broader causal estimate unless the identification strategy explicitly supports that conclusion.
 
-The empirical strategy also fixes the burden of proof before interpreting the signs. A positive aligned spread is not treated as sufficient evidence by itself; it must survive the t-test, HAC correction, placebo comparison, and bootstrap uncertainty reported below. This sequencing prevents the paper from treating a visually intuitive event pattern as a publishable result unless the inference tests support that interpretation.
+The empirical strategy fixes the burden of proof before interpreting the signs. A favorable point estimate is not sufficient evidence by itself; it must be read alongside the inference, robustness, and uncertainty estimates reported below. This sequencing prevents a visually intuitive pattern from becoming a claim stronger than the evidence.
 
 \section{{Results}}
 {_latex_escape(result_paragraphs[0])}
@@ -817,35 +872,35 @@ Figure \ref{{fig:event_returns}} shows the event-day returns behind the aligned-
 
 {_latex_escape(result_paragraphs[1])}
 
-Figure \ref{{fig:car_windows}} extends the event-day evidence to wider windows. The average CARs remain directionally informative in the shorter window but weaken as the window expands, which is consistent with the idea that overnight repricing is cleaner than multi-day return accumulation for this question.
+Figure \ref{{fig:car_windows}} extends the event-level evidence to wider windows or grouped summaries where the compute phase produced them. The figure helps show whether the measured relation is concentrated in the primary window or changes as additional observations enter the statistic.
 
 {fig3_car_windows}
 
-Figure \ref{{fig:event_heatmap}} summarizes event-level heterogeneity across the two ETFs. The heatmap helps separate the average effect from the individual event pattern: the evidence is not a monotone repricing response at every date, but the signed spread remains economically interpretable enough to justify reporting the tests in Table \ref{{tab:inference}}.
+Figure \ref{{fig:event_heatmap}} summarizes observation-level heterogeneity across measured series where that matrix exists. The heatmap helps separate the average effect from the individual pattern: the evidence can be economically interpretable even when individual observations are mixed.
 
 {fig5_heatmap}
 
 {_latex_escape(result_paragraphs[2])}
 
 \section{{Robustness}}
-The robustness evidence is summarized in Table \ref{{tab:inference}}. The Newey-West HAC specification yields t={_latex_escape(_fmt_num(nw_t))}, p={_latex_escape(_fmt_p(nw_p))}. This result is stronger than the raw event-day test but still does not cross the 5 percent threshold. The difference is informative: allowing for time-series dependence changes the apparent precision, but not enough to turn the estimate into strong statistical evidence.
+The robustness evidence is summarized in Table \ref{{tab:inference}}. The dependence-robust specification yields t={_latex_escape(_fmt_num(nw_t))}, p={_latex_escape(_fmt_p(nw_p))} when that statistic is available. This comparison is informative because allowing for dependence or heteroskedasticity can change apparent precision even when it does not change the economic sign.
 
-The placebo test reports an empirical p-value of {_latex_escape(_fmt_p(placebo_p))}. Interpreted literally, the observed aligned spread is not extreme relative to random non-event draws from the same return environment. Figure \ref{{fig:placebo}} plots the placebo distribution and marks the observed effect. The visual evidence reinforces the table: the statistic is positive, but it is not far enough into the tail of the null distribution to support a strong rejection.
+The randomization evidence reports an empirical p-value of {_latex_escape(_fmt_p(placebo_p))}. Interpreted literally, the observed aligned spread is not extreme relative to draws from the relevant comparison environment. Figure \ref{{fig:placebo}} plots that comparison distribution and marks the observed effect. The visual evidence reinforces the table: the statistic is positive, but it is not far enough into the tail of the reference distribution to support a strong rejection.
 
 {fig4_placebo}
 
-The bootstrap confidence interval runs from {_latex_escape(_fmt_num(ci_lower))} to {_latex_escape(_fmt_num(ci_upper))}. This interval keeps the estimated average response positive, but the economic magnitude is small relative to the volatility of ETF overnight returns. The bootstrap therefore supports the directional interpretation while also cautioning against describing the result as a large or precisely estimated policy-pricing effect.
+The resampling interval runs from {_latex_escape(_fmt_num(ci_lower))} to {_latex_escape(_fmt_num(ci_upper))}. This interval keeps the estimated average response positive where the endpoints are both above zero, but the economic magnitude must be read relative to the volatility of the measured outcome. The interval therefore supports the directional interpretation while also cautioning against describing the result as large or precisely estimated when the sample is limited.
 
-Power is the binding limitation. With {_latex_escape(event_count)} events and an event-level aligned-spread standard deviation of {_latex_escape(_fmt_num(aligned_std))}, a two-sided 5 percent test would require an approximate mean effect near {_latex_escape(_fmt_num(mde))} in the same return units to reject the null using the observed dispersion. The detected mean aligned response of {_latex_escape(_fmt_num(aligned_effect))} is below that benchmark. The study is therefore best read as evidence of a plausible directionally signed pattern, not as a definitive rejection of market efficiency around energy-transition announcements.
+Power is a binding limitation whenever the effective sample is small. With {_latex_escape(event_count)} primary observations and an aligned-spread standard deviation of {_latex_escape(_fmt_num(aligned_std))}, a two-sided 5 percent test would require an approximate mean effect near {_latex_escape(_fmt_num(mde))} in the same units to reject the null using the observed dispersion. The detected mean aligned response of {_latex_escape(_fmt_num(aligned_effect))} is read against that benchmark rather than interpreted in isolation.
 
-The skipped panel regression row in Table \ref{{tab:inference}} is also informative. The available event-study data are not a balanced firm-by-time panel with a date-like panel index and rich controls; forcing a panel estimator onto that structure would create a false sense of sophistication. The paper therefore reports the skipped test as a design limitation rather than printing the underlying software exception or treating the failed estimator as evidence.
+Skipped tests in Table \ref{{tab:inference}} are also informative. When a requested estimator does not match the data structure, forcing it would create a false sense of sophistication. The paper therefore reports the skipped test as a design limitation rather than printing the underlying software exception or treating the failed estimator as evidence.
 
 \section{{Conclusion}}
-The paper finds directional but statistically weak evidence that energy-transition policy announcements produce opposite-signed overnight responses in fossil-fuel and clean-energy ETFs. The mean aligned spread is positive, and the signs are economically intuitive in several events, but the primary event-day t-test does not reject the null at conventional levels.
+The paper finds evidence that is best interpreted within the limits of the locked design. The mean aligned statistic is positive when reported, and some observations move in the hypothesized direction, but the primary test does not necessarily reject the null at conventional levels.
 
-The economic interpretation is that markets may partially price policy direction into sector ETFs before the next trading session opens, but the observed sample is too small and noisy to establish a robust anomaly. That is an important null-leaning result. It suggests that policy announcements are visible in the data, yet the ETF-level overnight window alone does not provide enough precision to conclude that investors systematically and immediately rotate between fossil and clean-energy exposures.
+The economic interpretation is therefore cautious. The data may contain the mechanism described in the research question, but the available sample and uncertainty determine how strongly the paper can speak. A weak or null result is still informative when it narrows what the evidence supports.
 
-Future work should increase statistical power in three ways. First, the event set should be expanded with a larger, pre-classified global policy calendar. Second, firm-level securities could separate transition winners and losers more sharply than broad sector ETFs. Third, a market-model or factor-adjusted event study could benchmark the overnight response against broader risk exposures. Those extensions would make it easier to determine whether the directional pattern documented here is a persistent market-pricing mechanism or a weak signal in a small event sample.
+Future work should increase statistical power, improve measurement, and test the mechanism in additional samples. The most useful extension is not necessarily a more complicated model; it is the design change that most directly addresses the largest remaining identification or power concern surfaced by the evidence.
 
 \bibliographystyle{{plainnat}}
 \begin{{thebibliography}}{{99}}
@@ -859,8 +914,8 @@ Future work should increase statistical power in three ways. First, the event se
         f"mean aligned response {_fmt_num(aligned_effect)}",
         f"event t-statistic {_fmt_num(event_t)}",
         f"event p-value {_fmt_p(event_p)}",
-        f"Newey-West coefficient {_fmt_num(nw_coef)}",
-        f"Newey-West p-value {_fmt_p(nw_p)}",
+        f"dependence-robust coefficient {_fmt_num(nw_coef)}",
+        f"dependence-robust p-value {_fmt_p(nw_p)}",
         f"placebo p-value {_fmt_p(placebo_p)}",
         f"bootstrap interval [{_fmt_num(ci_lower)}, {_fmt_num(ci_upper)}]",
     ]
