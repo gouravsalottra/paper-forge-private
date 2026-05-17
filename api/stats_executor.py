@@ -121,7 +121,9 @@ def _download_yahoo_chart(ticker: str, fetch_start: str, fetch_end: str):
 
     start_ts = int(pd.Timestamp(fetch_start, tz=timezone.utc).timestamp())
     end_ts = int((pd.Timestamp(fetch_end, tz=timezone.utc) + timedelta(days=1)).timestamp())
-    symbol = urllib.parse.quote(ticker, safe="")
+    yahoo_aliases = {"VIX": "^VIX", "VIX3M": "^VIX3M", "VXV": "^VIX3M"}
+    yahoo_symbol = yahoo_aliases.get(str(ticker).upper(), ticker)
+    symbol = urllib.parse.quote(yahoo_symbol, safe="")
     url = (
         f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
         f"?period1={start_ts}&period2={end_ts}&interval=1d&events=history&includeAdjustedClose=true"
@@ -482,59 +484,8 @@ def execute_test_battery(ctx: ExecutionContext, stats_spec: dict[str, Any] | Non
 
 
 def execute_research_plan(blueprint: dict[str, Any], stats_spec: dict[str, Any] | None = None) -> dict[str, Any]:
-    ctx = load_yfinance_context(blueprint)
-    summary_rows = _basic_summary_rows(ctx)
-    battery = execute_test_battery(ctx, stats_spec)
-    event_result = battery["results"].get("event_study_car", {})
-    event_rows = event_result.get("event_rows") or []
-    car_rows = event_result.get("car_rows") or []
-    stats_rows = battery["rows"]
+    # Compatibility shim: the canonical compute path now lives in
+    # api.compute_dispatcher and dispatches by Blueprint method_style.
+    from api.compute_dispatcher import dispatch_compute
 
-    fieldnames_data = ["date", "ticker", "open", "prev_close", "close", "overnight_return", "close_to_close_return"]
-    data_csv = _csv_text(ctx.returns.to_dict(orient="records"), fieldnames_data)
-    event_fields = sorted({key for row in event_rows for key in row.keys()}) or ["status", "reason"]
-    car_fields = sorted({key for row in car_rows for key in row.keys()}) or ["status", "reason"]
-    stats_fields = sorted({key for row in stats_rows for key in row.keys()}) or ["test_name", "status"]
-    csv_outputs = {
-        "03_data/overnight_returns.csv": data_csv,
-        "06_compute/method_outputs/event_returns.csv": _csv_text(event_rows, event_fields) if event_rows else _csv_text([event_result], ["status", "reason"]),
-        "06_compute/method_outputs/event_window_car.csv": _csv_text(car_rows, car_fields) if car_rows else _csv_text([event_result], ["status", "reason"]),
-        "07_statistics/results_tables/summary_statistics.csv": _csv_text(summary_rows, ["ticker", "sample", "n", "mean", "std", "min", "median", "max"]),
-        "07_statistics/results_tables/executed_tests.csv": _csv_text(stats_rows, stats_fields),
-        "07_statistics/results_tables/t_tests.csv": _csv_text(stats_rows, stats_fields),
-        "07_statistics/results_tables/placebo_tests.csv": _csv_text(stats_rows, stats_fields),
-        "08_stats/stats_summary.csv": _csv_text(stats_rows, stats_fields),
-    }
-    primary_numbers = {
-        "row_count": int(len(ctx.returns)),
-        "identifier_count": int(len(ctx.identifiers)),
-        "event_count": int(event_result.get("n_events") or 0),
-        "mean_aligned_effect": event_result.get("mean_aligned_effect"),
-        "event_t_stat": event_result.get("t_stat"),
-        "event_p_value": event_result.get("p_value"),
-        "newey_west_coefficient": battery["results"].get("newey_west_hac", {}).get("coefficient"),
-        "newey_west_t_stat": battery["results"].get("newey_west_hac", {}).get("t_stat"),
-        "newey_west_p_value": battery["results"].get("newey_west_hac", {}).get("p_value"),
-        "placebo_empirical_p_value": battery["results"].get("placebo_test", {}).get("empirical_p_value"),
-        "bootstrap_ci_lower": battery["results"].get("bootstrap_ci", {}).get("ci_lower"),
-        "bootstrap_ci_upper": battery["results"].get("bootstrap_ci", {}).get("ci_upper"),
-        "return_definition": blueprint.get("return_definition") or "open(t) - close(t-1)",
-    }
-    conclusion = "hypothesis_supported" if (primary_numbers.get("event_p_value") is not None and float(primary_numbers["event_p_value"]) < 0.05) else "hypothesis_not_supported_or_exploratory"
-    encoded = json.dumps({"primary_numbers": primary_numbers, "stats": battery["results"]}, sort_keys=True).encode("utf-8")
-    return {
-        "context": {"identifiers": ctx.identifiers, "window": ctx.window, "method_family": ctx.method_family, "topic": ctx.topic},
-        "event_rows": event_rows,
-        "car_rows": car_rows,
-        "summary_statistics_rows": summary_rows,
-        "executed_test_rows": stats_rows,
-        "csv_outputs": csv_outputs,
-        "primary_numbers": primary_numbers,
-        "robustness_results": battery["results"],
-        "stats_summary": battery["summary"],
-        "evidence_conclusion": conclusion,
-        "economic_interpretation": "Effect sizes and uncertainty are reported from verified artifacts; conclusions must remain scoped to the locked design.",
-        "price_result_sha256": hashlib.sha256(encoded).hexdigest(),
-        "price_window": ctx.window,
-        "data_row_count": int(len(ctx.returns)),
-    }
+    return dispatch_compute(None, blueprint)

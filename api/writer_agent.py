@@ -254,6 +254,33 @@ def _figure_block(figure: dict[str, str]) -> str:
 \end{{figure}}
 """
 
+def _all_figure_blocks(figures: dict[str, dict[str, str]]) -> str:
+    if not figures:
+        return ""
+    return "\n".join(_figure_block(figure) for figure in figures.values() if figure)
+
+
+def _figure_overview_sentence(figures: dict[str, dict[str, str]]) -> str:
+    if not figures:
+        return "No figures were generated for this design, so the paper does not reference figures."
+    labels = [figure.get("label") for figure in figures.values() if figure.get("label")]
+    refs = ", ".join(rf"Figure \ref{{{_latex_identifier(label, 'fig:figure')}}}" for label in labels[:5])
+    return f"The verified figures ({refs}) report the visual diagnostics generated for this design." if refs else "The verified figures report the visual diagnostics generated for this design."
+
+
+def _method_is_event(blueprint: dict[str, Any], csv_artifacts: dict[str, str]) -> bool:
+    method = str(blueprint.get("method_style") or blueprint.get("method_family") or "").lower()
+    if method == "event_study":
+        return True
+    rows = _all_csv_rows(_csv_by_suffix(csv_artifacts, "event_returns.csv"))
+    return bool(rows and _series_columns(rows[0], "_overnight_return", exclude_prefixes=("direction_aligned", "second_minus_first")))
+
+
+def _stat_value(value: Any, fallback: str = "not computed for this design") -> str:
+    if value is None or value == "":
+        return fallback
+    return str(value)
+
 
 def _make_latex_table(caption: str, label: str, headers: list[str], rows: list[list[Any]], notes: str) -> str:
     if not rows:
@@ -346,6 +373,8 @@ def _event_returns_table(csv_artifacts: dict[str, str]) -> str:
     if not rows:
         return ""
     return_cols = _series_columns(rows[0], "_overnight_return", exclude_prefixes=("direction_aligned", "second_minus_first"))
+    if not return_cols:
+        return ""
     extra_cols = [col for col in ["second_minus_first_spread", "direction_aligned_spread"] if col in rows[0]]
     headers = ["Event", "Date", "Direction"] + [_label_from_series_column(col, "_overnight_return") for col in return_cols] + [
         "Spread" if col == "second_minus_first_spread" else "Aligned" for col in extra_cols
@@ -376,6 +405,8 @@ def _car_table(csv_artifacts: dict[str, str]) -> str:
     if not rows:
         return ""
     car_cols = _series_columns(rows[0], "_CAR", exclude_prefixes=("direction_aligned", "second_minus_first"))
+    if not car_cols:
+        return ""
     extra_cols = [col for col in ["second_minus_first_CAR", "direction_aligned_CAR"] if col in rows[0]]
     headers = ["Window", "Events"] + [_label_from_series_column(col, "_CAR") + " CAR" for col in car_cols] + [
         "Spread CAR" if col == "second_minus_first_CAR" else "Aligned CAR" for col in extra_cols
@@ -400,6 +431,36 @@ def _car_table(csv_artifacts: dict[str, str]) -> str:
         headers,
         table_rows,
         "CARs are averaged within each event window. The aligned CAR signs each event according to the pre-specified policy direction.",
+    )
+
+
+
+
+def _compact_results_table(csv_artifacts: dict[str, str], suffix: str, caption: str, label: str) -> str:
+    rows = _all_csv_rows(_csv_by_suffix(csv_artifacts, suffix))
+    if not rows:
+        return ""
+    preferred = [
+        "model", "predictor", "outcome", "status", "coefficient", "HAC_se", "HC3_se",
+        "t_stat", "p_value", "r2", "oos_r2", "nobs", "reason",
+    ]
+    headers = [col for col in preferred if col in rows[0]][:8]
+    if len(headers) < 2:
+        headers = list(rows[0].keys())[:8]
+    table_rows = []
+    for row in rows[:12]:
+        if _row_has_error(row):
+            table_rows.append([row.get("model") or row.get("test_name") or "estimator", "skipped", "--", "Insufficient data structure"])
+            headers = ["Model", "Status", "p-value", "Interpretation"]
+            continue
+        table_rows.append([_fmt_num(row.get(col)) if col in {"coefficient", "HAC_se", "HC3_se", "t_stat", "p_value", "r2", "oos_r2"} else row.get(col, "") for col in headers])
+    return _make_latex_table_with_spec(
+        caption,
+        label,
+        [header.replace("_", " ").title() for header in headers],
+        table_rows,
+        "This table reports the primary model output generated for the method family selected in the locked design.",
+        "l" * max(1, len(headers)),
     )
 
 
@@ -464,12 +525,19 @@ def _deterministic_tables(context: dict[str, Any]) -> tuple[str, list[str]]:
     csv_artifacts = context.get("all_csv_artifacts", {})
     if not isinstance(csv_artifacts, dict):
         return "", []
-    builders = [
-        ("Summary Statistics", _summary_statistics_table),
-        ("Event-Day Overnight Returns", _event_returns_table),
-        ("Average Event-Window Cumulative Abnormal Returns", _car_table),
-        ("Statistical Inference and Robustness Tests", _inference_table),
-    ]
+    blueprint = context.get("blueprint", {}) if isinstance(context.get("blueprint"), dict) else {}
+    method = str(blueprint.get("method_style") or blueprint.get("method_family") or "").lower()
+    builders: list[tuple[str, Any]] = [("Summary Statistics", _summary_statistics_table)]
+    if method == "event_study" or _all_csv_rows(_csv_by_suffix(csv_artifacts, "event_returns.csv")):
+        builders.extend([
+            ("Event-Day Overnight Returns", _event_returns_table),
+            ("Average Event-Window Cumulative Abnormal Returns", _car_table),
+        ])
+    if method in {"time_series", "var_model", "cointegration"}:
+        builders.append(("Time-Series Predictive Regression", lambda csvs: _compact_results_table(csvs, "time_series_regression.csv", "Time-Series Predictive Regression", "tab:time_series_regression")))
+    if method in {"regression", "panel_regression", "quantile_regression", "causal_forest"}:
+        builders.append(("Regression Results", lambda csvs: _compact_results_table(csvs, "regression_results.csv", "Regression Results", "tab:regression_results")))
+    builders.append(("Statistical Inference and Robustness Tests", _inference_table))
     tables: list[str] = []
     captions: list[str] = []
     for caption, builder in builders:
@@ -663,14 +731,19 @@ def _markdown_to_latex(text: str) -> str:
 def _prose_needs_deterministic_fallback(prose_latex: str, context: dict[str, Any]) -> bool:
     if not prose_latex or "\\documentclass" not in prose_latex:
         return True
-    if "\\doublespacing" in prose_latex:
+    if "\\doublespacing" in prose_latex or "Figure ??" in prose_latex:
         return True
     if re.search(r"\b[a-zA-Z][a-zA-Z0-9_]*\\?_[a-zA-Z0-9_]*\s*=\s*-?\d", prose_latex):
         return True
     if "is the economic phenomenon studied" in prose_latex or "The main results are" in prose_latex:
         return True
-    if _figure_metadata(context) and "\\includegraphics" not in prose_latex:
+    figures = _figure_metadata(context)
+    if figures and "\\includegraphics" not in prose_latex:
         return True
+    available_labels = {figure.get("label") for figure in figures.values() if figure.get("label")}
+    for label in re.findall(r"\\ref\{(fig:[^}]+)\}", prose_latex):
+        if label not in available_labels:
+            return True
     return False
 
 
@@ -750,26 +823,35 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
         if ci_lower not in (None, "") and ci_upper not in (None, "")
         else "The resampling interval is reported in the inference table."
     )
-    main_finding = (
-        f"Using {event_count or 'the'} events from {window_start} to {window_end}, the mean direction-aligned response is "
-        f"{_fmt_num(aligned_effect)}. {event_sentence or 'The event-day test is reported in the inference table.'} "
-        f"{comparison_sentence} {direction_sentence}"
-    ).strip()
-    abstract_numbers = (
-        f"mean aligned response {_fmt_num(aligned_effect)}, event-day t-statistic {_fmt_num(event_t)}, and p-value {_fmt_p(event_p)}"
-        if aligned_effect not in (None, "") and event_t not in (None, "") and event_p not in (None, "")
-        else "the reported estimates in the tables"
-    )
+    figures = _figure_metadata(context)
+    figure_blocks = _all_figure_blocks(figures)
+    figure_overview = _figure_overview_sentence(figures)
+    is_event_design = _method_is_event(blueprint, csv_artifacts if isinstance(csv_artifacts, dict) else {})
+    if is_event_design and aligned_effect not in (None, ""):
+        main_finding = (
+            f"Using {event_count or 'the'} events from {window_start} to {window_end}, the mean direction-aligned response is "
+            f"{_fmt_num(aligned_effect)}. {event_sentence or 'The event-day test is reported in the inference table.'} "
+            f"{comparison_sentence} {direction_sentence}"
+        ).strip()
+        abstract_numbers = (
+            f"mean aligned response {_fmt_num(aligned_effect)}, event-day t-statistic {_fmt_num(event_t)}, and p-value {_fmt_p(event_p)}"
+            if event_t not in (None, "") and event_p not in (None, "")
+            else "the reported event-study estimates in the tables"
+        )
+    elif nw_coef not in (None, "") or nw_t not in (None, ""):
+        main_finding = (
+            f"The primary predictive specification estimates a coefficient of {_fmt_num(nw_coef)} with "
+            f"t={_fmt_num(nw_t)} and p={_fmt_p(nw_p)} over {rows or 'the verified'} observations. "
+            f"This is {_interpret_p(nw_p)} and should be read with the reported holdout and robustness evidence."
+        )
+        abstract_numbers = f"coefficient {_fmt_num(nw_coef)}, t-statistic {_fmt_num(nw_t)}, and p-value {_fmt_p(nw_p)}"
+    else:
+        main_finding = "The primary estimates are reported in the model and inference tables; the available outputs do not support a stronger numerical summary than the verified tables provide."
+        abstract_numbers = "the reported estimates in the tables"
     tables_latex, table_captions = _deterministic_tables(context)
     if not tables_latex:
         tables_latex = _latex_table("Primary estimates", "tab:primary", [{"metric": k, "value": v} for k, v in primary_numbers.items()])
         table_captions = ["Primary estimates"] if tables_latex else []
-    figures = _figure_metadata(context)
-    fig1_price_history = _figure_block(figures.get("fig1_price_history", {}))
-    fig2_event_returns = _figure_block(figures.get("fig2_event_returns", {}))
-    fig3_car_windows = _figure_block(figures.get("fig3_car_windows", {}))
-    fig4_placebo = _figure_block(figures.get("fig4_placebo", {}))
-    fig5_heatmap = _figure_block(figures.get("fig5_heatmap", {}))
     summary_stats = _summary_stat_map(csv_artifacts if isinstance(csv_artifacts, dict) else {})
     identifiers = list(blueprint.get("inferred_identifiers") or blueprint.get("identifiers") or [])
     first_identifier = str(identifiers[0]) if identifiers else "the first series"
@@ -780,8 +862,34 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
     event_sha = blueprint.get("event_file_sha256") or blueprint.get("uploaded_event_sha256") or data_passport.get("event_file_sha256") or "not reported in the current data record"
     aligned_std = directional.get("aligned_spread_std")
     mde = None
-    if aligned_std is not None and event_count:
+    if aligned_std is not None and str(event_count or "").replace(".", "", 1).isdigit():
         mde = 2.262 * float(aligned_std) / (float(event_count) ** 0.5)
+    if is_event_design:
+        method_stat_paragraph = (
+            "The primary statistic is the event-level contrast that answers the locked hypothesis. "
+            "When the design compares two measured series around events, let $R^{(1)}_e$ and $R^{(2)}_e$ denote the two event-level outcomes. "
+            "The aligned spread signs the contrast so that positive values indicate movement in the hypothesized direction. The null hypothesis is that the mean aligned contrast equals zero.\n\n"
+            "Formally, the event-level statistic is\n"
+            "\\[\nA_e = s_e \\left(R^{(2)}_e - R^{(1)}_e\\right),\n\\]\n"
+            "where $s_e$ is the ex ante sign implied by the locked design. The reported test evaluates whether $\\bar{A}$ differs from zero. The same signing convention is applied to any cumulative or multi-period outcome reported in Table \\ref{tab:car}."
+        )
+        power_sentence = (
+            f"Power is a binding limitation whenever the effective sample is small. With {_latex_escape(event_count)} primary observations and an aligned-spread standard deviation of {_latex_escape(_fmt_num(aligned_std))}, "
+            f"a two-sided 5 percent test would require an approximate mean effect near {_latex_escape(_fmt_num(mde))} in the same units to reject the null using the observed dispersion. "
+            f"The detected mean aligned response of {_latex_escape(_fmt_num(aligned_effect))} is read against that benchmark rather than interpreted in isolation."
+        )
+    else:
+        method_stat_paragraph = (
+            "The primary statistic is the coefficient or predictive contrast that answers the locked hypothesis. "
+            "For predictive and regression designs, the empirical object can be written as\n"
+            "\\[\nY_{i,t+h} = \\alpha + \\beta X_{i,t} + \\Gamma' C_{i,t} + \\epsilon_{i,t+h},\n\\]\n"
+            "where $Y_{i,t+h}$ is the subsequent outcome, $X_{i,t}$ is the pre-measured predictor, and $C_{i,t}$ contains controls or fixed-effect structure when the verified data support them. "
+            "The null hypothesis is that the primary coefficient is zero after applying the standard-error correction appropriate for the design."
+        )
+        power_sentence = (
+            "Power is assessed through the number of verified observations, coefficient uncertainty, and the holdout or robustness diagnostics reported in Table \\ref{tab:inference}. "
+            "An event-count power calculation is not applicable because this design is not an event study."
+        )
     gap_statement = (
         f"Despite this literature, existing work leaves open whether {_latex_escape(x_term)} produces the specific response in "
         f"{_latex_escape(y_term)} over the measurement horizon used here. This paper fills that gap by studying "
@@ -832,66 +940,48 @@ The rest of the paper proceeds as follows. Section 2 reviews the related literat
 \paragraph{{Gap and contribution.}} {gap_statement}
 
 \section{{Data}}
-The empirical sample is built from {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))} observations for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. The verified data table contains {_latex_escape(rows)} observations after aligning the analysis unit and removing rows without the required measurement inputs. Figure \ref{{fig:price_history}} plots the cumulative path of the primary measured return series where such a time-series output is available, which provides visual context for the empirical test.
-
-{fig1_price_history}
+The empirical sample is built from {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))} observations for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. The verified data table contains {_latex_escape(rows)} observations after aligning the analysis unit and removing rows without the required measurement inputs. {_latex_escape(figure_overview)}
 
 The main variable follows the locked return definition. When the design uses overnight returns, the paper computes $overnight\_return_{{i,t}} = open_{{i,t}} - close_{{i,t-1}}$. The previous close is the last available trading observation before the measurement date, not a calendar placeholder. This timing rule matters because using information from the wrong trading day would mechanically contaminate the result.
 
-The event or sample-construction file is {_latex_escape(event_file)}. It contains {_latex_escape(event_count)} primary observations or events used by the design. The recorded file SHA-256 is {_latex_escape(event_sha)}. When the design contains directional coding, the aligned statistic is signed before looking at outcomes so that positive values have the same interpretation across observations.
+The sample-construction record is {_latex_escape(event_file)} when the design uses an external event or classification file; otherwise the sample is constructed directly from the verified market-data panel. The recorded SHA-256 is {_latex_escape(event_sha)} when available. Directional signing is applied only for designs that explicitly require it; predictive and regression designs instead report coefficients, confidence intervals, and model diagnostics.
 
 Table \ref{{tab:summary}} reports summary statistics for the daily overnight-return series. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The volatility difference matters because weak inference around event dates can reflect genuine absence of a policy response or simply the difficulty of detecting small announcement effects against noisy sector ETF returns.
 
-All results below use the locked data and event definitions described in this section. The paper does not use close-to-close returns for the primary test, does not reclassify events after observing returns, and does not change the ETF universe after computing the event outcomes.
+All results below use the locked data definitions described in this section. The paper does not change the sample universe after computing outcomes and does not reinterpret the method family after observing the estimates.
 
 The unit of observation is intentionally conservative. The design favors measurements that are observable, reproducible, and aligned with the claim over richer specifications that the available data cannot support. This choice can reduce cross-sectional detail, but it makes the reported estimates easier to audit and interpret.
 
 \section{{Methodology}}
 The empirical design follows the method specified before execution. It asks whether {_latex_escape(x_term)} is associated with the predicted movement in {_latex_escape(y_term)} over the locked measurement window. The identifying assumption is not stronger than the design allows: the analysis can support a causal interpretation only if the research design explains why the key variation is plausibly exogenous. Otherwise, the evidence is interpreted as predictive or associational.
 
-The primary statistic is the contrast or coefficient that answers the locked hypothesis. When the design compares two measured series around events, let $R^{{(1)}}_e$ and $R^{{(2)}}_e$ denote the two event-level outcomes. The aligned spread signs the contrast so that positive values indicate movement in the hypothesized direction. The null hypothesis is that the mean aligned contrast equals zero.
-
-Formally, the event-level statistic is
-\[
-A_e = s_e \left(R^{{(2)}}_e - R^{{(1)}}_e\right),
-\]
-where $s_e$ is the ex ante sign implied by the locked design. The reported test evaluates whether $\bar{{A}}$ differs from zero. The same signing convention is applied to any cumulative or multi-period outcome reported in Table \ref{{tab:car}}.
+{method_stat_paragraph}
 
 The inference strategy deliberately separates economic direction from statistical significance. The executed checks in Table \ref{{tab:inference}} include {_latex_escape(executed_test_text)}. Each check is interpreted for the threat it addresses rather than treated as a mechanical hurdle. The point estimate answers the economic question; the surrounding inference asks whether the observed pattern is large relative to the uncertainty, dependence, and counterfactual variation in the available data.
 
-The design has important limitations. The effective event or observation count is {_latex_escape(event_count)}, which can limit power even when signs are economically intuitive. The analysis also inherits the limits of the available measurement units and controls. These limits mean the paper can speak to the locked claim and sample, but it should not be read as a broader causal estimate unless the identification strategy explicitly supports that conclusion.
+The design has important limitations. The effective sample size and measurement granularity determine how much the paper can claim even when signs are economically intuitive. The analysis also inherits the limits of the available measurement units and controls. These limits mean the paper can speak to the locked claim and sample, but it should not be read as a broader causal estimate unless the identification strategy explicitly supports that conclusion.
 
 The empirical strategy fixes the burden of proof before interpreting the signs. A favorable point estimate is not sufficient evidence by itself; it must be read alongside the inference, robustness, and uncertainty estimates reported below. This sequencing prevents a visually intuitive pattern from becoming a claim stronger than the evidence.
 
 \section{{Results}}
 {_latex_escape(result_paragraphs[0])}
 
-Figure \ref{{fig:event_returns}} shows the event-day returns behind the aligned-spread statistic. Table \ref{{tab:event_returns}} reports the same event-level values numerically. The figure is useful because it makes clear that the average effect is not driven by every event moving in the same direction. Some announcements line up with the hypothesis, while others move against it; the paper therefore reports the mean effect and its uncertainty rather than selecting only the visually favorable cases.
+The visual evidence appears below only when corresponding verified figures exist for this method family. The figures are generated from compute outputs and use the labels supplied in the figure inventory, preventing event-study references from appearing in time-series or regression papers.
 
-{fig2_event_returns}
+{figure_blocks}
 
 {_latex_escape(result_paragraphs[1])}
-
-Figure \ref{{fig:car_windows}} extends the event-level evidence to wider windows or grouped summaries where the compute phase produced them. The figure helps show whether the measured relation is concentrated in the primary window or changes as additional observations enter the statistic.
-
-{fig3_car_windows}
-
-Figure \ref{{fig:event_heatmap}} summarizes observation-level heterogeneity across measured series where that matrix exists. The heatmap helps separate the average effect from the individual pattern: the evidence can be economically interpretable even when individual observations are mixed.
-
-{fig5_heatmap}
 
 {_latex_escape(result_paragraphs[2])}
 
 \section{{Robustness}}
 The robustness evidence is summarized in Table \ref{{tab:inference}}. The dependence-robust specification yields t={_latex_escape(_fmt_num(nw_t))}, p={_latex_escape(_fmt_p(nw_p))} when that statistic is available. This comparison is informative because allowing for dependence or heteroskedasticity can change apparent precision even when it does not change the economic sign.
 
-The randomization evidence reports an empirical p-value of {_latex_escape(_fmt_p(placebo_p))}. Interpreted literally, the observed aligned spread is not extreme relative to draws from the relevant comparison environment. Figure \ref{{fig:placebo}} plots that comparison distribution and marks the observed effect. The visual evidence reinforces the table: the statistic is positive, but it is not far enough into the tail of the reference distribution to support a strong rejection.
-
-{fig4_placebo}
+The randomization evidence reports an empirical p-value of {_latex_escape(_fmt_p(placebo_p))}. Interpreted literally, the observed aligned spread is not extreme relative to draws from the relevant comparison environment. Distributional figures are included in the Results section only when they exist in the verified figure inventory.
 
 The resampling interval runs from {_latex_escape(_fmt_num(ci_lower))} to {_latex_escape(_fmt_num(ci_upper))}. This interval keeps the estimated average response positive where the endpoints are both above zero, but the economic magnitude must be read relative to the volatility of the measured outcome. The interval therefore supports the directional interpretation while also cautioning against describing the result as large or precisely estimated when the sample is limited.
 
-Power is a binding limitation whenever the effective sample is small. With {_latex_escape(event_count)} primary observations and an aligned-spread standard deviation of {_latex_escape(_fmt_num(aligned_std))}, a two-sided 5 percent test would require an approximate mean effect near {_latex_escape(_fmt_num(mde))} in the same units to reject the null using the observed dispersion. The detected mean aligned response of {_latex_escape(_fmt_num(aligned_effect))} is read against that benchmark rather than interpreted in isolation.
+{power_sentence}
 
 Skipped tests in Table \ref{{tab:inference}} are also informative. When a requested estimator does not match the data structure, forcing it would create a false sense of sophistication. The paper therefore reports the skipped test as a design limitation rather than printing the underlying software exception or treating the failed estimator as evidence.
 

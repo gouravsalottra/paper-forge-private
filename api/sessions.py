@@ -31,7 +31,8 @@ from api.method_registry import method_definition
 from api.literature_agent import run_literature_agent
 from api.prompts import HAWK_PROMPT, REPAIR_AGENT_PROMPT
 from api.stats_agent import _stats_fallback, get_stats_spec
-from api.stats_executor import execute_research_plan
+from api.compute_dispatcher import execute_research_plan
+from api.figure_generator import generate_figures_for_study
 from api.writer_agent import write_paper_latex
 from db.connection import DatabaseUnavailableError, get_db_connection
 from integrity.pdf import render_pdf
@@ -1284,6 +1285,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         session_id,
         profile.get("csv_outputs", {}),
         profile.get("findings", {}).get("primary_numbers", {}),
+        blueprint,
     )
     profile["verification"]["figure_artifacts"] = profile["figure_artifacts"]
     code_audit_blocks = bool(contracts.get("code_audit", {}).get("blocks_pipeline"))
@@ -2225,11 +2227,8 @@ def _generate_figures(session_id: str, overnight_df, event_df, car_df, stats_dic
     return figures
 
 
-def _generate_figures_from_csv_outputs(session_id: str, csv_outputs: dict[str, str], stats_dict: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    overnight_df = _dataframe_from_csv_text(csv_outputs.get("03_data/overnight_returns.csv", ""))
-    event_df = _dataframe_from_csv_text(csv_outputs.get("06_compute/method_outputs/event_returns.csv", ""))
-    car_df = _dataframe_from_csv_text(csv_outputs.get("06_compute/method_outputs/event_window_car.csv", ""))
-    return _generate_figures(session_id, overnight_df, event_df, car_df, stats_dict or {})
+def _generate_figures_from_csv_outputs(session_id: str, csv_outputs: dict[str, str], stats_dict: dict[str, Any], blueprint: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+    return generate_figures_for_study(session_id, blueprint or {}, csv_outputs, stats_dict or {})
 
 
 def _figure_assets_for_compile(session_id: str, figure_artifacts: dict[str, Any]) -> dict[str, bytes]:
@@ -2308,7 +2307,7 @@ def _build_rerender_writer_context(session_id: str) -> dict[str, Any]:
         primary_numbers.update(research_findings.get("primary_numbers") or {})
     if isinstance(profile, dict):
         primary_numbers.update((profile.get("findings") or {}).get("primary_numbers") or {})
-    figure_artifacts = _generate_figures_from_csv_outputs(session_id, csv_outputs, primary_numbers)
+    figure_artifacts = _generate_figures_from_csv_outputs(session_id, csv_outputs, primary_numbers, merged_blueprint)
 
     return {
         "topic": topic,
