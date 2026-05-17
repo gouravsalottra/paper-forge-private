@@ -45,10 +45,27 @@ def _humanize_label(value: Any) -> str:
     text = "" if value is None else str(value)
     if not text:
         return ""
-    text = text.replace("\\_", "_")
-    if "_" in text:
-        text = text.replace("_", " ")
-    text = re.sub(r"\b(hac|hc3|car|bh|ols|r2|oos|vix|vix3m|spy|xle|icln)\b", lambda m: m.group(1).upper(), text, flags=re.I)
+    text = text.replace("\\_", "_").replace("_", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+    replacements = {
+        "newey west": "Newey-West",
+        "predictive regression hac": "predictive regression with HAC errors",
+        "hac se": "HAC standard error",
+        "t stat": "t-statistic",
+        "p value": "p-value",
+        "r2": "R-squared",
+        "oos": "out-of-sample",
+        "bh correction": "Benjamini-Hochberg correction",
+        "bootstrap ci": "bootstrap confidence interval",
+        "event study car": "event-study CAR",
+    }
+    lower = text.lower()
+    if lower in replacements:
+        text = replacements[lower]
+    else:
+        for source, target in replacements.items():
+            text = re.sub(rf"\b{re.escape(source)}\b", target, text, flags=re.I)
+    text = re.sub(r"\b(hac|hc3|car|bh|ols|vix|vix3m|spy|xle|icln)\b", lambda m: m.group(1).upper(), text, flags=re.I)
     return text
 
 
@@ -574,7 +591,7 @@ def _executed_test_labels(csv_artifacts: dict[str, str]) -> list[str]:
         status = str(row.get("status") or "").strip().lower()
         if not test_name or status == "failed" or _row_has_error(row):
             continue
-        labels.append(test_name.replace("_", " "))
+        labels.append(_humanize_label(test_name))
     return labels
 
 
@@ -908,23 +925,63 @@ def _fallback_latex(context: dict[str, Any]) -> dict[str, Any]:
             "Power is assessed through the number of verified observations, coefficient uncertainty, and the holdout or robustness diagnostics reported in Table \\ref{tab:inference}. "
             "An event-count power calculation is not applicable because this design is not an event study."
         )
+    design_descriptor = "pre-specified event return definition" if is_event_design else "pre-specified measurement design"
     gap_statement = (
         f"Despite this literature, existing work leaves open whether {_latex_escape(x_term)} produces the specific response in "
         f"{_latex_escape(y_term)} over the measurement horizon used here. This paper fills that gap by studying "
         f"{_latex_escape(identifier_text)} from {_latex_escape(window_start)} to {_latex_escape(window_end)} with "
-        f"{_latex_escape(method_names)} and the pre-specified return definition."
+        f"{_latex_escape(method_names)} and the {design_descriptor}."
     )
+    if is_event_design:
+        diagnostic_sentence = (
+            f"{placebo_sentence} {ci_sentence} Together, these diagnostics support a cautious reading: the signs are economically interpretable, "
+            "but the sample is small and the conventional event-day test does not reject the null at standard levels."
+        )
+    else:
+        diagnostic_sentence = (
+            f"{placebo_sentence} {ci_sentence} Together, these diagnostics support a cautious reading: the predictive sign is interpretable, "
+            "but the estimated coefficient is not precise enough to support a strong forecasting claim at conventional thresholds."
+        )
     result_paragraphs = [
         main_finding,
         (
             f"The dependence-robust specification is the main precision check where the design requires it. {nw_sentence or 'The dependence-robust result is reported in the inference table.'} "
             "This matters because untreated dependence or heteroskedasticity can make an empirical contrast look more precise than it is."
         ),
-        (
-            f"{placebo_sentence} {ci_sentence} Together, these diagnostics support a cautious reading: the signs are economically interpretable, "
-            "but the sample is small and the conventional event-day test does not reject the null at standard levels."
-        ),
+        diagnostic_sentence,
     ]
+    if is_event_design:
+        design_use_sentence = f"It uses {_latex_escape(method_names)} and {_latex_escape(return_definition)} for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}."
+        variable_sentence = (
+            "The main variable follows the locked return definition. When the design uses overnight returns, the paper computes "
+            "$overnight\\_return_{i,t} = open_{i,t} - close_{i,t-1}$. The previous close is the last available trading observation before the measurement date, not a calendar placeholder. "
+            "This timing rule matters because using information from the wrong trading day would mechanically contaminate the result."
+        )
+        sample_record_sentence = (
+            f"The sample-construction record is {_latex_escape(event_file)} when the design uses an external event or classification file. "
+            f"The recorded SHA-256 is {_latex_escape(event_sha)} when available. Directional signing is applied only for designs that explicitly require it."
+        )
+        summary_sentence = (
+            f"Table \ref{{tab:summary}} reports summary statistics for the daily event-measurement series. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The volatility difference matters because weak inference around event dates can reflect genuine absence of a response or the difficulty of detecting small announcement effects against noisy returns."
+        )
+        conclusion_sentence = (
+            "The paper finds evidence that is best interpreted within the limits of the locked event-study design. The mean aligned statistic is positive when reported, and some observations move in the hypothesized direction, but the primary test does not necessarily reject the null at conventional levels."
+        )
+    else:
+        design_use_sentence = f"It uses {_latex_escape(method_names)} for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}."
+        variable_sentence = (
+            "The main variables follow the locked predictive design. Predictors are measured before the outcome window, transformed only with information available at the measurement date, and aligned to subsequent outcomes before estimation. This timing rule matters because predictive evidence is only meaningful when the signal is observable before the return or crash outcome it is meant to forecast."
+        )
+        sample_record_sentence = (
+            "The sample is constructed directly from the verified market-data panel. No external event calendar is used for this design. Predictive and regression designs report coefficients, confidence intervals, and model diagnostics rather than directionally signed event responses."
+        )
+        summary_sentence = (
+            f"Table \ref{{tab:summary}} reports summary statistics for the analysis series used in the predictive design. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The dispersion matters because noisy predictors and outcomes can produce economically suggestive but statistically weak forecasting estimates."
+        )
+        conclusion_sentence = (
+            "The paper finds evidence that is best interpreted within the limits of the locked predictive design. The estimated predictive coefficient is reported directly, but the primary test does not reject the null at conventional levels, so the paper treats the signal as suggestive rather than tradable forecasting evidence."
+        )
+
     latex = rf"""\documentclass[12pt]{{article}}
 \usepackage{{booktabs,amsmath,natbib,geometry,setspace,longtable,array,graphicx}}
 \geometry{{margin=1in}}
@@ -946,7 +1003,7 @@ The closest literature shows why this setting is empirically interesting. The mo
 
 The remaining gap is the specific mechanism and measurement window. Prior work often studies related outcomes, broader horizons, or adjacent mechanisms; it less often asks whether {_latex_escape(x_term)} maps into {_latex_escape(y_term)} under the exact design used here. That gap matters because a credible empirical design must match the timing, comparison group, and outcome to the economic mechanism.
 
-This paper examines the gap directly. It uses {_latex_escape(method_names)} and {_latex_escape(return_definition)} for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. { _latex_escape(main_finding) }
+This paper examines the gap directly. {design_use_sentence} { _latex_escape(main_finding) }
 
 The contribution is threefold. First, the paper translates the research question into a locked empirical contrast rather than a post hoc narrative. Second, it reports both economic magnitudes and inference tests, keeping interpretation tied to measured evidence. Third, it exposes limitations directly, so weak or null evidence narrows the conclusion instead of being converted into an overclaim.
 
@@ -960,11 +1017,11 @@ The rest of the paper proceeds as follows. Section 2 reviews the related literat
 \section{{Data}}
 The empirical sample is built from {_latex_escape(blueprint.get('evidence_route') or blueprint.get('evidence_source'))} observations for {_latex_escape(identifier_text)} over {_latex_escape(window_start)} through {_latex_escape(window_end)}. The verified data table contains {_latex_escape(rows)} observations after aligning the analysis unit and removing rows without the required measurement inputs. {figure_overview}
 
-The main variable follows the locked return definition. When the design uses overnight returns, the paper computes $overnight\_return_{{i,t}} = open_{{i,t}} - close_{{i,t-1}}$. The previous close is the last available trading observation before the measurement date, not a calendar placeholder. This timing rule matters because using information from the wrong trading day would mechanically contaminate the result.
+{variable_sentence}
 
-The sample-construction record is {_latex_escape(event_file)} when the design uses an external event or classification file; otherwise the sample is constructed directly from the verified market-data panel. The recorded SHA-256 is {_latex_escape(event_sha)} when available. Directional signing is applied only for designs that explicitly require it; predictive and regression designs instead report coefficients, confidence intervals, and model diagnostics.
+{sample_record_sentence}
 
-Table \ref{{tab:summary}} reports summary statistics for the daily overnight-return series. In the verified sample, {_latex_escape(second_identifier)} has mean {_latex_escape(_fmt_num(second_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(second_stats.get('std')))}, while {_latex_escape(first_identifier)} has mean {_latex_escape(_fmt_num(first_stats.get('mean')))} and standard deviation {_latex_escape(_fmt_num(first_stats.get('std')))}. The volatility difference matters because weak inference around event dates can reflect genuine absence of a policy response or simply the difficulty of detecting small announcement effects against noisy sector ETF returns.
+{summary_sentence}
 
 All results below use the locked data definitions described in this section. The paper does not change the sample universe after computing outcomes and does not reinterpret the method family after observing the estimates.
 
@@ -1004,7 +1061,7 @@ The resampling interval runs from {_latex_escape(_fmt_num(ci_lower))} to {_latex
 Skipped tests in Table \ref{{tab:inference}} are also informative. When a requested estimator does not match the data structure, forcing it would create a false sense of sophistication. The paper therefore reports the skipped test as a design limitation rather than printing the underlying software exception or treating the failed estimator as evidence.
 
 \section{{Conclusion}}
-The paper finds evidence that is best interpreted within the limits of the locked design. The mean aligned statistic is positive when reported, and some observations move in the hypothesized direction, but the primary test does not necessarily reject the null at conventional levels.
+{conclusion_sentence}
 
 The economic interpretation is therefore cautious. The data may contain the mechanism described in the research question, but the available sample and uncertainty determine how strongly the paper can speak. A weak or null result is still informative when it narrows what the evidence supports.
 

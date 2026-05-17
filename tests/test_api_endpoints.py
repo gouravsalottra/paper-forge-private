@@ -317,8 +317,8 @@ def test_writer_fallback_does_not_double_escape_statistic_names() -> None:
         }
     )
     tex = clean_latex_escaping(result["latex"])
-    assert "bootstrap ci lower" in tex
-    assert "newey west t stat" in tex
+    assert "bootstrap confidence interval lower" in tex
+    assert "Newey-West t-statistic" in tex
     assert r"\\_" not in tex
     assert r"bootstrap\_ci\_lower" not in tex
     assert r"newey\_west\_t\_stat" not in tex
