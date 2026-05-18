@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import base64
 import hashlib
 import json
 import logging
@@ -23,6 +24,7 @@ AZURE_DEPLOYMENT = "gpt-4o"
 AZURE_API_VERSION = "2024-12-01-preview"
 EXECUTION_TIMEOUT_SECONDS = 120
 MAX_CODE_FIX_ATTEMPTS = 3
+MODAL_ACCOUNT_ALIAS = os.getenv("MODAL_ACCOUNT_ALIAS", "primary")
 
 
 def _method_style(blueprint: dict[str, Any]) -> str:
@@ -66,6 +68,22 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             return None
     return None
+
+
+def _compute_backend() -> str:
+    requested = str(os.getenv("THRIVARC_COMPUTE_BACKEND") or "").strip().lower()
+    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("THRIVARC_STORAGE_BACKEND") == "mock":
+        return requested or "local"
+    if os.getenv("ENVIRONMENT") == "production":
+        if requested and requested != "modal":
+            raise RuntimeError("Production generated-code execution must use THRIVARC_COMPUTE_BACKEND=modal.")
+        return "modal"
+    return requested or "local"
+
+
+def _safe_payload_blueprint(blueprint: dict[str, Any]) -> str:
+    """Serialize the locked Blueprint without adding process secrets to Modal payloads."""
+    return json.dumps(blueprint, default=str)
 
 
 def _client() -> AzureOpenAI:
@@ -237,13 +255,14 @@ Return only fixed Python code. No markdown fences. No explanation.
     return _call_llm(prompt, max_tokens=5000).strip()
 
 
-def _execute_analysis_code(code: str, data_csv_path: str, session_id: str | None, blueprint: dict[str, Any], schema: dict[str, Any], event_csv_path: str | None = None) -> dict[str, Any]:
-    run_id = session_id or "local-compute"
-    work_root = tempfile.mkdtemp(prefix=f"thrivarc-{_slug(run_id)}-")
-    figures_dir = os.path.join(work_root, "figures")
-    results_dir = os.path.join(work_root, "results")
-    os.makedirs(figures_dir, exist_ok=True)
-    os.makedirs(results_dir, exist_ok=True)
+def _run_local_analysis_attempt(
+    current_code: str,
+    data_csv_path: str,
+    event_csv_path: str | None,
+    figures_dir: str,
+    results_dir: str,
+    blueprint: dict[str, Any],
+) -> dict[str, Any]:
     env = os.environ.copy()
     env.update(
         {
@@ -251,42 +270,178 @@ def _execute_analysis_code(code: str, data_csv_path: str, session_id: str | None
             "EVENT_CSV_PATH": event_csv_path or "",
             "FIGURES_DIR": figures_dir,
             "RESULTS_DIR": results_dir,
-            "BLUEPRINT_JSON": json.dumps(blueprint, default=str),
+            "BLUEPRINT_JSON": _safe_payload_blueprint(blueprint),
         }
     )
-    current_code = code.replace("{DATA_CSV_PATH}", data_csv_path)
-    last_error = ""
-    for attempt in range(1, MAX_CODE_FIX_ATTEMPTS + 1):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as handle:
-            handle.write(current_code)
-            code_path = handle.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as handle:
+        handle.write(current_code)
+        code_path = handle.name
+    try:
+        result = subprocess.run(
+            ["python3", code_path],
+            capture_output=True,
+            text=True,
+            timeout=EXECUTION_TIMEOUT_SECONDS,
+            env=env,
+        )
+        return {
+            "success": result.returncode == 0,
+            "returncode": result.returncode,
+            "stdout": result.stdout or "",
+            "stderr": result.stderr or "",
+            "parsed": _extract_json_from_text(result.stdout),
+            "backend": "local",
+        }
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "success": False,
+            "returncode": 124,
+            "stdout": str(exc.stdout or ""),
+            "stderr": f"analysis code timed out after {EXECUTION_TIMEOUT_SECONDS}s: {exc}",
+            "parsed": None,
+            "backend": "local",
+        }
+    finally:
         try:
-            result = subprocess.run(
-                ["python3", code_path],
-                capture_output=True,
-                text=True,
-                timeout=EXECUTION_TIMEOUT_SECONDS,
-                env=env,
-            )
-            if result.returncode == 0:
-                parsed = _extract_json_from_text(result.stdout) or {"raw_output": result.stdout.strip()}
+            os.unlink(code_path)
+        except OSError:
+            pass
+
+
+def _modal_payload(
+    current_code: str,
+    data_csv_path: str,
+    event_csv_path: str | None,
+    session_id: str | None,
+    blueprint: dict[str, Any],
+) -> dict[str, Any]:
+    payload = {
+        "session_id": session_id or "local-compute",
+        "code": current_code,
+        "data_csv_b64": base64.b64encode(Path(data_csv_path).read_bytes()).decode("ascii"),
+        "event_csv_b64": base64.b64encode(Path(event_csv_path).read_bytes()).decode("ascii") if event_csv_path else "",
+        "blueprint_json": _safe_payload_blueprint(blueprint),
+        "timeout_seconds": int(os.getenv("MODAL_ANALYSIS_ATTEMPT_TIMEOUT_SECONDS", str(EXECUTION_TIMEOUT_SECONDS))),
+        "modal_account_alias": os.getenv("MODAL_ACCOUNT_ALIAS", MODAL_ACCOUNT_ALIAS),
+    }
+    forbidden_keys = {"OPENAI_API_KEY", "DATABASE_URL", "AZURE_STORAGE_CONNECTION_STRING", "MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"}
+    leaked = forbidden_keys.intersection(payload)
+    if leaked:
+        raise RuntimeError(f"Modal payload unexpectedly included secret keys: {sorted(leaked)}")
+    return payload
+
+
+def _materialize_modal_files(modal_result: dict[str, Any], figures_dir: str, results_dir: str, work_root: str) -> dict[str, Any]:
+    parsed = modal_result.get("parsed") if isinstance(modal_result.get("parsed"), dict) else _extract_json_from_text(modal_result.get("stdout", ""))
+    if not isinstance(parsed, dict):
+        parsed = {"raw_output": str(modal_result.get("stdout") or "").strip()}
+    figures: list[str] = []
+    result_csvs: list[str] = []
+    logs_dir = os.path.join(work_root, "modal_logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    for file_info in modal_result.get("files") or []:
+        if not isinstance(file_info, dict) or file_info.get("skipped"):
+            continue
+        content_b64 = file_info.get("content_b64")
+        if not content_b64:
+            continue
+        filename = _slug(file_info.get("filename") or "modal_output", "modal_output")
+        kind = str(file_info.get("kind") or "").lower()
+        if kind == "figure":
+            target_dir = figures_dir
+        elif kind == "result_csv":
+            target_dir = results_dir
+        else:
+            target_dir = logs_dir
+        os.makedirs(target_dir, exist_ok=True)
+        local_path = os.path.join(target_dir, filename)
+        with open(local_path, "wb") as handle:
+            handle.write(base64.b64decode(content_b64))
+        if kind == "figure":
+            figures.append(local_path)
+        elif kind == "result_csv":
+            result_csvs.append(local_path)
+    if figures:
+        parsed["figures"] = figures
+    if result_csvs:
+        parsed["result_csvs"] = result_csvs
+    parsed["figures_dir"] = figures_dir
+    parsed["results_dir"] = results_dir
+    parsed["modal_logs_dir"] = logs_dir
+    parsed["modal_execution"] = {
+        "backend": "modal",
+        "modal_account_alias": os.getenv("MODAL_ACCOUNT_ALIAS", MODAL_ACCOUNT_ALIAS),
+        "returncode": modal_result.get("returncode"),
+        "runtime_seconds": modal_result.get("runtime_seconds"),
+        "environment": modal_result.get("environment", {}),
+    }
+    parsed["stderr"] = str(modal_result.get("stderr") or "")[-2000:]
+    return parsed
+
+
+def _run_modal_analysis_attempt(
+    current_code: str,
+    data_csv_path: str,
+    event_csv_path: str | None,
+    figures_dir: str,
+    results_dir: str,
+    work_root: str,
+    session_id: str | None,
+    blueprint: dict[str, Any],
+) -> dict[str, Any]:
+    from api.modal_compute import execute_in_modal
+
+    modal_result = execute_in_modal(_modal_payload(current_code, data_csv_path, event_csv_path, session_id, blueprint))
+    parsed = _materialize_modal_files(modal_result, figures_dir, results_dir, work_root)
+    return {
+        "success": bool(modal_result.get("success")),
+        "returncode": modal_result.get("returncode"),
+        "stdout": str(modal_result.get("stdout") or ""),
+        "stderr": str(modal_result.get("stderr") or ""),
+        "parsed": parsed,
+        "backend": "modal",
+        "runtime_seconds": modal_result.get("runtime_seconds"),
+    }
+
+
+def _execute_analysis_code(code: str, data_csv_path: str, session_id: str | None, blueprint: dict[str, Any], schema: dict[str, Any], event_csv_path: str | None = None) -> dict[str, Any]:
+    run_id = session_id or "local-compute"
+    work_root = tempfile.mkdtemp(prefix=f"thrivarc-{_slug(run_id)}-")
+    figures_dir = os.path.join(work_root, "figures")
+    results_dir = os.path.join(work_root, "results")
+    os.makedirs(figures_dir, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
+    current_code = code
+    last_error = ""
+    backend = _compute_backend()
+    for attempt in range(1, MAX_CODE_FIX_ATTEMPTS + 1):
+        try:
+            if backend == "modal":
+                result = _run_modal_analysis_attempt(current_code, data_csv_path, event_csv_path, figures_dir, results_dir, work_root, session_id, blueprint)
+            else:
+                result = _run_local_analysis_attempt(current_code, data_csv_path, event_csv_path, figures_dir, results_dir, blueprint)
+            if result.get("success"):
+                parsed = result.get("parsed") if isinstance(result.get("parsed"), dict) else _extract_json_from_text(result.get("stdout", ""))
+                if not isinstance(parsed, dict):
+                    parsed = {"raw_output": str(result.get("stdout") or "").strip()}
                 parsed["figures_dir"] = figures_dir
                 parsed["results_dir"] = results_dir
                 parsed["analysis_code"] = current_code
-                parsed["stderr"] = result.stderr[-2000:] if result.stderr else ""
+                parsed["stderr"] = str(result.get("stderr") or "")[-2000:]
+                parsed["compute_backend"] = backend
+                parsed["modal_account_alias"] = os.getenv("MODAL_ACCOUNT_ALIAS", MODAL_ACCOUNT_ALIAS) if backend == "modal" else None
+                parsed["execution_attempts"] = attempt
+                if result.get("runtime_seconds") is not None:
+                    parsed["runtime_seconds"] = result.get("runtime_seconds")
                 return parsed
-            last_error = result.stderr[-4000:] or result.stdout[-4000:]
+            last_error = str(result.get("stderr") or result.get("stdout") or "")[-4000:]
             logger.warning("LLM analysis code failed on attempt %s: %s", attempt, last_error[-500:])
             current_code = _llm_fix_code(current_code, last_error, blueprint, schema)
-        except subprocess.TimeoutExpired as exc:
-            last_error = f"analysis code timed out after {EXECUTION_TIMEOUT_SECONDS}s: {exc}"
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Analysis execution backend %s failed on attempt %s: %s", backend, attempt, last_error[-500:])
             current_code = _llm_fix_code(current_code, last_error, blueprint, schema)
-        finally:
-            try:
-                os.unlink(code_path)
-            except OSError:
-                pass
-    return {"error": f"Analysis failed after {MAX_CODE_FIX_ATTEMPTS} attempts", "last_error": last_error, "figures_dir": figures_dir, "results_dir": results_dir, "analysis_code": current_code}
+    return {"error": f"Analysis failed after {MAX_CODE_FIX_ATTEMPTS} attempts", "last_error": last_error, "figures_dir": figures_dir, "results_dir": results_dir, "analysis_code": current_code, "compute_backend": backend, "modal_account_alias": os.getenv("MODAL_ACCOUNT_ALIAS", MODAL_ACCOUNT_ALIAS) if backend == "modal" else None, "execution_attempts": MAX_CODE_FIX_ATTEMPTS}
 
 
 def _llm_format_results(blueprint: dict[str, Any], raw_results: dict[str, Any], session_id: str | None) -> dict[str, Any]:
@@ -416,6 +571,35 @@ def _upload_outputs(session_id: str | None, raw_results: dict[str, Any]) -> dict
     return figures
 
 
+def _upload_execution_artifacts(session_id: str | None, raw_results: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    artifacts: dict[str, dict[str, Any]] = {}
+    if not session_id:
+        return artifacts
+    analysis_code = raw_results.get("analysis_code")
+    if isinstance(analysis_code, str) and analysis_code.strip():
+        artifacts["analysis_code"] = write_artifact(session_id, "06_compute/generated_code/analysis_code.py", analysis_code)
+    stderr = raw_results.get("stderr")
+    if isinstance(stderr, str) and stderr.strip():
+        artifacts["stderr"] = write_artifact(session_id, "06_compute/logs/stderr.txt", stderr)
+    logs_dir = raw_results.get("modal_logs_dir")
+    if logs_dir and os.path.isdir(logs_dir):
+        for path in sorted(Path(logs_dir).iterdir()):
+            if path.is_file():
+                key = f"modal_log_{path.stem}"
+                artifacts[key] = write_artifact(session_id, f"06_compute/logs/{_slug(path.name, 'modal_log.txt')}", path.read_bytes())
+    manifest = {
+        "backend": raw_results.get("compute_backend"),
+        "modal_account_alias": raw_results.get("modal_account_alias"),
+        "execution_attempts": raw_results.get("execution_attempts"),
+        "runtime_seconds": raw_results.get("runtime_seconds"),
+        "modal_execution": raw_results.get("modal_execution", {}),
+        "error": raw_results.get("error"),
+        "last_error": raw_results.get("last_error"),
+    }
+    artifacts["execution_manifest"] = write_artifact(session_id, "06_compute/manifests/execution_manifest.json", json.dumps(manifest, indent=2, default=str))
+    return artifacts
+
+
 def _collect_csv_outputs(data_csv_path: str, raw_results: dict[str, Any], stats_rows: list[dict[str, Any]]) -> dict[str, str]:
     outputs: dict[str, str] = {"03_data/overnight_returns.csv": _csv_text_from_file(data_csv_path)}
     seen: set[str] = set()
@@ -482,6 +666,7 @@ def dispatch_compute(session_id: str | None, blueprint: dict[str, Any], data_csv
         stats_rows = _stats_rows_from_summary(raw_results)
         csv_outputs = _collect_csv_outputs(data_csv_path, raw_results, stats_rows)
         figure_artifacts = _upload_outputs(session_id, raw_results)
+        execution_artifacts = _upload_execution_artifacts(session_id, raw_results)
         primary_numbers = _primary_numbers(raw_results, formatted, context)
         if not primary_numbers.get("return_definition"):
             primary_numbers["return_definition"] = blueprint.get("return_definition") or blueprint.get("overnight_return_definition")
@@ -495,6 +680,7 @@ def dispatch_compute(session_id: str | None, blueprint: dict[str, Any], data_csv
             "executed_test_rows": stats_rows,
             "csv_outputs": csv_outputs,
             "figure_artifacts": figure_artifacts,
+            "execution_artifacts": execution_artifacts,
             "primary_numbers": primary_numbers,
             "robustness_results": {
                 "raw_execution_summary": raw_results,
@@ -513,6 +699,16 @@ def dispatch_compute(session_id: str | None, blueprint: dict[str, Any], data_csv
             "price_window": context.get("window", {}),
             "data_row_count": schema.get("n_rows", 0),
             "analysis_code": raw_results.get("analysis_code", code),
+            "execution_metadata": {
+                "backend": raw_results.get("compute_backend") or _compute_backend(),
+                "modal_account_alias": raw_results.get("modal_account_alias"),
+                "attempts": raw_results.get("execution_attempts"),
+                "runtime_seconds": raw_results.get("runtime_seconds"),
+                "modal_execution": raw_results.get("modal_execution", {}),
+                "stderr": raw_results.get("stderr"),
+                "error": raw_results.get("error"),
+                "last_error": raw_results.get("last_error"),
+            },
         }
     finally:
         # Temporary execution outputs are copied into the returned CSV strings and

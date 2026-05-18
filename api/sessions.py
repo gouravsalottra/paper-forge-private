@@ -312,6 +312,10 @@ def _ensure_schema(conn: Any) -> None:
           session_id TEXT NOT NULL,
           phase_name TEXT,
           status TEXT NOT NULL,
+          backend TEXT DEFAULT 'local',
+          modal_account_alias TEXT,
+          attempt_count INTEGER DEFAULT 0,
+          runtime_seconds REAL,
           logs_path TEXT,
           artifact_paths TEXT,
           cost_metrics TEXT,
@@ -373,6 +377,10 @@ def _ensure_cockpit_schema(conn: Any) -> None:
           session_id UUID REFERENCES sessions(id),
           phase_name TEXT,
           status TEXT NOT NULL,
+          backend TEXT DEFAULT 'local',
+          modal_account_alias TEXT,
+          attempt_count INTEGER DEFAULT 0,
+          runtime_seconds DOUBLE PRECISION,
           logs_path TEXT,
           artifact_paths JSONB,
           cost_metrics JSONB,
@@ -393,6 +401,13 @@ def _ensure_cockpit_schema(conn: Any) -> None:
         """,
     ]
     for statement in statements:
+        _execute(conn, statement)
+    for statement in [
+        "ALTER TABLE sandbox_jobs ADD COLUMN IF NOT EXISTS backend TEXT DEFAULT 'local'",
+        "ALTER TABLE sandbox_jobs ADD COLUMN IF NOT EXISTS modal_account_alias TEXT",
+        "ALTER TABLE sandbox_jobs ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0",
+        "ALTER TABLE sandbox_jobs ADD COLUMN IF NOT EXISTS runtime_seconds DOUBLE PRECISION",
+    ]:
         _execute(conn, statement)
     _commit(conn)
 
@@ -513,6 +528,10 @@ def _sandbox_job_dict(row: Any) -> dict[str, Any]:
         "id": _row_get(row, "id"),
         "phase_name": _row_get(row, "phase_name"),
         "status": _row_get(row, "status"),
+        "backend": _row_get(row, "backend", "local"),
+        "modal_account_alias": _row_get(row, "modal_account_alias"),
+        "attempt_count": _row_get(row, "attempt_count", 0),
+        "runtime_seconds": _row_get(row, "runtime_seconds"),
         "logs_path": _row_get(row, "logs_path"),
         "artifact_paths": _json_loads(_row_get(row, "artifact_paths"), []),
         "cost_metrics": _json_loads(_row_get(row, "cost_metrics"), {}),
@@ -530,6 +549,15 @@ def _default_hard_limits() -> dict[str, Any]:
         "max_retries_per_phase": 3,
         "max_artifact_mb": 250,
         "network_policy": "allowlist_only",
+    }
+
+
+def _sandbox_backend_defaults() -> dict[str, Any]:
+    requested = str(os.getenv("THRIVARC_COMPUTE_BACKEND") or "").strip().lower()
+    backend = "modal" if os.getenv("ENVIRONMENT") == "production" else (requested or "local")
+    return {
+        "backend": backend,
+        "modal_account_alias": os.getenv("MODAL_ACCOUNT_ALIAS", "primary") if backend == "modal" else None,
     }
 
 
@@ -862,6 +890,8 @@ def _execution_profile(blueprint: dict[str, Any], session_id: str | None = None)
     )
     profile["csv_outputs"] = executed.get("csv_outputs", {})
     profile["figure_artifacts"] = executed.get("figure_artifacts", {})
+    profile["execution_artifacts"] = executed.get("execution_artifacts", {})
+    profile["execution_metadata"] = executed.get("execution_metadata", {})
     profile["verified_csv_artifacts"] = compute["verified_csv_artifacts"]
     profile["statistics"].update(
         {
@@ -1527,38 +1557,55 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         _phase_status(conn, session_id, "Research Architect", "running", "Building the execution profile from the locked Blueprint.")
         _event(conn, session_id, "phase_update", {"summary": "Building the execution profile from the locked Blueprint."}, "Research Architect", "running")
         sandbox_job_id = str(uuid.uuid4())
+        sandbox_backend = _sandbox_backend_defaults()
         _execute(
             conn,
-            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, logs_path, artifact_paths, cost_metrics, failure_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (sandbox_job_id, session_id, "Compute", "running", None, _json_dumps([]), _json_dumps({"max_runtime_seconds": _default_hard_limits()["max_sandbox_runtime_seconds"]}), None, _now(), _now()),
+            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, backend, modal_account_alias, attempt_count, runtime_seconds, logs_path, artifact_paths, cost_metrics, failure_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (sandbox_job_id, session_id, "Compute", "running", sandbox_backend["backend"], sandbox_backend["modal_account_alias"], 0, None, None, _json_dumps([]), _json_dumps({"max_runtime_seconds": _default_hard_limits()["max_sandbox_runtime_seconds"], "backend": sandbox_backend["backend"], "modal_account_alias": sandbox_backend["modal_account_alias"]}), None, _now(), _now()),
         )
-        _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "running"}, "Sandbox Compute", "running")
+        _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "running", **sandbox_backend}, "Sandbox Compute", "running")
         _commit(conn)
 
     try:
         profile = _execution_profile(blueprint, session_id=session_id)
+        execution_metadata = profile.get("execution_metadata", {}) if isinstance(profile.get("execution_metadata"), dict) else {}
+        artifact_paths = sorted((profile.get("csv_outputs") or {}).keys()) if isinstance(profile.get("csv_outputs"), dict) else []
+        artifact_paths.extend(
+            artifact.get("blob_path")
+            for artifact in (profile.get("figure_artifacts") or {}).values()
+            if isinstance(artifact, dict) and artifact.get("blob_path")
+        )
+        artifact_paths.extend(
+            artifact.get("blob_path")
+            for artifact in (profile.get("execution_artifacts") or {}).values()
+            if isinstance(artifact, dict) and artifact.get("blob_path")
+        )
         with _with_conn() as conn:
             _execute(
                 conn,
-                "UPDATE sandbox_jobs SET status=?, artifact_paths=?, cost_metrics=?, updated_at=? WHERE id=?",
+                "UPDATE sandbox_jobs SET status=?, backend=?, modal_account_alias=?, attempt_count=?, runtime_seconds=?, artifact_paths=?, cost_metrics=?, updated_at=? WHERE id=?",
                 (
                     "complete",
-                    _json_dumps(sorted((profile.get("verified_csv_artifacts") or {}).values()) if isinstance(profile.get("verified_csv_artifacts"), dict) else []),
-                    _json_dumps({"max_runtime_seconds": _default_hard_limits()["max_sandbox_runtime_seconds"], "status": "within_limits"}),
+                    execution_metadata.get("backend") or sandbox_backend["backend"],
+                    execution_metadata.get("modal_account_alias") or sandbox_backend["modal_account_alias"],
+                    execution_metadata.get("attempts") or 0,
+                    execution_metadata.get("runtime_seconds"),
+                    _json_dumps(artifact_paths),
+                    _json_dumps({"max_runtime_seconds": _default_hard_limits()["max_sandbox_runtime_seconds"], "status": "within_limits", **execution_metadata}),
                     _now(),
                     sandbox_job_id,
                 ),
             )
-            _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "complete"}, "Sandbox Compute", "complete")
+            _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "complete", "backend": execution_metadata.get("backend") or sandbox_backend["backend"], "modal_account_alias": execution_metadata.get("modal_account_alias") or sandbox_backend["modal_account_alias"], "attempt_count": execution_metadata.get("attempts"), "runtime_seconds": execution_metadata.get("runtime_seconds")}, "Sandbox Compute", "complete")
             _commit(conn)
     except Exception as exc:
         with _with_conn() as conn:
             _execute(
                 conn,
-                "UPDATE sandbox_jobs SET status=?, failure_details=?, updated_at=? WHERE id=?",
-                ("failed", f"{type(exc).__name__}: {exc}", _now(), sandbox_job_id),
+                "UPDATE sandbox_jobs SET status=?, backend=?, modal_account_alias=?, failure_details=?, updated_at=? WHERE id=?",
+                ("failed", sandbox_backend["backend"], sandbox_backend["modal_account_alias"], f"{type(exc).__name__}: {exc}", _now(), sandbox_job_id),
             )
-            _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "failed", "failure": str(exc)}, "Sandbox Compute", "failed")
+            _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "failed", "failure": str(exc), **sandbox_backend}, "Sandbox Compute", "failed")
             _commit(conn)
         raise
     contracts = _build_agent_contracts(session_id, blueprint, profile)
@@ -2062,15 +2109,18 @@ def create_followup(session_id: str, payload: dict[str, Any]):
 def create_sandbox_job(session_id: str, payload: dict[str, Any]):
     job_id = str(uuid.uuid4())
     phase_name = str(payload.get("phase_name") or "Compute").strip()
+    defaults = _sandbox_backend_defaults()
+    backend = str(payload.get("backend") or defaults["backend"])
+    modal_account_alias = payload.get("modal_account_alias", defaults["modal_account_alias"])
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
         _execute(
             conn,
-            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, logs_path, artifact_paths, cost_metrics, failure_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (job_id, session_id, phase_name, "queued", payload.get("logs_path"), _json_dumps(payload.get("artifact_paths") or []), _json_dumps(payload.get("cost_metrics") or {}), None, _now(), _now()),
+            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, backend, modal_account_alias, attempt_count, runtime_seconds, logs_path, artifact_paths, cost_metrics, failure_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, session_id, phase_name, "queued", backend, modal_account_alias, int(payload.get("attempt_count") or 0), payload.get("runtime_seconds"), payload.get("logs_path"), _json_dumps(payload.get("artifact_paths") or []), _json_dumps(payload.get("cost_metrics") or {}), None, _now(), _now()),
         )
-        _event(conn, session_id, "sandbox_job_update", {"job_id": job_id, "phase_name": phase_name, "job_status": "queued"}, "Sandbox Compute", "queued")
+        _event(conn, session_id, "sandbox_job_update", {"job_id": job_id, "phase_name": phase_name, "job_status": "queued", "backend": backend, "modal_account_alias": modal_account_alias}, "Sandbox Compute", "queued")
         row = _fetchone(conn, "SELECT * FROM sandbox_jobs WHERE id=?", (job_id,))
         _commit(conn)
         return {"sandbox_job": _sandbox_job_dict(row)}
@@ -2090,9 +2140,13 @@ def update_sandbox_job(session_id: str, job_id: str, payload: dict[str, Any]):
             return _error(404, "SANDBOX_JOB_NOT_FOUND", "Sandbox job was not found for this session.", "not_found", [f"GET /api/sessions/{session_id}/cockpit"])
         _execute(
             conn,
-            "UPDATE sandbox_jobs SET status=?, logs_path=?, artifact_paths=?, cost_metrics=?, failure_details=?, updated_at=? WHERE id=?",
+            "UPDATE sandbox_jobs SET status=?, backend=?, modal_account_alias=?, attempt_count=?, runtime_seconds=?, logs_path=?, artifact_paths=?, cost_metrics=?, failure_details=?, updated_at=? WHERE id=?",
             (
                 status,
+                payload.get("backend", _row_get(job, "backend")),
+                payload.get("modal_account_alias", _row_get(job, "modal_account_alias")),
+                int(payload.get("attempt_count", _row_get(job, "attempt_count", 0)) or 0),
+                payload.get("runtime_seconds", _row_get(job, "runtime_seconds")),
                 payload.get("logs_path", _row_get(job, "logs_path")),
                 _json_dumps(payload.get("artifact_paths", _json_loads(_row_get(job, "artifact_paths"), []))),
                 _json_dumps(payload.get("cost_metrics", _json_loads(_row_get(job, "cost_metrics"), {}))),
@@ -2101,7 +2155,7 @@ def update_sandbox_job(session_id: str, job_id: str, payload: dict[str, Any]):
                 job_id,
             ),
         )
-        _event(conn, session_id, "sandbox_job_update", {"job_id": job_id, "phase_name": _row_get(job, "phase_name"), "job_status": status}, "Sandbox Compute", status)
+        _event(conn, session_id, "sandbox_job_update", {"job_id": job_id, "phase_name": _row_get(job, "phase_name"), "job_status": status, "backend": payload.get("backend", _row_get(job, "backend")), "modal_account_alias": payload.get("modal_account_alias", _row_get(job, "modal_account_alias"))}, "Sandbox Compute", status)
         row = _fetchone(conn, "SELECT * FROM sandbox_jobs WHERE id=?", (job_id,))
         _commit(conn)
         return {"sandbox_job": _sandbox_job_dict(row)}
