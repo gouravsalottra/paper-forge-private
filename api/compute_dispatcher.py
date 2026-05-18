@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import base64
 import hashlib
+import ast
 import json
 import logging
 import os
@@ -62,10 +63,18 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
     start = text.find("{")
     end = text.rfind("}")
     if start >= 0 and end > start:
+        candidate = text[start : end + 1]
         try:
-            parsed = json.loads(text[start : end + 1])
+            parsed = json.loads(candidate)
             return parsed if isinstance(parsed, dict) else None
         except json.JSONDecodeError:
+            pass
+        try:
+            normalized = re.sub(r"\b(?:np|numpy)\.(?:float|int)(?:16|32|64)?\(([^()]+)\)", r"\1", candidate)
+            normalized = re.sub(r"\bnan\b", "None", normalized, flags=re.IGNORECASE)
+            parsed = ast.literal_eval(normalized)
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
             return None
     return None
 

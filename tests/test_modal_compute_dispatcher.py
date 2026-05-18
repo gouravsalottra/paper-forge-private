@@ -31,13 +31,15 @@ def test_modal_payload_does_not_include_process_secrets(tmp_path, monkeypatch):
 
 
 def test_generated_code_cleaner_removes_markdown_fences():
-    from api.compute_dispatcher import _clean_generated_code, _generated_code_preflight_error
+    from api.compute_dispatcher import _clean_generated_code, _extract_json_from_text, _generated_code_preflight_error
 
     cleaned = _clean_generated_code("```python\nprint('ok')\n```")
 
     assert cleaned == "print('ok')"
     assert _generated_code_preflight_error(cleaned) is None
     assert "sklearn" in (_generated_code_preflight_error("from sklearn.utils import resample") or "")
+    parsed = _extract_json_from_text("{'primary_result': {'coefficient': np.float64(-0.043), 'p_value': None}}")
+    assert parsed == {"primary_result": {"coefficient": -0.043, "p_value": None}}
 
 
 def test_execute_analysis_code_uses_modal_backend_and_materializes_outputs(tmp_path, monkeypatch):
