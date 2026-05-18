@@ -161,6 +161,57 @@ def init_db(db_path: Path = DB_PATH) -> None:
               created_at TEXT,
               accepted_at TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS approval_gates (
+              id TEXT PRIMARY KEY,
+              session_id TEXT NOT NULL REFERENCES sessions(id),
+              phase_name TEXT NOT NULL,
+              status TEXT NOT NULL,
+              required_action TEXT,
+              autopilot_eligible INTEGER DEFAULT 0,
+              autopilot_reason TEXT,
+              approver TEXT,
+              approved_at TEXT,
+              decision_notes TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS followup_instructions (
+              id TEXT PRIMARY KEY,
+              session_id TEXT NOT NULL REFERENCES sessions(id),
+              phase_name TEXT,
+              artifact_path TEXT,
+              raw_instruction TEXT NOT NULL,
+              classification TEXT NOT NULL,
+              proposed_action TEXT NOT NULL,
+              approval_status TEXT NOT NULL,
+              applied_at TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS sandbox_jobs (
+              id TEXT PRIMARY KEY,
+              session_id TEXT NOT NULL REFERENCES sessions(id),
+              phase_name TEXT,
+              status TEXT NOT NULL,
+              logs_path TEXT,
+              artifact_paths TEXT,
+              cost_metrics TEXT,
+              failure_details TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS cockpit_settings (
+              session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+              autopilot_enabled INTEGER DEFAULT 0,
+              autopilot_criteria TEXT,
+              hard_limits TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             """.replace("PAP_TBL", "pap_" + "locks")
         )
 

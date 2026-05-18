@@ -131,3 +131,54 @@ CREATE TABLE IF NOT EXISTS coauthor_invitations (
   created_at TIMESTAMPTZ,
   accepted_at TIMESTAMPTZ
 );
+
+CREATE TABLE IF NOT EXISTS approval_gates (
+  id UUID PRIMARY KEY,
+  session_id UUID REFERENCES sessions(id),
+  phase_name TEXT NOT NULL,
+  status TEXT NOT NULL,
+  required_action TEXT,
+  autopilot_eligible BOOLEAN DEFAULT FALSE,
+  autopilot_reason TEXT,
+  approver TEXT,
+  approved_at TIMESTAMPTZ,
+  decision_notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS followup_instructions (
+  id UUID PRIMARY KEY,
+  session_id UUID REFERENCES sessions(id),
+  phase_name TEXT,
+  artifact_path TEXT,
+  raw_instruction TEXT NOT NULL,
+  classification TEXT NOT NULL,
+  proposed_action TEXT NOT NULL,
+  approval_status TEXT NOT NULL,
+  applied_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sandbox_jobs (
+  id UUID PRIMARY KEY,
+  session_id UUID REFERENCES sessions(id),
+  phase_name TEXT,
+  status TEXT NOT NULL,
+  logs_path TEXT,
+  artifact_paths JSONB,
+  cost_metrics JSONB,
+  failure_details TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cockpit_settings (
+  session_id UUID PRIMARY KEY REFERENCES sessions(id),
+  autopilot_enabled BOOLEAN DEFAULT FALSE,
+  autopilot_criteria JSONB,
+  hard_limits JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);

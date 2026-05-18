@@ -673,10 +673,10 @@ function handleSessionEvent(sessionId, event){
   if(!event?.data) return;
   let payload = {};
   try{ payload = JSON.parse(event.data); }catch(_){ return; }
-  if(['phase_update','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','section_ready'].includes(payload.type || event.type)){
+  if(['phase_update','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','section_ready','approval_required','artifact_ready','phase_log','followup_classified','sandbox_job_update','repair_card_ready','export_ready'].includes(payload.type || event.type)){
     applyFrontendTruthState(payload.session || payload);
   }
-  if(['phase_update','gate_result','repair_triggered','writer_unlocked','run_complete','run_failed'].includes(payload.type || event.type)){
+  if(['phase_update','gate_result','repair_triggered','writer_unlocked','run_complete','run_failed','approval_required','artifact_ready','followup_classified','sandbox_job_update','export_ready'].includes(payload.type || event.type)){
     renderResearch(sessionId).catch(()=>{});
   }
 }
@@ -685,7 +685,7 @@ function connectSessionStream(sessionId, onEvent){
   if(!window.EventSource || !sessionId) return null;
   if(sessionStreams[sessionId]) return sessionStreams[sessionId];
   const source = new EventSource(`${API_BASE}/api/sessions/${sessionId}/stream`);
-  ['phase_update','section_ready','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged'].forEach(type=>{
+  ['phase_update','section_ready','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','approval_required','artifact_ready','phase_log','followup_classified','sandbox_job_update','repair_card_ready','export_ready'].forEach(type=>{
     source.addEventListener(type, event => {
       handleSessionEvent(sessionId, event);
       if(onEvent) onEvent(event);
@@ -2241,12 +2241,80 @@ function phaseState(st, phase){
   return 'waiting';
 }
 
+function renderCockpitPanel(cockpit, sessionId){
+  if(!cockpit) return '';
+  const gates = cockpit.approval_gates || [];
+  const followups = cockpit.followups || [];
+  const jobs = cockpit.sandbox_jobs || [];
+  const arts = cockpit.artifacts?.latest || [];
+  const current = cockpit.current_phase || {};
+  const autopilot = cockpit.autopilot || {};
+  const phaseModel = cockpit.phase_model || [];
+  const gateRows = gates.map(g=>`
+    <div class="card" style="margin-top:8px">
+      <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start">
+        <div><strong>${esc(g.phase_name || 'Phase gate')}</strong><div class="mini">${esc(g.required_action || 'Approve / Revise / Stop')} · ${g.autopilot_eligible ? 'autopilot eligible' : 'manual gate'}</div></div>
+        <span class="pill ${g.status==='approved'||g.status==='auto_approved'?'ok':g.status==='stopped'?'bad':'warn'}">${esc(g.status || 'pending')}</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="approve">Approve</button>
+        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="revise">Revise</button>
+        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="stop">Stop</button>
+      </div>
+    </div>`).join('');
+  const followupRows = followups.slice(-5).map(f=>`
+    <div class="mini" style="padding:8px 0;border-bottom:1px solid rgba(20,95,82,.12)">
+      <strong>${esc(f.classification || 'queued')}</strong> · ${esc(f.approval_status || '')}<br>
+      ${esc(f.raw_instruction || '')}
+    </div>`).join('');
+  const jobRows = jobs.slice(-5).map(j=>`<li>${esc(j.phase_name || 'Compute')} · ${esc(j.status || 'queued')}</li>`).join('');
+  const artifactRows = arts.slice(-6).map(a=>`<li><a href="${esc(a.download_url || '#')}" download>${esc(a.name || a.path || 'artifact')}</a> <span class="mini">${esc(a.status || 'complete')}</span></li>`).join('');
+  return `
+    <div class="card cockpit-panel" style="margin-bottom:12px" data-truth-source="api.sessions.cockpit">
+      <div class="row" style="justify-content:space-between;gap:10px;align-items:flex-start">
+        <div>
+          <h3>Research cockpit</h3>
+          <p class="muted">You are the pilot. Thrivarc streams artifacts, queues follow-ups safely, and pauses at approval gates.</p>
+        </div>
+        <span class="pill ${autopilot.enabled?'ok':'muted'}">Autopilot ${autopilot.enabled?'on':'off'}</span>
+      </div>
+      <div class="grid g2" style="margin-top:10px">
+        <div class="card">
+          <h4>Current phase</h4>
+          <p><strong>${esc(current.agent_name || current.phase_name || 'Waiting')}</strong></p>
+          <p class="mini">${esc(current.summary_text || 'No active phase summary yet.')}</p>
+          <p class="mini">Workflow: ${esc(phaseModel.join(' → '))}</p>
+        </div>
+        <div class="card">
+          <h4>Co-pilot instruction</h4>
+          <textarea id="cockpit-followup-text" placeholder="Ask for a revision, extra robustness check, chart, or note for the next safe pause point." style="min-height:96px"></textarea>
+          <div class="row" style="margin-top:8px"><button class="btn primary" id="cockpit-followup-submit">Queue instruction</button></div>
+        </div>
+      </div>
+      <div class="grid g2" style="margin-top:10px">
+        <div><h4>Approval gates</h4>${gateRows || '<p class="muted">No approval gates yet.</p>'}</div>
+        <div>
+          <h4>Live outputs</h4>
+          <ul>${artifactRows || '<li class="muted">Artifacts will appear here as they arrive.</li>'}</ul>
+          <h4>Sandbox jobs</h4>
+          <ul>${jobRows || '<li class="muted">No sandbox jobs queued.</li>'}</ul>
+          <h4>Queued follow-ups</h4>
+          ${followupRows || '<p class="muted">No follow-up instructions queued.</p>'}
+          <div class="row" style="margin-top:10px">
+            <a class="btn" href="${API_BASE}/api/sessions/${esc(sessionId)}/export/overleaf.zip" download>Download Overleaf ZIP</a>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 async function renderResearch(id){
   const app=qs('#app');
   app.innerHTML='<div class="card">Loading research...</div>';
   try{
     const st = await api(`/runs/${id}/status`);
     const arts = await api(`/runs/${id}/artifacts`);
+    const cockpitPayload = await api(`/api/sessions/${id}/cockpit`).catch(()=>null);
     const log = await api(`/runs/${id}/log`).catch(()=>({log_lines:[]}));
     const runList = await api('/runs').catch(()=>({runs:[]}));
     const researchDone = st.status==='done' || st.status==='paper_unlocked';
@@ -2282,6 +2350,7 @@ async function renderResearch(id){
     const doneCount = (st.phases_completed || []).length;
     const progressPct = Math.min(100, Math.round((doneCount / PHASE_ORDER.length) * 100));
     const engagingNow = researchActive ? `<div class="card" style="margin-bottom:12px"><h3>Live Research Feed</h3><p class="muted">Thrivarc is currently working on: <strong>${esc(getConfig('showAgentNames') ? (st.current_phase || 'QUEUE') : (PHASE_HUMAN[st.current_phase] || 'Kickoff'))}</strong></p><div class="replay"><span style="width:${progressPct}%"></span></div><p class="muted" style="margin-top:8px">${translateLog((log.log_lines||[]).slice(-1)[0]?.message || 'Preparing your research and loading the first stage...')}</p><p class="mini">Progress ${progressPct}% · ${doneCount}/${PHASE_ORDER.length} stages complete</p></div>` : '';
+    const cockpitCard = renderCockpitPanel(cockpitPayload, id);
     const miniFinding = st.statsrun_complete && !st.reviewer_started && findingPreviewPayload.preview ? `<div class="card" style="margin-bottom:12px"><h3>Finding so far</h3><p>${esc(findingPreviewPayload.preview)}</p></div>` : '';
     const findings = findingsPayload.findings || {};
     const charts = chartsPayload.charts || [];
@@ -2415,6 +2484,7 @@ async function renderResearch(id){
       <div class="card" style="margin-bottom:12px" data-truth-source="sessions.status"><h2 title="${esc(st.topic||'')}">${esc((st.topic||'Research').slice(0,80))}</h2><p class="muted">Status: ${esc(st.status)}</p></div>
       ${runTabs}
       ${engagingNow}
+      ${cockpitCard}
       ${miniFinding}
       <div class="card" style="margin-bottom:12px"><h3>Your research journey</h3><div class="timeline">${steps}</div></div>
       ${engineCard}
@@ -2455,6 +2525,21 @@ async function renderResearch(id){
       if(created?.run_id) location.hash = `#research/${created.run_id}`;
     }));
     qs('#write-paper')?.addEventListener('click', async()=>{ await api('/runs/write', {method:'POST', body:JSON.stringify({run_id:id, followup_run_ids:[], researcher_notes:''})}); toast('Paper workspace generated'); renderResearch(id); });
+    qs('#cockpit-followup-submit')?.addEventListener('click', async()=>{
+      const box = qs('#cockpit-followup-text');
+      const instruction = (box?.value || '').trim();
+      if(!instruction){ toast('Write an instruction first.'); return; }
+      await api(`/api/sessions/${id}/followups`, {method:'POST', body:JSON.stringify({instruction, phase_name: cockpitPayload?.current_phase?.agent_name || cockpitPayload?.current_phase?.phase_name || null})});
+      toast('Instruction queued for approval');
+      renderResearch(id);
+    });
+    document.querySelectorAll('[data-cockpit-approval]').forEach(btn=>btn.addEventListener('click', async()=>{
+      const gateId = btn.getAttribute('data-cockpit-approval');
+      const decision = btn.getAttribute('data-cockpit-decision');
+      await api(`/api/sessions/${id}/approvals/${gateId}/decision`, {method:'POST', body:JSON.stringify({decision, approver:'admin'})});
+      toast(`Gate ${decision}`);
+      renderResearch(id);
+    }));
 
     applyPersonaConfig(PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG.auto);
     applyFrontendTruthState(st);

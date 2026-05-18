@@ -17,6 +17,7 @@ import tempfile
 import threading
 import traceback
 import uuid
+import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -55,6 +56,31 @@ AGENT_SEQUENCE = [
     "Repair Agent",
     "Paper-Code Verifier",
     "Writer Agent",
+]
+
+COCKPIT_PHASES = [
+    "Topic",
+    "Blueprint",
+    "Literature",
+    "Data",
+    "Method Plan",
+    "Compute",
+    "Stats / Audit",
+    "Review",
+    "Writer",
+    "Export",
+]
+
+LOW_RISK_AUTOPILOT_PHASES = {"Literature", "Data", "Method Plan"}
+
+COCKPIT_SSE_EVENTS = [
+    "approval_required",
+    "artifact_ready",
+    "phase_log",
+    "followup_classified",
+    "sandbox_job_update",
+    "repair_card_ready",
+    "export_ready",
 ]
 
 STATE_MAP = {
@@ -254,14 +280,127 @@ def _ensure_schema(conn: Any) -> None:
           created_at TEXT,
           accepted_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS approval_gates (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          phase_name TEXT NOT NULL,
+          status TEXT NOT NULL,
+          required_action TEXT,
+          autopilot_eligible INTEGER DEFAULT 0,
+          autopilot_reason TEXT,
+          approver TEXT,
+          approved_at TEXT,
+          decision_notes TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS followup_instructions (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          phase_name TEXT,
+          artifact_path TEXT,
+          raw_instruction TEXT NOT NULL,
+          classification TEXT NOT NULL,
+          proposed_action TEXT NOT NULL,
+          approval_status TEXT NOT NULL,
+          applied_at TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS sandbox_jobs (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          phase_name TEXT,
+          status TEXT NOT NULL,
+          logs_path TEXT,
+          artifact_paths TEXT,
+          cost_metrics TEXT,
+          failure_details TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS cockpit_settings (
+          session_id TEXT PRIMARY KEY,
+          autopilot_enabled INTEGER DEFAULT 0,
+          autopilot_criteria TEXT,
+          hard_limits TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         """.replace("PAP_TABLE", "pap" + "_locks")
     )
     conn.commit()
 
 
+def _ensure_cockpit_schema(conn: Any) -> None:
+    if _is_sqlite(conn):
+        return
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS approval_gates (
+          id UUID PRIMARY KEY,
+          session_id UUID REFERENCES sessions(id),
+          phase_name TEXT NOT NULL,
+          status TEXT NOT NULL,
+          required_action TEXT,
+          autopilot_eligible BOOLEAN DEFAULT FALSE,
+          autopilot_reason TEXT,
+          approver TEXT,
+          approved_at TIMESTAMPTZ,
+          decision_notes TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS followup_instructions (
+          id UUID PRIMARY KEY,
+          session_id UUID REFERENCES sessions(id),
+          phase_name TEXT,
+          artifact_path TEXT,
+          raw_instruction TEXT NOT NULL,
+          classification TEXT NOT NULL,
+          proposed_action TEXT NOT NULL,
+          approval_status TEXT NOT NULL,
+          applied_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS sandbox_jobs (
+          id UUID PRIMARY KEY,
+          session_id UUID REFERENCES sessions(id),
+          phase_name TEXT,
+          status TEXT NOT NULL,
+          logs_path TEXT,
+          artifact_paths JSONB,
+          cost_metrics JSONB,
+          failure_details TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS cockpit_settings (
+          session_id UUID PRIMARY KEY REFERENCES sessions(id),
+          autopilot_enabled BOOLEAN DEFAULT FALSE,
+          autopilot_criteria JSONB,
+          hard_limits JSONB,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+    ]
+    for statement in statements:
+        _execute(conn, statement)
+    _commit(conn)
+
+
 def _with_conn():
     conn = _connect()
     _ensure_schema(conn)
+    _ensure_cockpit_schema(conn)
     return conn
 
 
@@ -328,6 +467,123 @@ def _event(conn: Any, session_id: str, event_type: str, payload: dict[str, Any],
         "INSERT INTO session_events (id, session_id, event_type, agent, status, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (str(uuid.uuid4()), session_id, event_type, agent, status, json.dumps(body, sort_keys=True), _now()),
     )
+
+
+def _json_dumps(value: Any) -> str:
+    return json.dumps(value if value is not None else {}, sort_keys=True)
+
+
+def _boolish(value: Any) -> bool:
+    return bool(value) if not isinstance(value, str) else value.lower() in {"1", "true", "yes", "on"}
+
+
+def _approval_gate_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "phase_name": _row_get(row, "phase_name"),
+        "status": _row_get(row, "status"),
+        "required_action": _row_get(row, "required_action"),
+        "autopilot_eligible": _boolish(_row_get(row, "autopilot_eligible")),
+        "autopilot_reason": _row_get(row, "autopilot_reason"),
+        "approver": _row_get(row, "approver"),
+        "approved_at": _row_get(row, "approved_at"),
+        "decision_notes": _row_get(row, "decision_notes"),
+        "created_at": _row_get(row, "created_at"),
+        "updated_at": _row_get(row, "updated_at"),
+    }
+
+
+def _followup_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "phase_name": _row_get(row, "phase_name"),
+        "artifact_path": _row_get(row, "artifact_path"),
+        "raw_instruction": _row_get(row, "raw_instruction"),
+        "classification": _row_get(row, "classification"),
+        "proposed_action": _row_get(row, "proposed_action"),
+        "approval_status": _row_get(row, "approval_status"),
+        "applied_at": _row_get(row, "applied_at"),
+        "created_at": _row_get(row, "created_at"),
+        "updated_at": _row_get(row, "updated_at"),
+    }
+
+
+def _sandbox_job_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "phase_name": _row_get(row, "phase_name"),
+        "status": _row_get(row, "status"),
+        "logs_path": _row_get(row, "logs_path"),
+        "artifact_paths": _json_loads(_row_get(row, "artifact_paths"), []),
+        "cost_metrics": _json_loads(_row_get(row, "cost_metrics"), {}),
+        "failure_details": _row_get(row, "failure_details"),
+        "created_at": _row_get(row, "created_at"),
+        "updated_at": _row_get(row, "updated_at"),
+    }
+
+
+def _default_hard_limits() -> dict[str, Any]:
+    return {
+        "max_llm_calls": 40,
+        "max_compute_minutes": 30,
+        "max_sandbox_runtime_seconds": 900,
+        "max_retries_per_phase": 3,
+        "max_artifact_mb": 250,
+        "network_policy": "allowlist_only",
+    }
+
+
+def _default_autopilot_criteria() -> dict[str, Any]:
+    return {
+        "allowed_phases": sorted(LOW_RISK_AUTOPILOT_PHASES),
+        "requires_no_deviations": True,
+        "requires_no_failures": True,
+        "requires_artifacts_present": True,
+        "requires_cost_within_limits": True,
+    }
+
+
+def _ensure_cockpit_settings(conn: Any, session_id: str) -> None:
+    existing = _fetchone(conn, "SELECT session_id FROM cockpit_settings WHERE session_id=?", (session_id,))
+    if existing:
+        return
+    _execute(
+        conn,
+        "INSERT INTO cockpit_settings (session_id, autopilot_enabled, autopilot_criteria, hard_limits, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (session_id, False, _json_dumps(_default_autopilot_criteria()), _json_dumps(_default_hard_limits()), _now(), _now()),
+    )
+
+
+def _ensure_approval_gates(conn: Any, session_id: str) -> None:
+    _ensure_cockpit_settings(conn, session_id)
+    for phase in COCKPIT_PHASES:
+        existing = _fetchone(conn, "SELECT id FROM approval_gates WHERE session_id=? AND phase_name=?", (session_id, phase))
+        if existing:
+            continue
+        eligible = phase in LOW_RISK_AUTOPILOT_PHASES
+        reason = "Eligible only when no deviations, failures, or limit breaches are present." if eligible else "Manual approval required for this research-control gate."
+        _execute(
+            conn,
+            "INSERT INTO approval_gates (id, session_id, phase_name, status, required_action, autopilot_eligible, autopilot_reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), session_id, phase, "pending", "Approve / Revise / Stop", bool(eligible), reason, _now(), _now()),
+        )
+
+
+def _classify_followup(instruction: str) -> tuple[str, str, str]:
+    text = re.sub(r"\s+", " ", str(instruction or "")).strip()
+    lowered = text.lower()
+    unsafe = ("password", "secret", "api key", "token", "drop table", "delete database", "credential")
+    blueprint_terms = ("blueprint", "hypothesis", "claim", "method", "identifier", "ticker", "date range", "window", "data source", "evidence route")
+    phase_terms = ("rerun", "recompute", "add test", "add chart", "add figure", "fix table", "revise", "robustness", "regression", "sample")
+    if not text:
+        return "invalid_unsafe", "Reject empty instruction.", "rejected"
+    if any(term in lowered for term in unsafe):
+        return "invalid_unsafe", "Do not apply; instruction may expose credentials or destructive operations.", "rejected"
+    if any(term in lowered for term in blueprint_terms):
+        return "blueprint_changing_deviation", "Create a deviation register entry and require researcher approval before changing the locked research contract.", "needs_approval"
+    if any(term in lowered for term in phase_terms):
+        return "phase_local_revision", "Queue a phase-local revision at the next safe pause point.", "needs_approval"
+    return "harmless_annotation", "Attach as researcher guidance for downstream agents without changing execution.", "needs_approval"
 
 
 def _session_row(conn: Any, session_id: str):
@@ -1270,9 +1526,41 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
     with _with_conn() as conn:
         _phase_status(conn, session_id, "Research Architect", "running", "Building the execution profile from the locked Blueprint.")
         _event(conn, session_id, "phase_update", {"summary": "Building the execution profile from the locked Blueprint."}, "Research Architect", "running")
+        sandbox_job_id = str(uuid.uuid4())
+        _execute(
+            conn,
+            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, logs_path, artifact_paths, cost_metrics, failure_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (sandbox_job_id, session_id, "Compute", "running", None, _json_dumps([]), _json_dumps({"max_runtime_seconds": _default_hard_limits()["max_sandbox_runtime_seconds"]}), None, _now(), _now()),
+        )
+        _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "running"}, "Sandbox Compute", "running")
         _commit(conn)
 
-    profile = _execution_profile(blueprint, session_id=session_id)
+    try:
+        profile = _execution_profile(blueprint, session_id=session_id)
+        with _with_conn() as conn:
+            _execute(
+                conn,
+                "UPDATE sandbox_jobs SET status=?, artifact_paths=?, cost_metrics=?, updated_at=? WHERE id=?",
+                (
+                    "complete",
+                    _json_dumps(sorted((profile.get("verified_csv_artifacts") or {}).values()) if isinstance(profile.get("verified_csv_artifacts"), dict) else []),
+                    _json_dumps({"max_runtime_seconds": _default_hard_limits()["max_sandbox_runtime_seconds"], "status": "within_limits"}),
+                    _now(),
+                    sandbox_job_id,
+                ),
+            )
+            _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "complete"}, "Sandbox Compute", "complete")
+            _commit(conn)
+    except Exception as exc:
+        with _with_conn() as conn:
+            _execute(
+                conn,
+                "UPDATE sandbox_jobs SET status=?, failure_details=?, updated_at=? WHERE id=?",
+                ("failed", f"{type(exc).__name__}: {exc}", _now(), sandbox_job_id),
+            )
+            _event(conn, session_id, "sandbox_job_update", {"job_id": sandbox_job_id, "phase_name": "Compute", "job_status": "failed", "failure": str(exc)}, "Sandbox Compute", "failed")
+            _commit(conn)
+        raise
     contracts = _build_agent_contracts(session_id, blueprint, profile)
     agent_blueprint = contracts["agent_blueprint"]
     with _with_conn() as conn:
@@ -1550,6 +1838,75 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
     }
 
 
+def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
+    session = _session_row(conn, session_id)
+    if not session:
+        raise KeyError("session_not_found")
+    _ensure_approval_gates(conn, session_id)
+    phases = [
+        dict(item) if not isinstance(item, dict) else item
+        for item in _fetchall(conn, "SELECT agent_name, status, summary_text, failure_reason, failure_mode FROM phases WHERE session_id=?", (session_id,))
+    ]
+    approvals = [
+        _approval_gate_dict(row)
+        for row in _fetchall(conn, "SELECT * FROM approval_gates WHERE session_id=? ORDER BY created_at ASC", (session_id,))
+    ]
+    followups = [
+        _followup_dict(row)
+        for row in _fetchall(conn, "SELECT * FROM followup_instructions WHERE session_id=? ORDER BY created_at ASC", (session_id,))
+    ]
+    sandbox_jobs = [
+        _sandbox_job_dict(row)
+        for row in _fetchall(conn, "SELECT * FROM sandbox_jobs WHERE session_id=? ORDER BY created_at ASC", (session_id,))
+    ]
+    settings = _fetchone(conn, "SELECT * FROM cockpit_settings WHERE session_id=?", (session_id,))
+    artifacts_list = list_artifacts(session_id)
+    artifact_preview = [
+        {
+            "name": item.get("name"),
+            "path": item.get("path"),
+            "status": "complete",
+            "size": item.get("size"),
+            "download_url": item.get("download_url") or item.get("url"),
+        }
+        for item in artifacts_list[-12:]
+    ]
+    current_phase = next((phase for phase in phases if phase.get("status") == "running"), None)
+    if current_phase is None:
+        current_phase = next((phase for phase in reversed(phases) if phase.get("status") in {"pending", "failed_resumable", "repair_required", "paper_locked"}), None)
+    return {
+        "session": _session_summary(conn, session),
+        "phase_model": COCKPIT_PHASES,
+        "current_phase": current_phase,
+        "phases": phases,
+        "approval_gates": approvals,
+        "pending_approval": next((gate for gate in approvals if gate["status"] in {"pending", "revise_requested"}), None),
+        "followups": followups,
+        "sandbox_jobs": sandbox_jobs,
+        "artifacts": {
+            "count": len(artifacts_list),
+            "latest": artifact_preview,
+            "status_policy": "draft/running/complete/superseded states are supplied by API metadata; historical artifacts default to complete.",
+        },
+        "autopilot": {
+            "enabled": _boolish(_row_get(settings, "autopilot_enabled")),
+            "criteria": _json_loads(_row_get(settings, "autopilot_criteria"), _default_autopilot_criteria()),
+            "hard_limits": _json_loads(_row_get(settings, "hard_limits"), _default_hard_limits()),
+        },
+        "security": {
+            "mode": "single_admin",
+            "admin_secret_configured": bool(os.getenv("THRIVARC_ADMIN_PASSWORD")),
+            "secret_storage": "azure_containerapp_secrets_or_env",
+            "llm_provider": "azure_openai_gpt-4o",
+        },
+        "sse_events": COCKPIT_SSE_EVENTS,
+        "export": {
+            "overleaf_zip_route": f"/api/sessions/{session_id}/export/overleaf.zip",
+            "standalone_tex_route": f"/api/sessions/{session_id}/artifacts/download?path=sessions/{session_id}/11_paper/final.tex",
+        },
+    }
+
+
 @router.post("")
 def create_session(payload: dict[str, Any], request: Request):
     try:
@@ -1568,7 +1925,9 @@ def create_session(payload: dict[str, Any], request: Request):
                 (session_id, topic, domain, "unknown", "initializing", now, now, user_id, 0),
             )
             _phase_status(conn, session_id, "Research Architect", "pending", "Waiting for scope.")
+            _ensure_approval_gates(conn, session_id)
             _event(conn, session_id, "phase_update", {"summary": "Session initialized."}, "Research Architect", "pending")
+            _event(conn, session_id, "approval_required", {"phase_name": "Topic", "required_action": "Approve / Revise / Stop"}, "Research Cockpit", "pending")
             _commit(conn)
         _write_truth_contract(session_id, {})
         upload_urls = [
@@ -1601,6 +1960,151 @@ def get_session(session_id: str):
         blueprint = _blueprint_row(conn, session_id)
         summary.update({"phases": phases, "blueprint": _blueprint_content(blueprint), "parent_run_id": _row_get(row, "parent_run_id")})
         return summary
+
+
+@router.get("/{session_id}/cockpit")
+def get_cockpit(session_id: str):
+    with _with_conn() as conn:
+        try:
+            payload = _cockpit_payload(conn, session_id)
+            _commit(conn)
+            return payload
+        except KeyError:
+            return _not_found()
+
+
+@router.post("/{session_id}/autopilot")
+def set_autopilot(session_id: str, payload: dict[str, Any]):
+    enabled = bool(payload.get("enabled"))
+    criteria = payload.get("criteria") if isinstance(payload.get("criteria"), dict) else _default_autopilot_criteria()
+    hard_limits = payload.get("hard_limits") if isinstance(payload.get("hard_limits"), dict) else _default_hard_limits()
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        _ensure_cockpit_settings(conn, session_id)
+        _execute(
+            conn,
+            "UPDATE cockpit_settings SET autopilot_enabled=?, autopilot_criteria=?, hard_limits=?, updated_at=? WHERE session_id=?",
+            (enabled, _json_dumps(criteria), _json_dumps(hard_limits), _now(), session_id),
+        )
+        _event(conn, session_id, "phase_log", {"summary": f"Autopilot {'enabled' if enabled else 'disabled'}.", "hard_limits": hard_limits}, "Research Cockpit", "complete")
+        payload_out = _cockpit_payload(conn, session_id)
+        _commit(conn)
+        return {"autopilot": payload_out["autopilot"]}
+
+
+@router.post("/{session_id}/approvals/{gate_id}/decision")
+def decide_approval_gate(session_id: str, gate_id: str, payload: dict[str, Any]):
+    decision = str(payload.get("decision") or "").strip().lower()
+    status_map = {"approve": "approved", "approved": "approved", "revise": "revise_requested", "stop": "stopped", "auto_approve": "auto_approved"}
+    if decision not in status_map:
+        return _error(400, "INVALID_APPROVAL_DECISION", "Decision must be approve, revise, stop, or auto_approve.", "needs_valid_decision", ["approve", "revise", "stop", "auto_approve"])
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        gate = _fetchone(conn, "SELECT * FROM approval_gates WHERE id=? AND session_id=?", (gate_id, session_id))
+        if not gate:
+            return _error(404, "APPROVAL_GATE_NOT_FOUND", "Approval gate was not found for this session.", "not_found", [f"GET /api/sessions/{session_id}/cockpit"])
+        new_status = status_map[decision]
+        approver = str(payload.get("approver") or "admin")
+        notes = str(payload.get("notes") or "").strip()
+        _execute(
+            conn,
+            "UPDATE approval_gates SET status=?, approver=?, approved_at=?, decision_notes=?, updated_at=? WHERE id=?",
+            (new_status, approver, _now(), notes, _now(), gate_id),
+        )
+        if new_status == "stopped":
+            _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("stopped", _now(), session_id))
+        event_type = "approval_required" if new_status == "revise_requested" else "phase_update"
+        _event(conn, session_id, event_type, {"gate_id": gate_id, "phase_name": _row_get(gate, "phase_name"), "decision": new_status, "notes": notes}, "Research Cockpit", new_status)
+        payload_out = _cockpit_payload(conn, session_id)
+        _commit(conn)
+        return {"approval_gate": next((item for item in payload_out["approval_gates"] if item["id"] == gate_id), None), "cockpit": payload_out}
+
+
+@router.get("/{session_id}/followups")
+def list_followups(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        rows = [_followup_dict(row) for row in _fetchall(conn, "SELECT * FROM followup_instructions WHERE session_id=? ORDER BY created_at ASC", (session_id,))]
+        return {"followups": rows}
+
+
+@router.post("/{session_id}/followups")
+def create_followup(session_id: str, payload: dict[str, Any]):
+    instruction = str(payload.get("instruction") or payload.get("raw_instruction") or "").strip()
+    phase_name = str(payload.get("phase_name") or "").strip() or None
+    artifact_path = str(payload.get("artifact_path") or "").strip() or None
+    classification, proposed_action, approval_status = _classify_followup(instruction)
+    followup_id = str(uuid.uuid4())
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        _execute(
+            conn,
+            "INSERT INTO followup_instructions (id, session_id, phase_name, artifact_path, raw_instruction, classification, proposed_action, approval_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (followup_id, session_id, phase_name, artifact_path, instruction, classification, proposed_action, approval_status, _now(), _now()),
+        )
+        if classification == "blueprint_changing_deviation":
+            _execute(
+                conn,
+                "INSERT INTO deviation_register (id, session_id, field_changed, changed_from, changed_to, reason, timestamp, agent_triggered_by, requires_researcher_approval) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), session_id, "researcher_followup", "locked_or_current_design", instruction, "Follow-up instruction may change the research contract.", _now(), "Research Cockpit", True),
+            )
+        _event(conn, session_id, "followup_classified", {"followup_id": followup_id, "classification": classification, "proposed_action": proposed_action, "approval_status": approval_status}, "Research Cockpit", approval_status)
+        row = _fetchone(conn, "SELECT * FROM followup_instructions WHERE id=?", (followup_id,))
+        _commit(conn)
+        return {"followup": _followup_dict(row)}
+
+
+@router.post("/{session_id}/sandbox/jobs")
+def create_sandbox_job(session_id: str, payload: dict[str, Any]):
+    job_id = str(uuid.uuid4())
+    phase_name = str(payload.get("phase_name") or "Compute").strip()
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        _execute(
+            conn,
+            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, logs_path, artifact_paths, cost_metrics, failure_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, session_id, phase_name, "queued", payload.get("logs_path"), _json_dumps(payload.get("artifact_paths") or []), _json_dumps(payload.get("cost_metrics") or {}), None, _now(), _now()),
+        )
+        _event(conn, session_id, "sandbox_job_update", {"job_id": job_id, "phase_name": phase_name, "job_status": "queued"}, "Sandbox Compute", "queued")
+        row = _fetchone(conn, "SELECT * FROM sandbox_jobs WHERE id=?", (job_id,))
+        _commit(conn)
+        return {"sandbox_job": _sandbox_job_dict(row)}
+
+
+@router.patch("/{session_id}/sandbox/jobs/{job_id}")
+def update_sandbox_job(session_id: str, job_id: str, payload: dict[str, Any]):
+    allowed = {"queued", "running", "complete", "failed", "cancelled"}
+    status = str(payload.get("status") or "running").strip().lower()
+    if status not in allowed:
+        return _error(400, "INVALID_SANDBOX_STATUS", f"Sandbox status must be one of {sorted(allowed)}.", "needs_valid_status", sorted(allowed))
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        job = _fetchone(conn, "SELECT * FROM sandbox_jobs WHERE id=? AND session_id=?", (job_id, session_id))
+        if not job:
+            return _error(404, "SANDBOX_JOB_NOT_FOUND", "Sandbox job was not found for this session.", "not_found", [f"GET /api/sessions/{session_id}/cockpit"])
+        _execute(
+            conn,
+            "UPDATE sandbox_jobs SET status=?, logs_path=?, artifact_paths=?, cost_metrics=?, failure_details=?, updated_at=? WHERE id=?",
+            (
+                status,
+                payload.get("logs_path", _row_get(job, "logs_path")),
+                _json_dumps(payload.get("artifact_paths", _json_loads(_row_get(job, "artifact_paths"), []))),
+                _json_dumps(payload.get("cost_metrics", _json_loads(_row_get(job, "cost_metrics"), {}))),
+                payload.get("failure_details", _row_get(job, "failure_details")),
+                _now(),
+                job_id,
+            ),
+        )
+        _event(conn, session_id, "sandbox_job_update", {"job_id": job_id, "phase_name": _row_get(job, "phase_name"), "job_status": status}, "Sandbox Compute", status)
+        row = _fetchone(conn, "SELECT * FROM sandbox_jobs WHERE id=?", (job_id,))
+        _commit(conn)
+        return {"sandbox_job": _sandbox_job_dict(row)}
 
 
 @router.get("/{session_id}/resume")
@@ -1879,6 +2383,30 @@ def approve_repair(session_id: str, payload: dict[str, Any]):
     return {"repair_status": status, "resume_started": should_resume}
 
 
+@router.get("/{session_id}/export/overleaf.zip")
+def export_overleaf_zip(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+    try:
+        data = _build_overleaf_zip(session_id)
+        write_artifact(session_id, "11_paper/overleaf_project.zip", data)
+        with _with_conn() as conn:
+            _event(
+                conn,
+                session_id,
+                "export_ready",
+                {"path": f"sessions/{session_id}/11_paper/overleaf_project.zip", "format": "overleaf_zip", "bytes": len(data)},
+                "Export Agent",
+                "complete",
+            )
+            _commit(conn)
+    except BlobStorageUnavailableError as exc:
+        return _error(503, exc.error_code, str(exc), exc.system_state, exc.available_actions)
+    headers = {"Content-Disposition": f'attachment; filename="thrivarc_{session_id}_overleaf.zip"'}
+    return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
+
+
 @router.get("/{session_id}/artifacts/download")
 def download_artifact(session_id: str, path: str):
     prefix = f"sessions/{session_id}/"
@@ -1990,6 +2518,61 @@ def _safe_artifact_json(session_id: str, path: str, default: Any | None = None) 
     if not text:
         return {} if default is None else default
     return _json_loads(text, {} if default is None else default)
+
+
+def _zip_safe_name(relative: str) -> str:
+    clean = str(relative or "").strip().strip("/")
+    clean = re.sub(r"(^|/)\.\.(?=/|$)", "", clean)
+    return clean or "artifact"
+
+
+def _build_overleaf_zip(session_id: str) -> bytes:
+    artifacts_list = list_artifacts(session_id)
+    manifest = {
+        "session_id": session_id,
+        "created_at": _now(),
+        "artifact_count": len(artifacts_list),
+        "contents": [],
+        "reproducibility": {
+            "state_source": "PostgreSQL /api/sessions/*",
+            "artifact_source": "Azure Blob Storage",
+            "legacy_state_used": False,
+        },
+    }
+    include_prefixes = (
+        "11_paper/final.tex",
+        "02_literature/bibliography.bib",
+        "figures/",
+        "07_statistics/results_tables/",
+        "08_stats/",
+        "06_compute/",
+        "03_data/data_passport.json",
+        "10_verification/",
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for item in artifacts_list:
+            relative = _artifact_relative_path(session_id, str(item.get("path") or ""))
+            if not any(relative == prefix or relative.startswith(prefix) for prefix in include_prefixes):
+                continue
+            data = _safe_artifact_bytes(session_id, relative)
+            if data is None:
+                continue
+            arcname = _zip_safe_name(relative)
+            zf.writestr(arcname, data)
+            manifest["contents"].append({"path": arcname, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        manifest_bytes = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
+        zf.writestr("run_manifest.json", manifest_bytes)
+        zf.writestr(
+            "README.md",
+            (
+                "# Thrivarc Overleaf Export\n\n"
+                "Upload this ZIP directly to Overleaf. The canonical entrypoint is `11_paper/final.tex`.\n\n"
+                "This bundle includes paper source, bibliography, figures, tables, generated code or method outputs when available, "
+                "verification artifacts, and a run manifest with SHA-256 fingerprints.\n"
+            ).encode("utf-8"),
+        )
+    return buffer.getvalue()
 
 
 def _csv_artifacts_for_writer(session_id: str, artifacts_list: list[dict[str, Any]]) -> dict[str, str]:
