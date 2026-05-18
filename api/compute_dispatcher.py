@@ -23,7 +23,7 @@ AZURE_ENDPOINT = "https://thrivarc.openai.azure.com/"
 AZURE_DEPLOYMENT = "gpt-4o"
 AZURE_API_VERSION = "2024-12-01-preview"
 EXECUTION_TIMEOUT_SECONDS = 120
-MAX_CODE_FIX_ATTEMPTS = 3
+MAX_CODE_FIX_ATTEMPTS = int(os.getenv("THRIVARC_CODE_FIX_ATTEMPTS", "5"))
 MODAL_ACCOUNT_ALIAS = os.getenv("MODAL_ACCOUNT_ALIAS", "primary")
 
 
@@ -67,6 +67,30 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
             return parsed if isinstance(parsed, dict) else None
         except json.JSONDecodeError:
             return None
+    return None
+
+
+def _clean_generated_code(code: str) -> str:
+    """Normalize LLM-authored code before it reaches a Python executor."""
+    text = str(code or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    text = re.sub(r"^\s*python\s*\n", "", text, flags=re.IGNORECASE)
+    return text.strip()
+
+
+def _generated_code_preflight_error(code: str) -> str | None:
+    forbidden_imports = ("import sklearn", "from sklearn")
+    lowered = code.lower()
+    if any(token in lowered for token in forbidden_imports):
+        return "scikit-learn/sklearn is not available in the Modal analysis runtime; use numpy, scipy, pandas, or statsmodels instead."
+    if code.lstrip().startswith("```"):
+        return "Generated code still contains markdown fences; return executable Python only."
     return None
 
 
@@ -164,6 +188,7 @@ BLUEPRINT_JSON: JSON string of the locked Blueprint
 
 AVAILABLE LIBRARIES:
 pandas, numpy, scipy, statsmodels, linearmodels, arch, matplotlib.
+scikit-learn/sklearn is NOT installed. Do not import it.
 
 HOW TO THINK:
 Read the Blueprint and the data schema. Decide what analysis this study needs.
@@ -220,10 +245,11 @@ STRICT RULES:
 - Write only Python code. No markdown fences. No explanation.
 - Do not hardcode research-topic-specific content. Read the Blueprint and schema.
 - Do not write snake_case labels into CSV headers or interpretations.
+- Do not import sklearn or any package not listed above.
 - If a test is not applicable, skip it and include a plain-English reason.
 - Every number must be computed from the data loaded from DATA_CSV_PATH or EVENT_CSV_PATH.
 """
-    return _call_llm(prompt, max_tokens=5000).strip()
+    return _clean_generated_code(_call_llm(prompt, max_tokens=5000))
 
 
 def _llm_fix_code(code: str, error: str, blueprint: dict[str, Any], schema: dict[str, Any]) -> str:
@@ -249,10 +275,13 @@ Preserve econometric intent while fixing the code:
   refit the same regression coefficient being reported.
 - Failed or inapplicable tests should be skipped with plain-English reasons,
   not written as Python exception text.
+- Do not import sklearn/scikit-learn or any package outside pandas, numpy,
+  scipy, statsmodels, linearmodels, arch, and matplotlib.
+- Return executable Python only, without markdown fences.
 
 Return only fixed Python code. No markdown fences. No explanation.
 """
-    return _call_llm(prompt, max_tokens=5000).strip()
+    return _clean_generated_code(_call_llm(prompt, max_tokens=5000))
 
 
 def _run_local_analysis_attempt(
@@ -417,6 +446,13 @@ def _execute_analysis_code(code: str, data_csv_path: str, session_id: str | None
     backend = _compute_backend()
     for attempt in range(1, MAX_CODE_FIX_ATTEMPTS + 1):
         try:
+            current_code = _clean_generated_code(current_code)
+            preflight_error = _generated_code_preflight_error(current_code)
+            if preflight_error:
+                last_error = preflight_error
+                logger.warning("LLM analysis code failed preflight on attempt %s: %s", attempt, preflight_error)
+                current_code = _llm_fix_code(current_code, preflight_error, blueprint, schema)
+                continue
             if backend == "modal":
                 result = _run_modal_analysis_attempt(current_code, data_csv_path, event_csv_path, figures_dir, results_dir, work_root, session_id, blueprint)
             else:

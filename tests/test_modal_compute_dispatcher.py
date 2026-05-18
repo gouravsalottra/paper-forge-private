@@ -30,6 +30,16 @@ def test_modal_payload_does_not_include_process_secrets(tmp_path, monkeypatch):
     assert base64.b64decode(payload["data_csv_b64"]).startswith(b"date,value")
 
 
+def test_generated_code_cleaner_removes_markdown_fences():
+    from api.compute_dispatcher import _clean_generated_code, _generated_code_preflight_error
+
+    cleaned = _clean_generated_code("```python\nprint('ok')\n```")
+
+    assert cleaned == "print('ok')"
+    assert _generated_code_preflight_error(cleaned) is None
+    assert "sklearn" in (_generated_code_preflight_error("from sklearn.utils import resample") or "")
+
+
 def test_execute_analysis_code_uses_modal_backend_and_materializes_outputs(tmp_path, monkeypatch):
     import api.compute_dispatcher as cd
     import api.modal_compute as modal_compute
