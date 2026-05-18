@@ -2,7 +2,8 @@ FROM mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN rm -f /etc/apt/sources.list.d/yarn.list /etc/apt/sources.list.d/yarn.list.save \
+    && apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-base \
     texlive-latex-extra \
     texlive-fonts-recommended \
