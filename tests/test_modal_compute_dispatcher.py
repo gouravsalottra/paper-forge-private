@@ -141,6 +141,38 @@ def test_modal_failure_uses_api_side_repair_and_resubmits(tmp_path, monkeypatch)
     assert result["primary_result"]["label"] == "Fixed analysis"
 
 
+def test_execute_research_plan_validates_raw_executed_rows_when_formatted_stats_empty(monkeypatch):
+    import api.compute_dispatcher as cd
+
+    def fake_dispatch(session_id, blueprint):
+        return {
+            "csv_outputs": {"03_data/overnight_returns.csv": "date,value\n2020-01-01,1\n"},
+            "figure_artifacts": {"fig1": {"blob_path": f"sessions/{session_id}/figures/fig1.png"}},
+            "primary_numbers": {
+                "primary_label": "OLS regression",
+                "primary_t_stat": 0.24,
+                "primary_p_value": 0.81,
+                "coefficient": 0.0005,
+            },
+            "stats_summary": {"formatted": {}},
+            "executed_test_rows": [
+                {
+                    "Test": "OLS regression",
+                    "Statistic": 0.24,
+                    "P Value": 0.81,
+                    "Interpretation": "No statistically significant predictive relationship.",
+                    "Status": "Complete",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(cd, "dispatch_compute", fake_dispatch)
+
+    result = cd.execute_research_plan({"topic": "x"}, session_id="unit-contract")
+
+    assert result["executed_test_rows"][0]["Test"] == "OLS regression"
+
+
 def test_modal_materializer_reparses_placeholder_parsed_stdout(tmp_path):
     import api.compute_dispatcher as cd
 

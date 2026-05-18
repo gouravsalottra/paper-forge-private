@@ -806,20 +806,41 @@ def execute_research_plan(blueprint: dict[str, Any], stats_spec: dict[str, Any] 
     }
     
     stats_data = result.get('stats_summary', {}).get('formatted', {})
-    if isinstance(stats_data, dict):
-        for k, v in stats_data.items():
-            if isinstance(v, dict) and 'status' not in v:
-                v['status'] = 'complete' if v.get('statistic') is not None or v.get('p_value') is not None else 'failed'
-                if v['status'] == 'failed' and not v.get('interpretation'):
-                    v['interpretation'] = 'Test failed to produce valid statistics.'
-    else:
+    if not isinstance(stats_data, dict):
         stats_data = {}
+    normalized_stats: dict[str, dict[str, Any]] = {}
+    for k, v in stats_data.items():
+        if isinstance(v, dict):
+            row = dict(v)
+            if 'status' not in row:
+                row['status'] = 'complete' if row.get('statistic') is not None or row.get('p_value') is not None else 'failed'
+                if row['status'] == 'failed' and not row.get('interpretation'):
+                    row['interpretation'] = 'Test failed to produce valid statistics.'
+            normalized_stats[str(k)] = row
+    for row in result.get("executed_test_rows", []):
+        if not isinstance(row, dict):
+            continue
+        test_name = str(row.get("Test") or row.get("test") or "Executed test")
+        if test_name in normalized_stats:
+            continue
+        status = str(row.get("Status") or row.get("status") or "complete").lower()
+        if status == "completed":
+            status = "complete"
+        if status not in {"complete", "skipped", "failed"}:
+            status = "complete" if row.get("Statistic") not in (None, "") or row.get("P Value") not in (None, "") else "skipped"
+        normalized_stats[test_name] = {
+            "label": test_name,
+            "statistic": row.get("Statistic"),
+            "p_value": row.get("P Value"),
+            "interpretation": row.get("Interpretation") or ("Test completed." if status == "complete" else "Test did not produce a statistic."),
+            "status": status,
+        }
         
     artifacts = ComputeArtifacts(
         session_id=session_id or 'local',
         data_csv_paths=list(result.get('csv_outputs', {}).keys()),
         primary_result=mapped_primary,
-        stats_summary=stats_data,
+        stats_summary=normalized_stats,
         figure_blob_paths=[f.get('blob_path', '') for f in result.get('figure_artifacts', {}).values()]
     )
     validate_or_raise(artifacts, "Compute phase")
