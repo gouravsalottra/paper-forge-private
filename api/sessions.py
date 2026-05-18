@@ -887,6 +887,36 @@ def _allowed_models() -> list[str]:
     return configured or ["gpt-4o"]
 
 
+def _canonical_prompt_agent(agent_name: Any) -> str:
+    raw = str(agent_name or "").strip()
+    if raw in PROMPT_AGENT_KEYS:
+        return raw
+    lowered = raw.lower()
+    aliases = {
+        "architect": "Research Architect",
+        "research architect agent": "Research Architect",
+        "literature": "Literature Agent",
+        "data": "Data Agent",
+        "method": "Method Agent",
+        "compute": "Compute Agent",
+        "statistics": "Statistics Agent",
+        "stats": "Statistics Agent",
+        "code audit": "Code Audit Agent",
+        "audit": "Code Audit Agent",
+        "hawk": "HAWK",
+        "review": "Reviewer Agent",
+        "reviewer": "Reviewer Agent",
+        "repair": "Repair Agent",
+        "writer": "Writer Agent",
+    }
+    if lowered in aliases:
+        return aliases[lowered]
+    with_agent = f"{raw} Agent"
+    if with_agent in PROMPT_AGENT_KEYS:
+        return with_agent
+    return raw
+
+
 def _latest_prompt_amplifier(conn: Any, session_id: str, agent_name: str):
     return _fetchone(
         conn,
@@ -2598,10 +2628,10 @@ def get_prompt_amplifiers(session_id: str):
 
 @router.put("/{session_id}/prompt-amplifiers")
 def put_prompt_amplifier(session_id: str, payload: dict[str, Any]):
-    agent_name = str(payload.get("agent_name") or "").strip()
+    agent_name = _canonical_prompt_agent(payload.get("agent_name") or payload.get("agent"))
     if agent_name not in PROMPT_AGENT_KEYS:
         return _error(400, "INVALID_AGENT_NAME", "Prompt amplifier target must be a known agent.", "needs_valid_agent", sorted(PROMPT_AGENT_KEYS.keys()))
-    text = str(payload.get("amplifier_text") or "").strip()
+    text = str(payload.get("amplifier_text") or payload.get("amplifier") or "").strip()
     phase_name = str(payload.get("phase_name") or "").strip() or None
     editor = str(payload.get("editor") or "admin")
     with _with_conn() as conn:
@@ -2627,6 +2657,7 @@ def get_composed_prompt(session_id: str, agent: str, phase_name: str | None = No
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
+        agent = _canonical_prompt_agent(agent)
         if agent not in PROMPT_AGENT_KEYS:
             return _error(400, "INVALID_AGENT_NAME", "Composed prompt target must be a known agent.", "needs_valid_agent", sorted(PROMPT_AGENT_KEYS.keys()))
         composed = _compose_prompt(conn, session_id, agent, phase_name, persist=True)
