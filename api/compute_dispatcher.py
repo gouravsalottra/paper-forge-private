@@ -370,7 +370,9 @@ def _modal_payload(
 
 
 def _materialize_modal_files(modal_result: dict[str, Any], figures_dir: str, results_dir: str, work_root: str) -> dict[str, Any]:
-    parsed = modal_result.get("parsed") if isinstance(modal_result.get("parsed"), dict) else _extract_json_from_text(modal_result.get("stdout", ""))
+    parsed = modal_result.get("parsed") if isinstance(modal_result.get("parsed"), dict) else None
+    if not isinstance(parsed, dict) or ("primary_result" not in parsed and "additional_results" not in parsed):
+        parsed = _extract_json_from_text(modal_result.get("stdout", ""))
     if not isinstance(parsed, dict):
         parsed = {"raw_output": str(modal_result.get("stdout") or "").strip()}
     figures: list[str] = []

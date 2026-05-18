@@ -114,6 +114,32 @@ def test_modal_failure_uses_api_side_repair_and_resubmits(tmp_path, monkeypatch)
     assert result["primary_result"]["label"] == "Fixed analysis"
 
 
+def test_modal_materializer_reparses_placeholder_parsed_stdout(tmp_path):
+    import api.compute_dispatcher as cd
+
+    figures_dir = tmp_path / "figures"
+    results_dir = tmp_path / "results"
+    work_root = tmp_path / "work"
+    figures_dir.mkdir()
+    results_dir.mkdir()
+    work_root.mkdir()
+
+    result = cd._materialize_modal_files(
+        {
+            "success": True,
+            "stdout": "{'primary_result': {'coefficient': np.float64(0.5), 'p_value': np.float64(0.04)}}",
+            "parsed": {"raw_output": "placeholder"},
+            "files": [],
+        },
+        str(figures_dir),
+        str(results_dir),
+        str(work_root),
+    )
+
+    assert result["primary_result"]["coefficient"] == 0.5
+    assert result["primary_result"]["p_value"] == 0.04
+
+
 def test_modal_router_selects_least_spend_healthy_account(tmp_path, monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("SQLITE_DB_PATH", str(tmp_path / "router.db"))
