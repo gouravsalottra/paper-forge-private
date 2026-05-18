@@ -355,7 +355,7 @@ def _ensure_cockpit_schema(conn: Any) -> None:
         """
         CREATE TABLE IF NOT EXISTS approval_gates (
           id UUID PRIMARY KEY,
-          session_id UUID REFERENCES sessions(id),
+          session_id TEXT NOT NULL,
           phase_name TEXT NOT NULL,
           status TEXT NOT NULL,
           required_action TEXT,
@@ -371,7 +371,7 @@ def _ensure_cockpit_schema(conn: Any) -> None:
         """
         CREATE TABLE IF NOT EXISTS followup_instructions (
           id UUID PRIMARY KEY,
-          session_id UUID REFERENCES sessions(id),
+          session_id TEXT NOT NULL,
           phase_name TEXT,
           artifact_path TEXT,
           raw_instruction TEXT NOT NULL,
@@ -386,7 +386,7 @@ def _ensure_cockpit_schema(conn: Any) -> None:
         """
         CREATE TABLE IF NOT EXISTS sandbox_jobs (
           id UUID PRIMARY KEY,
-          session_id UUID REFERENCES sessions(id),
+          session_id TEXT NOT NULL,
           phase_name TEXT,
           status TEXT NOT NULL,
           backend TEXT DEFAULT 'local',
@@ -417,7 +417,7 @@ def _ensure_cockpit_schema(conn: Any) -> None:
         """,
         """
         CREATE TABLE IF NOT EXISTS cockpit_settings (
-          session_id UUID PRIMARY KEY REFERENCES sessions(id),
+          session_id TEXT PRIMARY KEY,
           autopilot_enabled BOOLEAN DEFAULT FALSE,
           autopilot_criteria JSONB,
           hard_limits JSONB,
