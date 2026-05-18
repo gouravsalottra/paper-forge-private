@@ -673,10 +673,10 @@ function handleSessionEvent(sessionId, event){
   if(!event?.data) return;
   let payload = {};
   try{ payload = JSON.parse(event.data); }catch(_){ return; }
-  if(['phase_update','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','section_ready','approval_required','artifact_ready','phase_log','followup_classified','sandbox_job_update','repair_card_ready','export_ready'].includes(payload.type || event.type)){
+  if(['phase_update','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','section_ready','approval_required','artifact_ready','phase_log','followup_classified','sandbox_job_update','repair_card_ready','export_ready','prompt_updated','cell_started','cell_output','cell_artifact_ready','cell_failed','model_setting_updated','quality_report_ready'].includes(payload.type || event.type)){
     applyFrontendTruthState(payload.session || payload);
   }
-  if(['phase_update','gate_result','repair_triggered','writer_unlocked','run_complete','run_failed','approval_required','artifact_ready','followup_classified','sandbox_job_update','export_ready'].includes(payload.type || event.type)){
+  if(['phase_update','gate_result','repair_triggered','writer_unlocked','run_complete','run_failed','approval_required','artifact_ready','followup_classified','sandbox_job_update','export_ready','prompt_updated','cell_started','cell_output','cell_artifact_ready','cell_failed','model_setting_updated','quality_report_ready'].includes(payload.type || event.type)){
     renderResearch(sessionId).catch(()=>{});
   }
 }
@@ -685,7 +685,7 @@ function connectSessionStream(sessionId, onEvent){
   if(!window.EventSource || !sessionId) return null;
   if(sessionStreams[sessionId]) return sessionStreams[sessionId];
   const source = new EventSource(`${API_BASE}/api/sessions/${sessionId}/stream`);
-  ['phase_update','section_ready','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','approval_required','artifact_ready','phase_log','followup_classified','sandbox_job_update','repair_card_ready','export_ready'].forEach(type=>{
+  ['phase_update','section_ready','gate_result','repair_triggered','repair_complete','writer_unlocked','run_complete','run_failed','deviation_logged','approval_required','artifact_ready','phase_log','followup_classified','sandbox_job_update','repair_card_ready','export_ready','prompt_updated','cell_started','cell_output','cell_artifact_ready','cell_failed','model_setting_updated','quality_report_ready'].forEach(type=>{
     source.addEventListener(type, event => {
       handleSessionEvent(sessionId, event);
       if(onEvent) onEvent(event);
@@ -2250,6 +2250,12 @@ function renderCockpitPanel(cockpit, sessionId){
   const current = cockpit.current_phase || {};
   const autopilot = cockpit.autopilot || {};
   const phaseModel = cockpit.phase_model || [];
+  const promptStudio = cockpit.prompt_studio || {};
+  const amplifiers = promptStudio.amplifiers || [];
+  const cells = cockpit.compute_cells || [];
+  const modelSettings = cockpit.model_settings || {};
+  const allowedModels = modelSettings.allowed_models || ['gpt-4o'];
+  const quality = cockpit.quality_report || {};
   const gateRows = gates.map(g=>`
     <div class="card" style="margin-top:8px">
       <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start">
@@ -2269,6 +2275,34 @@ function renderCockpitPanel(cockpit, sessionId){
     </div>`).join('');
   const jobRows = jobs.slice(-5).map(j=>`<li>${esc(j.phase_name || 'Compute')} · ${esc(j.status || 'queued')}</li>`).join('');
   const artifactRows = arts.slice(-6).map(a=>`<li><a href="${esc(a.download_url || '#')}" download>${esc(a.name || a.path || 'artifact')}</a> <span class="mini">${esc(a.status || 'complete')}</span></li>`).join('');
+  const latestAmp = agent => amplifiers.find(a=>a.agent_name===agent)?.amplifier_text || '';
+  const promptRows = (promptStudio.agents || []).filter(a=>['Research Architect','Literature Agent','Method / Compute Agent','Statistics Agent','Code Audit Agent','Reviewer Agent','Writer Agent'].includes(a)).map(agent=>`
+    <details class="card" style="margin-top:8px">
+      <summary><strong>${esc(agent)}</strong> <span class="mini">task-specific amplifier</span></summary>
+      <textarea data-prompt-agent="${esc(agent)}" style="min-height:120px;margin-top:8px" placeholder="Add your task-specific instruction for ${esc(agent)}">${esc(latestAmp(agent))}</textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" data-save-prompt="${esc(agent)}">Save amplifier</button>
+        <button class="btn" data-view-prompt="${esc(agent)}">View composed prompt</button>
+      </div>
+    </details>`).join('');
+  const cellRows = cells.map(c=>`
+    <details class="card" style="margin-top:8px" ${c.status==='failed'?'open':''}>
+      <summary><strong>Cell ${esc(String(c.cell_order))}: ${esc(c.title || 'Untitled')}</strong> <span class="pill ${c.status==='complete'?'ok':c.status==='failed'?'bad':'muted'}">${esc(c.status || 'draft')}</span></summary>
+      <input data-cell-title="${esc(c.id)}" value="${esc(c.title || '')}" style="margin-top:8px">
+      <textarea data-cell-code="${esc(c.id)}" style="min-height:180px;font-family:ui-monospace,Menlo,monospace;margin-top:8px">${esc(c.code || '')}</textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" data-save-cell="${esc(c.id)}">Save cell</button>
+        <button class="btn primary" data-run-cell="${esc(c.id)}">Run through this cell</button>
+      </div>
+      ${c.stdout ? `<pre style="white-space:pre-wrap;max-height:180px;overflow:auto">${esc(c.stdout)}</pre>` : ''}
+      ${c.stderr ? `<pre style="white-space:pre-wrap;max-height:180px;overflow:auto;color:#8a2b1b">${esc(c.stderr)}</pre>` : ''}
+    </details>`).join('');
+  const phaseModelRows = phaseModel.map(phase=>{
+    const selected = (modelSettings.phase_settings || []).find(s=>s.phase_name===phase)?.model_name || modelSettings.default_model || 'gpt-4o';
+    return `<label class="mini">${esc(phase)}
+      <select data-model-phase="${esc(phase)}">${allowedModels.map(m=>`<option value="${esc(m)}" ${m===selected?'selected':''}>${esc(m)}</option>`).join('')}</select>
+    </label>`;
+  }).join('');
   return `
     <div class="card cockpit-panel" style="margin-bottom:12px" data-truth-source="api.sessions.cockpit">
       <div class="row" style="justify-content:space-between;gap:10px;align-items:flex-start">
@@ -2303,6 +2337,30 @@ function renderCockpitPanel(cockpit, sessionId){
           <div class="row" style="margin-top:10px">
             <a class="btn" href="${API_BASE}/api/sessions/${esc(sessionId)}/export/overleaf.zip" download>Download Overleaf ZIP</a>
           </div>
+        </div>
+      </div>
+      <div class="grid g2" style="margin-top:10px">
+        <div>
+          <h4>Prompt Studio</h4>
+          <p class="mini">${esc(promptStudio.locked_contract_summary || 'Locked safety contract remains enforced; edit only task-specific amplifiers.')}</p>
+          ${promptRows || '<p class="muted">Prompt amplifiers will appear here.</p>'}
+        </div>
+        <div>
+          <h4>Model selector</h4>
+          <p class="mini">Only backend-allowed models appear here. Unsupported names are blocked server-side.</p>
+          <div class="stack">${phaseModelRows}</div>
+          <h4 style="margin-top:12px">Paper quality</h4>
+          <p><span class="pill ${quality.status==='pass'?'ok':'warn'}">${esc(quality.status || 'not checked')}</span> Score ${esc(String(quality.score ?? '—'))}/10</p>
+          <button class="btn" id="cockpit-quality-refresh">Run quality check</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:10px">
+        <h4>Cockpit Cells</h4>
+        <p class="muted">Notebook-style cells are stored with the session and executed in the sandbox backend. Full-script and .ipynb exports are preserved.</p>
+        ${cellRows || '<p class="muted">No cells yet.</p>'}
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="cockpit-add-cell">Add cell</button>
+          <button class="btn primary" id="cockpit-run-all-cells">Run all cells in Modal</button>
         </div>
       </div>
     </div>`;
@@ -2540,6 +2598,53 @@ async function renderResearch(id){
       toast(`Gate ${decision}`);
       renderResearch(id);
     }));
+    document.querySelectorAll('[data-save-prompt]').forEach(btn=>btn.addEventListener('click', async()=>{
+      const agent = btn.getAttribute('data-save-prompt');
+      const box = document.querySelector(`[data-prompt-agent="${CSS.escape(agent)}"]`);
+      await api(`/api/sessions/${id}/prompt-amplifiers`, {method:'PUT', body:JSON.stringify({agent_name:agent, amplifier_text:box?.value || '', editor:'admin'})});
+      toast('Prompt amplifier saved');
+      renderResearch(id);
+    }));
+    document.querySelectorAll('[data-view-prompt]').forEach(btn=>btn.addEventListener('click', async()=>{
+      const agent = btn.getAttribute('data-view-prompt');
+      const prompt = await api(`/api/sessions/${id}/prompts/composed?agent=${encodeURIComponent(agent)}`);
+      const w = window.open('', '_blank');
+      if(w){ w.document.write(`<pre style="white-space:pre-wrap;font-family:Menlo,monospace">${esc(prompt.composed_prompt || '')}</pre>`); }
+    }));
+    document.querySelectorAll('[data-model-phase]').forEach(sel=>sel.addEventListener('change', async()=>{
+      await api(`/api/sessions/${id}/model-settings`, {method:'PUT', body:JSON.stringify({phase_name:sel.getAttribute('data-model-phase'), model_name:sel.value, updated_by:'admin'})});
+      toast('Model setting saved');
+    }));
+    document.querySelectorAll('[data-save-cell]').forEach(btn=>btn.addEventListener('click', async()=>{
+      const cellId = btn.getAttribute('data-save-cell');
+      await api(`/api/sessions/${id}/compute-cells/${cellId}`, {method:'PATCH', body:JSON.stringify({
+        title: document.querySelector(`[data-cell-title="${CSS.escape(cellId)}"]`)?.value || 'Researcher Cell',
+        code: document.querySelector(`[data-cell-code="${CSS.escape(cellId)}"]`)?.value || ''
+      })});
+      toast('Cell saved');
+      renderResearch(id);
+    }));
+    document.querySelectorAll('[data-run-cell]').forEach(btn=>btn.addEventListener('click', async()=>{
+      const cellId = btn.getAttribute('data-run-cell');
+      toast('Running cell in sandbox');
+      await api(`/api/sessions/${id}/compute-cells/${cellId}/run`, {method:'POST'});
+      renderResearch(id);
+    }));
+    qs('#cockpit-add-cell')?.addEventListener('click', async()=>{
+      await api(`/api/sessions/${id}/compute-cells`, {method:'POST', body:JSON.stringify({title:'New analysis cell', code:'print(\"Add analysis here\")'})});
+      toast('Cell added');
+      renderResearch(id);
+    });
+    qs('#cockpit-run-all-cells')?.addEventListener('click', async()=>{
+      toast('Running notebook cells in sandbox');
+      await api(`/api/sessions/${id}/compute-cells/run-all`, {method:'POST'});
+      renderResearch(id);
+    });
+    qs('#cockpit-quality-refresh')?.addEventListener('click', async()=>{
+      await api(`/api/sessions/${id}/quality-report`);
+      toast('Quality report refreshed');
+      renderResearch(id);
+    });
 
     applyPersonaConfig(PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG.auto);
     applyFrontendTruthState(st);

@@ -791,6 +791,51 @@ def dispatch_compute(session_id: str | None, blueprint: dict[str, Any], data_csv
             pass
 
 
+def execute_custom_analysis_code(session_id: str | None, blueprint: dict[str, Any], code: str) -> dict[str, Any]:
+    """Execute researcher-visible cockpit cell code through the normal backend.
+
+    Production still routes through Modal via _execute_analysis_code(); this
+    helper only lets the cockpit provide the code instead of asking the LLM to
+    generate a fresh monolithic script.
+    """
+    workdir_obj = tempfile.TemporaryDirectory(prefix=f"thrivarc-cells-{_slug(session_id or 'local')}-")
+    workdir = workdir_obj.name
+    try:
+        data_csv_path, event_csv_path, context = _write_context_data(blueprint, workdir)
+        schema = _schema_for_csv(data_csv_path)
+        raw_results = _execute_analysis_code(code, data_csv_path, session_id, blueprint, schema, event_csv_path)
+        stats_rows = _stats_rows_from_summary(raw_results)
+        csv_outputs = _collect_csv_outputs(data_csv_path, raw_results, stats_rows)
+        figure_artifacts = _upload_outputs(session_id, raw_results)
+        execution_artifacts = _upload_execution_artifacts(session_id, raw_results)
+        return {
+            "context": context,
+            "success": not raw_results.get("error"),
+            "raw_results": raw_results,
+            "csv_outputs": csv_outputs,
+            "figure_artifacts": figure_artifacts,
+            "execution_artifacts": execution_artifacts,
+            "stats_rows": stats_rows,
+            "analysis_code": raw_results.get("analysis_code", code),
+            "execution_metadata": {
+                "backend": raw_results.get("compute_backend") or _compute_backend(),
+                "modal_account_alias": raw_results.get("modal_account_alias"),
+                "attempts": raw_results.get("execution_attempts"),
+                "runtime_seconds": raw_results.get("runtime_seconds"),
+                "modal_execution": raw_results.get("modal_execution", {}),
+                "modal_routing": raw_results.get("modal_routing", {}),
+                "stderr": raw_results.get("stderr"),
+                "error": raw_results.get("error"),
+                "last_error": raw_results.get("last_error"),
+            },
+        }
+    finally:
+        try:
+            workdir_obj.cleanup()
+        except Exception:
+            pass
+
+
 def execute_research_plan(blueprint: dict[str, Any], stats_spec: dict[str, Any] | None = None, session_id: str | None = None) -> dict[str, Any]:
     """Compatibility entrypoint used by session orchestration and tests."""
     result = dispatch_compute(session_id, blueprint)

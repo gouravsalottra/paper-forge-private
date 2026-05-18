@@ -25,6 +25,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from api import guide
+from api import prompts as prompt_catalog
 from api.code_audit_agent import _audit_fallback, run_code_audit
 from api.llm_caller import call_agent_llm
 from api.method_agent import _method_fallback, get_method_spec
@@ -32,7 +33,7 @@ from api.method_registry import method_definition
 from api.literature_agent import run_literature_agent
 from api.prompts import HAWK_PROMPT, REPAIR_AGENT_PROMPT
 from api.stats_agent import _stats_fallback, get_stats_spec
-from api.compute_dispatcher import execute_research_plan
+from api.compute_dispatcher import execute_custom_analysis_code, execute_research_plan
 from api.figure_generator import generate_figures_for_study
 from api.writer_agent import write_paper_latex
 from db.connection import DatabaseUnavailableError, get_db_connection
@@ -81,6 +82,44 @@ COCKPIT_SSE_EVENTS = [
     "sandbox_job_update",
     "repair_card_ready",
     "export_ready",
+    "prompt_updated",
+    "cell_started",
+    "cell_output",
+    "cell_artifact_ready",
+    "cell_failed",
+    "model_setting_updated",
+    "quality_report_ready",
+]
+
+PROMPT_AGENT_KEYS = {
+    "Research Architect": "RESEARCH_ARCHITECT_PROMPT",
+    "Literature Agent": "LITERATURE_AGENT_PROMPT",
+    "Data Agent": "RESEARCH_ARCHITECT_PROMPT",
+    "Method Agent": "METHOD_AGENT_PROMPT",
+    "Method / Compute Agent": "METHOD_AGENT_PROMPT",
+    "Compute Agent": "METHOD_AGENT_PROMPT",
+    "Statistics Agent": "STATISTICS_AGENT_PROMPT",
+    "Code Audit Agent": "CODE_AUDIT_PROMPT",
+    "HAWK": "HAWK_PROMPT",
+    "Reviewer Agent": "HAWK_PROMPT",
+    "Repair Agent": "REPAIR_AGENT_PROMPT",
+    "Writer Agent": "WRITER_PROSE_PROMPT",
+}
+
+LOCKED_PROMPT_SAFETY_CONTRACT = """LOCKED THRIVARC SAFETY CONTRACT
+- Do not invent numbers, sources, citations, data, credentials, or artifacts.
+- Use verified PostgreSQL state and Azure Blob artifacts as the only durable truth.
+- Keep Writer last; it may write only after review/verifier gates pass.
+- Generated compute runs in the configured sandbox backend; production uses Modal.
+- Return the requested machine-readable shape when an agent contract requires it.
+- Never expose secrets, API keys, database URLs, storage credentials, or Modal tokens.
+"""
+
+DEFAULT_COMPUTE_CELLS = [
+    ("Setup and Imports", "import os\nimport json\nimport pandas as pd\nimport numpy as np\n"),
+    ("Load Verified Data", "data = pd.read_csv(os.environ['DATA_CSV_PATH'])\nprint(f'Loaded {len(data)} rows with columns: {list(data.columns)}')\n"),
+    ("Inspect Schema", "summary = data.describe(include='all').transpose().reset_index().rename(columns={'index':'Variable'})\nsummary.to_csv(os.path.join(os.environ['RESULTS_DIR'], 'schema_summary.csv'), index=False)\nprint(summary.head().to_string(index=False))\n"),
+    ("Primary Analysis", "result = {'primary_result': {'label': 'Researcher cell analysis', 'coefficient': None, 't_statistic': None, 'p_value': None, 'interpretation': 'Researcher cells executed successfully.'}, 'additional_results': [], 'figures': [], 'result_csvs': [os.path.join(os.environ['RESULTS_DIR'], 'schema_summary.csv')], 'evidence_conclusion': 'analysis_incomplete', 'economic_interpretation': 'Add or edit cockpit cells to extend this analysis.'}\nprint(json.dumps(result))\n"),
 ]
 
 STATE_MAP = {
@@ -343,6 +382,74 @@ def _ensure_schema(conn: Any) -> None:
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS prompt_amplifiers (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          phase_name TEXT,
+          amplifier_text TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          editor TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS composed_prompt_snapshots (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          phase_name TEXT,
+          composed_prompt TEXT NOT NULL,
+          base_prompt_key TEXT,
+          amplifier_version INTEGER,
+          prompt_sha256 TEXT NOT NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS compute_cells (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          cell_order INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          code TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'draft',
+          stdout TEXT,
+          stderr TEXT,
+          output_summary TEXT,
+          artifact_paths TEXT,
+          created_by TEXT,
+          version INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS cell_execution_records (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          cell_id TEXT,
+          status TEXT NOT NULL,
+          backend TEXT,
+          modal_account_alias TEXT,
+          runtime_seconds REAL,
+          stdout TEXT,
+          stderr TEXT,
+          artifact_paths TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS phase_model_settings (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          phase_name TEXT NOT NULL,
+          model_name TEXT NOT NULL,
+          updated_by TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS paper_quality_reports (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          score REAL,
+          checks TEXT,
+          repair_card TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         """.replace("PAP_TABLE", "pap" + "_locks")
     )
     conn.commit()
@@ -423,6 +530,86 @@ def _ensure_cockpit_schema(conn: Any) -> None:
           hard_limits JSONB,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS prompt_amplifiers (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          phase_name TEXT,
+          amplifier_text TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          editor TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS composed_prompt_snapshots (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          phase_name TEXT,
+          composed_prompt TEXT NOT NULL,
+          base_prompt_key TEXT,
+          amplifier_version INTEGER,
+          prompt_sha256 TEXT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS compute_cells (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          cell_order INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          code TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'draft',
+          stdout TEXT,
+          stderr TEXT,
+          output_summary TEXT,
+          artifact_paths JSONB,
+          created_by TEXT,
+          version INTEGER DEFAULT 1,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS cell_execution_records (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          cell_id UUID,
+          status TEXT NOT NULL,
+          backend TEXT,
+          modal_account_alias TEXT,
+          runtime_seconds DOUBLE PRECISION,
+          stdout TEXT,
+          stderr TEXT,
+          artifact_paths JSONB,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS phase_model_settings (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          phase_name TEXT NOT NULL,
+          model_name TEXT NOT NULL,
+          updated_by TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS paper_quality_reports (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          score DOUBLE PRECISION,
+          checks JSONB,
+          repair_card JSONB,
+          created_at TIMESTAMPTZ DEFAULT NOW()
         )
         """,
     ]
@@ -567,6 +754,47 @@ def _sandbox_job_dict(row: Any) -> dict[str, Any]:
     }
 
 
+def _prompt_amplifier_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "agent_name": _row_get(row, "agent_name"),
+        "phase_name": _row_get(row, "phase_name"),
+        "amplifier_text": _row_get(row, "amplifier_text", ""),
+        "version": int(_row_get(row, "version", 1) or 1),
+        "editor": _row_get(row, "editor"),
+        "created_at": _row_get(row, "created_at"),
+    }
+
+
+def _compute_cell_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "cell_order": int(_row_get(row, "cell_order", 0) or 0),
+        "title": _row_get(row, "title"),
+        "code": _row_get(row, "code", ""),
+        "status": _row_get(row, "status", "draft"),
+        "stdout": _row_get(row, "stdout"),
+        "stderr": _row_get(row, "stderr"),
+        "output_summary": _row_get(row, "output_summary"),
+        "artifact_paths": _json_loads(_row_get(row, "artifact_paths"), []),
+        "created_by": _row_get(row, "created_by"),
+        "version": int(_row_get(row, "version", 1) or 1),
+        "created_at": _row_get(row, "created_at"),
+        "updated_at": _row_get(row, "updated_at"),
+    }
+
+
+def _model_setting_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "phase_name": _row_get(row, "phase_name"),
+        "model_name": _row_get(row, "model_name", "gpt-4o"),
+        "updated_by": _row_get(row, "updated_by"),
+        "created_at": _row_get(row, "created_at"),
+        "updated_at": _row_get(row, "updated_at"),
+    }
+
+
 def _default_hard_limits() -> dict[str, Any]:
     return {
         "max_llm_calls": 40,
@@ -652,6 +880,148 @@ def _ensure_approval_gates(conn: Any, session_id: str) -> None:
             "INSERT INTO approval_gates (id, session_id, phase_name, status, required_action, autopilot_eligible, autopilot_reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (str(uuid.uuid4()), session_id, phase, "pending", "Approve / Revise / Stop", bool(eligible), reason, _now(), _now()),
         )
+
+
+def _allowed_models() -> list[str]:
+    configured = [item.strip() for item in os.getenv("THRIVARC_ALLOWED_MODELS", "gpt-4o").split(",") if item.strip()]
+    return configured or ["gpt-4o"]
+
+
+def _latest_prompt_amplifier(conn: Any, session_id: str, agent_name: str):
+    return _fetchone(
+        conn,
+        "SELECT * FROM prompt_amplifiers WHERE session_id=? AND agent_name=? ORDER BY version DESC, created_at DESC LIMIT 1",
+        (session_id, agent_name),
+    )
+
+
+def _base_prompt_for_agent(agent_name: str) -> tuple[str, str]:
+    key = PROMPT_AGENT_KEYS.get(agent_name) or PROMPT_AGENT_KEYS.get(agent_name.replace(" Agent", ""), "")
+    prompt = getattr(prompt_catalog, key, "") if key else ""
+    return key or "UNKNOWN_PROMPT", str(prompt or "")
+
+
+def _compose_prompt(conn: Any, session_id: str, agent_name: str, phase_name: str | None = None, *, persist: bool = True) -> dict[str, Any]:
+    base_key, base_prompt = _base_prompt_for_agent(agent_name)
+    amplifier = _latest_prompt_amplifier(conn, session_id, agent_name)
+    blueprint = _blueprint_content(_blueprint_row(conn, session_id))
+    artifact_names = [_artifact_relative_path(session_id, str(item.get("path") or "")) for item in list_artifacts(session_id)[-20:]]
+    amplifier_text = _row_get(amplifier, "amplifier_text", "")
+    amplifier_version = int(_row_get(amplifier, "version", 0) or 0)
+    composed = "\n\n".join(
+        [
+            LOCKED_PROMPT_SAFETY_CONTRACT,
+            f"BASE AGENT PROMPT ({base_key})\n{base_prompt}",
+            f"RESEARCHER TASK-SPECIFIC AMPLIFIER (version {amplifier_version})\n{amplifier_text or '[none supplied]'}",
+            f"LOCKED BLUEPRINT CONTEXT\n{json.dumps(blueprint, indent=2, sort_keys=True, default=str)}",
+            f"RECENT VERIFIED ARTIFACTS\n{json.dumps(artifact_names, indent=2)}",
+        ]
+    )
+    prompt_hash = hashlib.sha256(composed.encode("utf-8")).hexdigest()
+    snapshot_id = None
+    if persist:
+        snapshot_id = str(uuid.uuid4())
+        _execute(
+            conn,
+            "INSERT INTO composed_prompt_snapshots (id, session_id, agent_name, phase_name, composed_prompt, base_prompt_key, amplifier_version, prompt_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (snapshot_id, session_id, agent_name, phase_name, composed, base_key, amplifier_version, prompt_hash, _now()),
+        )
+    return {
+        "id": snapshot_id,
+        "agent_name": agent_name,
+        "phase_name": phase_name,
+        "base_prompt_key": base_key,
+        "amplifier_version": amplifier_version,
+        "prompt_sha256": prompt_hash,
+        "locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT,
+        "base_prompt": base_prompt,
+        "amplifier_text": amplifier_text,
+        "composed_prompt": composed,
+    }
+
+
+def _snapshot_all_agent_prompts(conn: Any, session_id: str) -> None:
+    for agent_name in AGENT_SEQUENCE:
+        _compose_prompt(conn, session_id, agent_name, agent_name, persist=True)
+
+
+def _ensure_default_compute_cells(conn: Any, session_id: str, created_by: str = "system") -> None:
+    existing = _fetchone(conn, "SELECT id FROM compute_cells WHERE session_id=? LIMIT 1", (session_id,))
+    if existing:
+        return
+    for idx, (title, code) in enumerate(DEFAULT_COMPUTE_CELLS, start=1):
+        _execute(
+            conn,
+            "INSERT INTO compute_cells (id, session_id, cell_order, title, code, status, artifact_paths, created_by, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), session_id, idx, title, code, "draft", _json_dumps([]), created_by, 1, _now(), _now()),
+        )
+
+
+def _compute_cells(conn: Any, session_id: str) -> list[dict[str, Any]]:
+    _ensure_default_compute_cells(conn, session_id)
+    return [_compute_cell_dict(row) for row in _fetchall(conn, "SELECT * FROM compute_cells WHERE session_id=? ORDER BY cell_order ASC, created_at ASC", (session_id,))]
+
+
+def _concat_cell_code(cells: list[dict[str, Any]], upto_cell_id: str | None = None) -> str:
+    chunks: list[str] = []
+    for cell in cells:
+        chunks.append(f"# %% [{cell.get('title') or 'Cell'}]\n{cell.get('code') or ''}\n")
+        if upto_cell_id and cell.get("id") == upto_cell_id:
+            break
+    return "\n".join(chunks).strip() + "\n"
+
+
+def _notebook_from_cells(cells: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "cells": [
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {"title": cell.get("title"), "cell_id": cell.get("id"), "status": cell.get("status")},
+                "outputs": [],
+                "source": [line + "\n" for line in str(cell.get("code") or "").splitlines()],
+            }
+            for cell in cells
+        ],
+        "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}, "language_info": {"name": "python"}},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+
+def _quality_report_for_session(session_id: str) -> dict[str, Any]:
+    tex = _safe_artifact_text(session_id, "11_paper/final.tex")
+    artifacts_list = list_artifacts(session_id)
+    relative_paths = [_artifact_relative_path(session_id, str(item.get("path") or "")) for item in artifacts_list]
+    line_count = len([line for line in tex.splitlines() if line.strip()])
+    checks = {
+        "final_tex_present": bool(tex.strip()),
+        "line_count": line_count,
+        "line_count_minimum_met": line_count >= 250,
+        "has_literature": bool(re.search(r"\\section\{Literature", tex, flags=re.IGNORECASE)),
+        "has_tables": "\\begin{table" in tex,
+        "has_figures": "\\includegraphics" in tex or any(path.startswith("figures/") for path in relative_paths),
+        "has_empty_numeric_claims": bool(re.search(r"=\s*(?:,|\\.|$)|t=\s*(?:,|\\.|$)|p=\s*(?:,|\\.|$)", tex)),
+        "generic_template_phrases": [phrase for phrase in ["economic phenomenon studied in this paper", "The main results are", "finance claims often become persuasive"] if phrase in tex],
+    }
+    passed = bool(checks["final_tex_present"] and checks["line_count_minimum_met"] and checks["has_tables"] and checks["has_figures"] and not checks["has_empty_numeric_claims"] and not checks["generic_template_phrases"])
+    score = sum(
+        [
+            bool(checks["final_tex_present"]),
+            bool(checks["line_count_minimum_met"]),
+            bool(checks["has_literature"]),
+            bool(checks["has_tables"]),
+            bool(checks["has_figures"]),
+            not bool(checks["has_empty_numeric_claims"]),
+            not bool(checks["generic_template_phrases"]),
+        ]
+    ) / 7 * 10
+    repair_card = None if passed else {
+        "summary": "Paper quality verifier found shallow or incomplete paper outputs before export.",
+        "recommended_action": "Revise Writer prompt amplifier and rerender before treating the paper as final.",
+        "blocking_checks": [key for key, value in checks.items() if value is False or (isinstance(value, list) and value)],
+    }
+    return {"status": "pass" if passed else "needs_repair", "score": round(score, 2), "checks": checks, "repair_card": repair_card}
 
 
 def _classify_followup(instruction: str) -> tuple[str, str, str]:
@@ -892,6 +1262,25 @@ def _clean_float(value: Any, digits: int = 6) -> float | None:
 
 
 def _execution_profile(blueprint: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
+    if session_id:
+        with _with_conn() as conn:
+            amplifiers = {
+                _row_get(row, "agent_name"): _row_get(row, "amplifier_text", "")
+                for row in _fetchall(
+                    conn,
+                    "SELECT DISTINCT ON (agent_name) agent_name, amplifier_text, version FROM prompt_amplifiers WHERE session_id=? ORDER BY agent_name, version DESC, created_at DESC",
+                    (session_id,),
+                )
+            } if not _is_sqlite(conn) else {
+                _row_get(row, "agent_name"): _row_get(row, "amplifier_text", "")
+                for row in _fetchall(
+                    conn,
+                    "SELECT agent_name, amplifier_text, MAX(version) AS version FROM prompt_amplifiers WHERE session_id=? GROUP BY agent_name",
+                    (session_id,),
+                )
+            }
+        if amplifiers:
+            blueprint = {**blueprint, "researcher_prompt_amplifiers": amplifiers}
     topic = _topic_text(blueprint)
     method = _method_family(blueprint)
     evidence = _evidence_source(blueprint)
@@ -1973,6 +2362,19 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
         _sandbox_job_dict(row)
         for row in _fetchall(conn, "SELECT * FROM sandbox_jobs WHERE session_id=? ORDER BY created_at ASC", (session_id,))
     ]
+    prompt_amplifiers = [
+        _prompt_amplifier_dict(row)
+        for row in _fetchall(
+            conn,
+            "SELECT * FROM prompt_amplifiers WHERE session_id=? ORDER BY agent_name ASC, version DESC, created_at DESC",
+            (session_id,),
+        )
+    ]
+    compute_cells = _compute_cells(conn, session_id)
+    model_settings = [
+        _model_setting_dict(row)
+        for row in _fetchall(conn, "SELECT * FROM phase_model_settings WHERE session_id=? ORDER BY phase_name ASC", (session_id,))
+    ]
     settings = _fetchone(conn, "SELECT * FROM cockpit_settings WHERE session_id=?", (session_id,))
     artifacts_list = list_artifacts(session_id)
     artifact_preview = [
@@ -1997,6 +2399,18 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
         "pending_approval": next((gate for gate in approvals if gate["status"] in {"pending", "revise_requested"}), None),
         "followups": followups,
         "sandbox_jobs": sandbox_jobs,
+        "prompt_studio": {
+            "agents": sorted(PROMPT_AGENT_KEYS.keys()),
+            "locked_contract_summary": "Safety, JSON contracts, verified-number-only writing, Modal sandboxing, and secret protection are locked.",
+            "amplifiers": prompt_amplifiers,
+        },
+        "compute_cells": compute_cells,
+        "model_settings": {
+            "allowed_models": _allowed_models(),
+            "default_model": "gpt-4o",
+            "phase_settings": model_settings,
+        },
+        "quality_report": _quality_report_for_session(session_id),
         "artifacts": {
             "count": len(artifacts_list),
             "latest": artifact_preview,
@@ -2171,6 +2585,224 @@ def create_followup(session_id: str, payload: dict[str, Any]):
         row = _fetchone(conn, "SELECT * FROM followup_instructions WHERE id=?", (followup_id,))
         _commit(conn)
         return {"followup": _followup_dict(row)}
+
+
+@router.get("/{session_id}/prompt-amplifiers")
+def get_prompt_amplifiers(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        rows = [_prompt_amplifier_dict(row) for row in _fetchall(conn, "SELECT * FROM prompt_amplifiers WHERE session_id=? ORDER BY agent_name ASC, version DESC", (session_id,))]
+        return {"agents": sorted(PROMPT_AGENT_KEYS.keys()), "locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT, "amplifiers": rows}
+
+
+@router.put("/{session_id}/prompt-amplifiers")
+def put_prompt_amplifier(session_id: str, payload: dict[str, Any]):
+    agent_name = str(payload.get("agent_name") or "").strip()
+    if agent_name not in PROMPT_AGENT_KEYS:
+        return _error(400, "INVALID_AGENT_NAME", "Prompt amplifier target must be a known agent.", "needs_valid_agent", sorted(PROMPT_AGENT_KEYS.keys()))
+    text = str(payload.get("amplifier_text") or "").strip()
+    phase_name = str(payload.get("phase_name") or "").strip() or None
+    editor = str(payload.get("editor") or "admin")
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        latest = _latest_prompt_amplifier(conn, session_id, agent_name)
+        version = int(_row_get(latest, "version", 0) or 0) + 1
+        amp_id = str(uuid.uuid4())
+        _execute(
+            conn,
+            "INSERT INTO prompt_amplifiers (id, session_id, agent_name, phase_name, amplifier_text, version, editor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (amp_id, session_id, agent_name, phase_name, text, version, editor, _now()),
+        )
+        composed = _compose_prompt(conn, session_id, agent_name, phase_name, persist=True)
+        _event(conn, session_id, "prompt_updated", {"agent_name": agent_name, "version": version, "prompt_sha256": composed["prompt_sha256"]}, "Prompt Studio", "complete")
+        row = _fetchone(conn, "SELECT * FROM prompt_amplifiers WHERE id=?", (amp_id,))
+        _commit(conn)
+        return {"amplifier": _prompt_amplifier_dict(row), "composed_prompt": composed}
+
+
+@router.get("/{session_id}/prompts/composed")
+def get_composed_prompt(session_id: str, agent: str, phase_name: str | None = None):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        if agent not in PROMPT_AGENT_KEYS:
+            return _error(400, "INVALID_AGENT_NAME", "Composed prompt target must be a known agent.", "needs_valid_agent", sorted(PROMPT_AGENT_KEYS.keys()))
+        composed = _compose_prompt(conn, session_id, agent, phase_name, persist=True)
+        _commit(conn)
+        return composed
+
+
+@router.get("/{session_id}/model-settings")
+def get_model_settings(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        rows = [_model_setting_dict(row) for row in _fetchall(conn, "SELECT * FROM phase_model_settings WHERE session_id=? ORDER BY phase_name ASC", (session_id,))]
+        return {"allowed_models": _allowed_models(), "default_model": "gpt-4o", "phase_settings": rows}
+
+
+@router.put("/{session_id}/model-settings")
+def put_model_setting(session_id: str, payload: dict[str, Any]):
+    phase_name = str(payload.get("phase_name") or "").strip()
+    model_name = str(payload.get("model_name") or "").strip()
+    allowed = _allowed_models()
+    if not phase_name:
+        return _error(400, "PHASE_REQUIRED", "Model setting requires phase_name.", "needs_phase_name", ["PUT model-settings with phase_name"])
+    if model_name not in allowed:
+        return _error(400, "MODEL_NOT_ALLOWED", "Model is not configured as an allowed Thrivarc model.", "needs_allowed_model", allowed)
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        existing = _fetchone(conn, "SELECT * FROM phase_model_settings WHERE session_id=? AND phase_name=?", (session_id, phase_name))
+        setting_id = _row_get(existing, "id") or str(uuid.uuid4())
+        if existing:
+            _execute(conn, "UPDATE phase_model_settings SET model_name=?, updated_by=?, updated_at=? WHERE id=?", (model_name, payload.get("updated_by") or "admin", _now(), setting_id))
+        else:
+            _execute(
+                conn,
+                "INSERT INTO phase_model_settings (id, session_id, phase_name, model_name, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (setting_id, session_id, phase_name, model_name, payload.get("updated_by") or "admin", _now(), _now()),
+            )
+        _event(conn, session_id, "model_setting_updated", {"phase_name": phase_name, "model_name": model_name}, "Model Selector", "complete")
+        row = _fetchone(conn, "SELECT * FROM phase_model_settings WHERE id=?", (setting_id,))
+        _commit(conn)
+        return {"model_setting": _model_setting_dict(row), "allowed_models": allowed}
+
+
+@router.get("/{session_id}/compute-cells")
+def get_compute_cells(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        cells = _compute_cells(conn, session_id)
+        _commit(conn)
+        return {"cells": cells}
+
+
+@router.post("/{session_id}/compute-cells")
+def create_compute_cell(session_id: str, payload: dict[str, Any]):
+    title = str(payload.get("title") or "Researcher Cell").strip()
+    code = str(payload.get("code") or "").strip()
+    if not code:
+        return _error(400, "CELL_CODE_REQUIRED", "Compute cell requires code.", "needs_cell_code", ["POST compute-cells with code"])
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        max_order = _row_get(_fetchone(conn, "SELECT MAX(cell_order) AS max_order FROM compute_cells WHERE session_id=?", (session_id,)), "max_order", 0) or 0
+        cell_id = str(uuid.uuid4())
+        _execute(
+            conn,
+            "INSERT INTO compute_cells (id, session_id, cell_order, title, code, status, artifact_paths, created_by, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (cell_id, session_id, int(max_order) + 1, title, code, "draft", _json_dumps([]), payload.get("created_by") or "admin", 1, _now(), _now()),
+        )
+        _event(conn, session_id, "phase_log", {"summary": f"Compute cell added: {title}", "cell_id": cell_id}, "Cockpit Cells", "draft")
+        row = _fetchone(conn, "SELECT * FROM compute_cells WHERE id=?", (cell_id,))
+        _commit(conn)
+        return {"cell": _compute_cell_dict(row)}
+
+
+@router.patch("/{session_id}/compute-cells/{cell_id}")
+def update_compute_cell(session_id: str, cell_id: str, payload: dict[str, Any]):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        row = _fetchone(conn, "SELECT * FROM compute_cells WHERE id=? AND session_id=?", (cell_id, session_id))
+        if not row:
+            return _error(404, "COMPUTE_CELL_NOT_FOUND", "Compute cell was not found for this session.", "not_found", [f"GET /api/sessions/{session_id}/compute-cells"])
+        title = str(payload.get("title", _row_get(row, "title")) or "Researcher Cell")
+        code = str(payload.get("code", _row_get(row, "code")) or "")
+        order = int(payload.get("cell_order", _row_get(row, "cell_order", 1)) or 1)
+        version = int(_row_get(row, "version", 1) or 1) + 1
+        _execute(
+            conn,
+            "UPDATE compute_cells SET title=?, code=?, cell_order=?, status=?, version=?, updated_at=? WHERE id=?",
+            (title, code, order, "draft", version, _now(), cell_id),
+        )
+        updated = _fetchone(conn, "SELECT * FROM compute_cells WHERE id=?", (cell_id,))
+        _commit(conn)
+        return {"cell": _compute_cell_dict(updated)}
+
+
+def _run_cells_and_record(session_id: str, cell_id: str | None = None) -> dict[str, Any]:
+    with _with_conn() as conn:
+        session = _session_row(conn, session_id)
+        if not session:
+            raise KeyError("session_not_found")
+        blueprint = _blueprint_content(_blueprint_row(conn, session_id)) or {"topic": _row_get(session, "topic"), "method_style": "descriptive", "evidence_route": "yfinance"}
+        cells = _compute_cells(conn, session_id)
+        code = _concat_cell_code(cells, cell_id)
+        target = next((cell for cell in cells if cell.get("id") == cell_id), cells[-1] if cells else None)
+        target_id = target.get("id") if target else None
+        _event(conn, session_id, "cell_started", {"cell_id": target_id, "run_all": cell_id is None}, "Cockpit Cells", "running")
+        _commit(conn)
+    result = execute_custom_analysis_code(session_id, blueprint, code)
+    metadata = result.get("execution_metadata", {})
+    artifact_paths = sorted((result.get("csv_outputs") or {}).keys())
+    artifact_paths.extend(artifact.get("blob_path") for artifact in (result.get("figure_artifacts") or {}).values() if isinstance(artifact, dict) and artifact.get("blob_path"))
+    artifact_paths.extend(artifact.get("blob_path") for artifact in (result.get("execution_artifacts") or {}).values() if isinstance(artifact, dict) and artifact.get("blob_path"))
+    stdout = str((result.get("raw_results") or {}).get("raw_output") or (result.get("raw_results") or {}).get("primary_result") or "")[-12000:]
+    stderr = str(metadata.get("stderr") or metadata.get("last_error") or "")[-4000:]
+    status = "complete" if result.get("success") else "failed"
+    with _with_conn() as conn:
+        if cell_id:
+            _execute(
+                conn,
+                "UPDATE compute_cells SET status=?, stdout=?, stderr=?, output_summary=?, artifact_paths=?, updated_at=? WHERE id=? AND session_id=?",
+                (status, stdout, stderr, "Cell execution finished." if status == "complete" else "Cell execution failed.", _json_dumps(artifact_paths), _now(), cell_id, session_id),
+            )
+        else:
+            _execute(conn, "UPDATE compute_cells SET status=?, updated_at=? WHERE session_id=?", (status, _now(), session_id))
+        exec_id = str(uuid.uuid4())
+        _execute(
+            conn,
+            "INSERT INTO cell_execution_records (id, session_id, cell_id, status, backend, modal_account_alias, runtime_seconds, stdout, stderr, artifact_paths, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (exec_id, session_id, cell_id, status, metadata.get("backend"), metadata.get("modal_account_alias"), metadata.get("runtime_seconds"), stdout, stderr, _json_dumps(artifact_paths), _now()),
+        )
+        cells_after = _compute_cells(conn, session_id)
+        analysis_py = _concat_cell_code(cells_after)
+        write_artifact(session_id, "06_compute/notebook/analysis.py", analysis_py)
+        write_artifact(session_id, "06_compute/notebook/analysis.ipynb", json.dumps(_notebook_from_cells(cells_after), indent=2))
+        event_name = "cell_output" if status == "complete" else "cell_failed"
+        _event(conn, session_id, event_name, {"cell_id": cell_id, "status": status, "artifact_paths": artifact_paths, "backend": metadata.get("backend"), "modal_account_alias": metadata.get("modal_account_alias")}, "Cockpit Cells", status)
+        if artifact_paths:
+            _event(conn, session_id, "cell_artifact_ready", {"cell_id": cell_id, "artifact_paths": artifact_paths}, "Cockpit Cells", status)
+        _commit(conn)
+        return {"status": status, "execution_id": exec_id, "artifact_paths": artifact_paths, "execution_metadata": metadata, "cells": cells_after}
+
+
+@router.post("/{session_id}/compute-cells/{cell_id}/run")
+def run_compute_cell(session_id: str, cell_id: str):
+    try:
+        return _run_cells_and_record(session_id, cell_id)
+    except KeyError:
+        return _not_found()
+
+
+@router.post("/{session_id}/compute-cells/run-all")
+def run_all_compute_cells(session_id: str):
+    try:
+        return _run_cells_and_record(session_id, None)
+    except KeyError:
+        return _not_found()
+
+
+@router.get("/{session_id}/quality-report")
+def get_quality_report(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        report = _quality_report_for_session(session_id)
+        report_id = str(uuid.uuid4())
+        _execute(
+            conn,
+            "INSERT INTO paper_quality_reports (id, session_id, status, score, checks, repair_card, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (report_id, session_id, report["status"], report["score"], _json_dumps(report["checks"]), _json_dumps(report.get("repair_card") or {}), _now()),
+        )
+        _event(conn, session_id, "quality_report_ready", {"status": report["status"], "score": report["score"], "repair_card": report.get("repair_card")}, "Paper Quality Verifier", report["status"])
+        _commit(conn)
+        return {"quality_report": report}
 
 
 @router.post("/{session_id}/sandbox/jobs")
@@ -2463,6 +3095,7 @@ def run_session(session_id: str, payload: dict[str, Any]):
         _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("running", _now(), session_id))
         for agent in AGENT_SEQUENCE:
             _phase_status(conn, session_id, agent, "pending", "Queued by RunSpec.")
+        _snapshot_all_agent_prompts(conn, session_id)
         _event(conn, session_id, "phase_update", {"summary": "Pipeline run started."}, "Pipeline orchestrator", "running")
         _commit(conn)
     if os.getenv("ENVIRONMENT") == "test" or os.getenv("PYTEST_CURRENT_TEST"):
@@ -2670,6 +3303,8 @@ def _build_overleaf_zip(session_id: str) -> bytes:
         "06_compute/",
         "03_data/data_passport.json",
         "10_verification/",
+        "12_prompts/",
+        "12_quality/",
     )
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -2683,6 +3318,31 @@ def _build_overleaf_zip(session_id: str) -> bytes:
             arcname = _zip_safe_name(relative)
             zf.writestr(arcname, data)
             manifest["contents"].append({"path": arcname, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        with _with_conn() as conn:
+            prompt_rows = [
+                _prompt_amplifier_dict(row)
+                for row in _fetchall(conn, "SELECT * FROM prompt_amplifiers WHERE session_id=? ORDER BY agent_name ASC, version ASC", (session_id,))
+            ]
+            snapshot_rows = [
+                {
+                    "agent_name": _row_get(row, "agent_name"),
+                    "phase_name": _row_get(row, "phase_name"),
+                    "composed_prompt": _row_get(row, "composed_prompt"),
+                    "base_prompt_key": _row_get(row, "base_prompt_key"),
+                    "amplifier_version": _row_get(row, "amplifier_version"),
+                    "prompt_sha256": _row_get(row, "prompt_sha256"),
+                    "created_at": _row_get(row, "created_at"),
+                }
+                for row in _fetchall(conn, "SELECT * FROM composed_prompt_snapshots WHERE session_id=? ORDER BY created_at ASC", (session_id,))
+            ]
+        prompt_manifest = {"locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT, "amplifiers": prompt_rows, "composed_prompt_snapshots": snapshot_rows}
+        prompt_bytes = json.dumps(prompt_manifest, indent=2, sort_keys=True, default=str).encode("utf-8")
+        zf.writestr("12_prompts/prompt_manifest.json", prompt_bytes)
+        manifest["contents"].append({"path": "12_prompts/prompt_manifest.json", "bytes": len(prompt_bytes), "sha256": hashlib.sha256(prompt_bytes).hexdigest()})
+        quality = _quality_report_for_session(session_id)
+        quality_bytes = json.dumps(quality, indent=2, sort_keys=True, default=str).encode("utf-8")
+        zf.writestr("12_quality/paper_quality_report.json", quality_bytes)
+        manifest["contents"].append({"path": "12_quality/paper_quality_report.json", "bytes": len(quality_bytes), "sha256": hashlib.sha256(quality_bytes).hexdigest()})
         manifest_bytes = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
         zf.writestr("run_manifest.json", manifest_bytes)
         zf.writestr(
