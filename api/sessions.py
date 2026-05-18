@@ -2676,8 +2676,8 @@ def get_model_settings(session_id: str):
 
 @router.put("/{session_id}/model-settings")
 def put_model_setting(session_id: str, payload: dict[str, Any]):
-    phase_name = str(payload.get("phase_name") or "").strip()
-    model_name = str(payload.get("model_name") or "").strip()
+    phase_name = str(payload.get("phase_name") or payload.get("phase") or "").strip()
+    model_name = str(payload.get("model_name") or payload.get("model") or "").strip()
     allowed = _allowed_models()
     if not phase_name:
         return _error(400, "PHASE_REQUIRED", "Model setting requires phase_name.", "needs_phase_name", ["PUT model-settings with phase_name"])
