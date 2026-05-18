@@ -1203,37 +1203,46 @@ def _analysis_code_contract(blueprint: dict[str, Any], profile: dict[str, Any]) 
     controls = [str(item) for item in compute_controls] if isinstance(compute_controls, list) else [str(item) for item in blueprint.get("control_variables", [])]
     event_file = blueprint.get("event_file") or blueprint.get("uploaded_event_file")
     event_sha = blueprint.get("uploaded_event_sha256") or blueprint.get("event_file_sha256")
-    return "\n".join(
+    method_family = str(profile.get("method_family") or blueprint.get("method_family") or "").strip().lower()
+    event_design = method_family == "event_study" or bool(event_file or event_sha)
+    lines = [
+        "THRIVARC_LOCKED_ANALYSIS_CONTRACT = True",
+        f"METHOD_FAMILY = {profile['method_family']!r}",
+        f"TICKERS = {tickers!r}",
+        f"CONTROL_VARIABLES = {controls!r}",
+        f"WINDOW_START = {window.get('start', '')!r}",
+        f"WINDOW_END = {window.get('end', '')!r}",
+        f"BENCHMARK = {blueprint.get('benchmark', 'locked comparison set')!r}",
+    ]
+    if event_design:
+        lines.extend(
+            [
+                "EVENT_WINDOW = 'overnight_event_open'",
+                f"EVENT_FILE = {event_file!r}",
+                f"EVENT_FILE_SHA256 = {event_sha!r}",
+                "",
+                "def verify_event_file(event_bytes):",
+                "    from hashlib import sha256",
+                "    computed_sha = sha256(event_bytes).hexdigest()",
+                "    assert computed_sha == EVENT_FILE_SHA256",
+                "    return computed_sha",
+                "",
+                "def compute_overnight_return(prices, event_trading_day, ticker):",
+                "    assert event_trading_day in prices.index",
+                "    prior_trading_days = prices.index[prices.index < event_trading_day]",
+                "    assert len(prior_trading_days) > 0",
+                "    prev_day = prior_trading_days[-1]",
+                "    assert prev_day < event_trading_day",
+                "    prev_close = float(prices.loc[prev_day, ('Close', ticker)])",
+                "    event_open = float(prices.loc[event_trading_day, ('Open', ticker)])",
+                "    overnight_return = event_open - prev_close",
+                "    return overnight_return",
+            ]
+        )
+    lines.extend(
         [
-            "THRIVARC_LOCKED_ANALYSIS_CONTRACT = True",
-            f"METHOD_FAMILY = {profile['method_family']!r}",
-            f"TICKERS = {tickers!r}",
-            f"CONTROL_VARIABLES = {controls!r}",
-            f"WINDOW_START = {window.get('start', '')!r}",
-            f"WINDOW_END = {window.get('end', '')!r}",
-            f"BENCHMARK = {blueprint.get('benchmark', 'locked comparison set')!r}",
-            "EVENT_WINDOW = 'overnight_event_open'",
-            f"EVENT_FILE = {event_file!r}",
-            f"EVENT_FILE_SHA256 = {event_sha!r}",
             "",
-            "def verify_event_file(event_bytes):",
-            "    from hashlib import sha256",
-            "    computed_sha = sha256(event_bytes).hexdigest()",
-            "    assert computed_sha == EVENT_FILE_SHA256",
-            "    return computed_sha",
-            "",
-            "def compute_overnight_return(prices, event_trading_day, ticker):",
-            "    assert event_trading_day in prices.index",
-            "    prior_trading_days = prices.index[prices.index < event_trading_day]",
-            "    assert len(prior_trading_days) > 0",
-            "    prev_day = prior_trading_days[-1]",
-            "    assert prev_day < event_trading_day",
-            "    prev_close = float(prices.loc[prev_day, ('Close', ticker)])",
-            "    event_open = float(prices.loc[event_trading_day, ('Open', ticker)])",
-            "    overnight_return = event_open - prev_close",
-            "    return overnight_return",
-            "",
-            "def build_event_universe():",
+            "def build_analysis_universe():",
             "    # Universe is restricted to the locked identifiers; controls are not treated entities.",
             "    return list(TICKERS)",
             "",
@@ -1244,6 +1253,7 @@ def _analysis_code_contract(blueprint: dict[str, Any], profile: dict[str, Any]) 
             "# Writer may cite only values serialized under profile['findings']['primary_numbers'].",
         ]
     )
+    return "\n".join(lines)
 
 
 def _build_agent_contracts(session_id: str, blueprint: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:

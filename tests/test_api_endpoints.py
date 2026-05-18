@@ -694,6 +694,27 @@ def test_analysis_code_contract_uses_compute_controls_not_stale_blueprint_contro
     assert "assert prev_day < event_trading_day" in contract
 
 
+def test_analysis_code_contract_excludes_event_helpers_for_non_event_methods() -> None:
+    from api.sessions import _analysis_code_contract
+
+    blueprint = {
+        "inferred_window": {"start": "2020-01-01", "end": "2025-12-31"},
+        "inferred_identifiers": ["SPY", "QQQ"],
+        "control_variables": [],
+    }
+    profile = {
+        "method_family": "descriptive",
+        "compute": {"controls": []},
+    }
+
+    contract = _analysis_code_contract(blueprint, profile)
+
+    assert "EVENT_WINDOW = 'overnight_event_open'" not in contract
+    assert "compute_overnight_return" not in contract
+    assert "verify_event_file" not in contract
+    assert "build_analysis_universe" in contract
+
+
 def test_repair_approval_reruns_from_paper_locked_state(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     from api import sessions
