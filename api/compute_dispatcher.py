@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,9 @@ AZURE_API_VERSION = "2024-12-01-preview"
 EXECUTION_TIMEOUT_SECONDS = 120
 MAX_CODE_FIX_ATTEMPTS = int(os.getenv("THRIVARC_CODE_FIX_ATTEMPTS", "5"))
 MODAL_ACCOUNT_ALIAS = os.getenv("MODAL_ACCOUNT_ALIAS", "primary")
+LLM_CALL_RETRIES = int(os.getenv("THRIVARC_COMPUTE_LLM_RETRIES", "3"))
+LLM_CALL_TIMEOUT_SECONDS = float(os.getenv("THRIVARC_COMPUTE_LLM_TIMEOUT_SECONDS", "120"))
+LLM_RETRY_DELAY_SECONDS = float(os.getenv("THRIVARC_COMPUTE_LLM_RETRY_DELAY_SECONDS", "2"))
 
 
 def _method_style(blueprint: dict[str, Any]) -> str:
@@ -124,21 +128,37 @@ def _client() -> AzureOpenAI:
         azure_endpoint=AZURE_ENDPOINT,
         api_key=os.environ["OPENAI_API_KEY"],
         api_version=AZURE_API_VERSION,
-        timeout=60.0,
+        timeout=LLM_CALL_TIMEOUT_SECONDS,
     )
 
 
 def _call_llm(prompt: str, *, max_tokens: int = 4000, expect_json: bool = False) -> str:
     if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("THRIVARC_STORAGE_BACKEND") == "mock":
         return _offline_test_llm(prompt, expect_json=expect_json)
-    response = _client().chat.completions.create(
-        model=AZURE_DEPLOYMENT,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=0.1,
-        **({"response_format": {"type": "json_object"}} if expect_json else {}),
-    )
-    return (response.choices[0].message.content or "").strip()
+    last_error: Exception | None = None
+    client = _client()
+    for attempt in range(1, LLM_CALL_RETRIES + 1):
+        try:
+            response = client.chat.completions.create(
+                model=AZURE_DEPLOYMENT,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=0.1,
+                timeout=LLM_CALL_TIMEOUT_SECONDS,
+                **({"response_format": {"type": "json_object"}} if expect_json else {}),
+            )
+            return (response.choices[0].message.content or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            logger.warning(
+                "Compute LLM call failed on attempt %s/%s: %s",
+                attempt,
+                LLM_CALL_RETRIES,
+                exc,
+            )
+            if attempt < LLM_CALL_RETRIES:
+                time.sleep(LLM_RETRY_DELAY_SECONDS * attempt)
+    raise RuntimeError(f"Compute LLM call failed after {LLM_CALL_RETRIES} attempts: {last_error}") from last_error
 
 
 def _schema_for_csv(data_csv_path: str) -> dict[str, Any]:

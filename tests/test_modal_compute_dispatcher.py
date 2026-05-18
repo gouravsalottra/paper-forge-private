@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def _write_csv(tmp_path: Path) -> str:
@@ -40,6 +41,32 @@ def test_generated_code_cleaner_removes_markdown_fences():
     assert "sklearn" in (_generated_code_preflight_error("from sklearn.utils import resample") or "")
     parsed = _extract_json_from_text("{'primary_result': {'coefficient': np.float64(-0.043), 'p_value': None}}")
     assert parsed == {"primary_result": {"coefficient": -0.043, "p_value": None}}
+
+
+def test_compute_llm_call_retries_transient_timeout(monkeypatch):
+    import api.compute_dispatcher as cd
+
+    calls = {"count": 0}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            calls["count"] += 1
+            assert kwargs["model"] == "gpt-4o"
+            if calls["count"] == 1:
+                raise TimeoutError("temporary timeout")
+            message = SimpleNamespace(content="print('ok')")
+            choice = SimpleNamespace(message=message)
+            return SimpleNamespace(choices=[choice])
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("THRIVARC_STORAGE_BACKEND", raising=False)
+    monkeypatch.setattr(cd, "_client", lambda: fake_client)
+    monkeypatch.setattr(cd, "LLM_CALL_RETRIES", 2)
+    monkeypatch.setattr(cd, "LLM_RETRY_DELAY_SECONDS", 0)
+
+    assert cd._call_llm("prompt") == "print('ok')"
+    assert calls["count"] == 2
 
 
 def test_execute_analysis_code_uses_modal_backend_and_materializes_outputs(tmp_path, monkeypatch):
