@@ -370,10 +370,11 @@ def _materialize_modal_files(modal_result: dict[str, Any], figures_dir: str, res
     parsed["modal_logs_dir"] = logs_dir
     parsed["modal_execution"] = {
         "backend": "modal",
-        "modal_account_alias": os.getenv("MODAL_ACCOUNT_ALIAS", MODAL_ACCOUNT_ALIAS),
+        "modal_account_alias": modal_result.get("modal_account_alias") or os.getenv("MODAL_ACCOUNT_ALIAS", MODAL_ACCOUNT_ALIAS),
         "returncode": modal_result.get("returncode"),
         "runtime_seconds": modal_result.get("runtime_seconds"),
         "environment": modal_result.get("environment", {}),
+        "routing": modal_result.get("routing", {}),
     }
     parsed["stderr"] = str(modal_result.get("stderr") or "")[-2000:]
     return parsed
@@ -429,7 +430,9 @@ def _execute_analysis_code(code: str, data_csv_path: str, session_id: str | None
                 parsed["analysis_code"] = current_code
                 parsed["stderr"] = str(result.get("stderr") or "")[-2000:]
                 parsed["compute_backend"] = backend
-                parsed["modal_account_alias"] = os.getenv("MODAL_ACCOUNT_ALIAS", MODAL_ACCOUNT_ALIAS) if backend == "modal" else None
+                modal_execution = parsed.get("modal_execution") if isinstance(parsed.get("modal_execution"), dict) else {}
+                parsed["modal_account_alias"] = modal_execution.get("modal_account_alias") if backend == "modal" else None
+                parsed["modal_routing"] = modal_execution.get("routing", {}) if backend == "modal" else {}
                 parsed["execution_attempts"] = attempt
                 if result.get("runtime_seconds") is not None:
                     parsed["runtime_seconds"] = result.get("runtime_seconds")
@@ -593,6 +596,7 @@ def _upload_execution_artifacts(session_id: str | None, raw_results: dict[str, A
         "execution_attempts": raw_results.get("execution_attempts"),
         "runtime_seconds": raw_results.get("runtime_seconds"),
         "modal_execution": raw_results.get("modal_execution", {}),
+        "modal_routing": raw_results.get("modal_routing", {}),
         "error": raw_results.get("error"),
         "last_error": raw_results.get("last_error"),
     }
@@ -705,6 +709,7 @@ def dispatch_compute(session_id: str | None, blueprint: dict[str, Any], data_csv
                 "attempts": raw_results.get("execution_attempts"),
                 "runtime_seconds": raw_results.get("runtime_seconds"),
                 "modal_execution": raw_results.get("modal_execution", {}),
+                "modal_routing": raw_results.get("modal_routing", {}),
                 "stderr": raw_results.get("stderr"),
                 "error": raw_results.get("error"),
                 "last_error": raw_results.get("last_error"),

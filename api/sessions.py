@@ -323,6 +323,18 @@ def _ensure_schema(conn: Any) -> None:
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS modal_account_usage (
+          alias TEXT NOT NULL,
+          usage_month TEXT NOT NULL,
+          estimated_spend_usd REAL DEFAULT 0,
+          monthly_budget_usd REAL DEFAULT 28,
+          status TEXT DEFAULT 'healthy',
+          failure_count INTEGER DEFAULT 0,
+          last_failure_at TEXT,
+          last_routed_at TEXT,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (alias, usage_month)
+        );
         CREATE TABLE IF NOT EXISTS cockpit_settings (
           session_id TEXT PRIMARY KEY,
           autopilot_enabled INTEGER DEFAULT 0,
@@ -387,6 +399,20 @@ def _ensure_cockpit_schema(conn: Any) -> None:
           failure_details TEXT,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS modal_account_usage (
+          alias TEXT NOT NULL,
+          usage_month TEXT NOT NULL,
+          estimated_spend_usd DOUBLE PRECISION DEFAULT 0,
+          monthly_budget_usd DOUBLE PRECISION DEFAULT 28,
+          status TEXT DEFAULT 'healthy',
+          failure_count INTEGER DEFAULT 0,
+          last_failure_at TIMESTAMPTZ,
+          last_routed_at TIMESTAMPTZ,
+          updated_at TIMESTAMPTZ DEFAULT NOW(),
+          PRIMARY KEY (alias, usage_month)
         )
         """,
         """
@@ -558,6 +584,37 @@ def _sandbox_backend_defaults() -> dict[str, Any]:
     return {
         "backend": backend,
         "modal_account_alias": os.getenv("MODAL_ACCOUNT_ALIAS", "primary") if backend == "modal" else None,
+    }
+
+
+def _modal_router_summary(conn: Any) -> dict[str, Any]:
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    aliases = [item.strip() for item in os.getenv("MODAL_ACCOUNT_ALIASES", os.getenv("MODAL_ACCOUNT_ALIAS", "primary")).split(",") if item.strip()]
+    rows = {
+        _row_get(row, "alias"): row
+        for row in _fetchall(conn, "SELECT * FROM modal_account_usage WHERE usage_month=?", (month,))
+    }
+    accounts = []
+    for alias in aliases:
+        row = rows.get(alias)
+        budget = float(_row_get(row, "monthly_budget_usd", os.getenv("MODAL_MONTHLY_BUDGET_USD", 28)) or 28)
+        spend = float(_row_get(row, "estimated_spend_usd", 0) or 0)
+        accounts.append(
+            {
+                "alias": alias,
+                "usage_month": month,
+                "estimated_spend_usd": spend,
+                "monthly_budget_usd": budget,
+                "remaining_budget_usd": max(0.0, budget - spend),
+                "status": _row_get(row, "status", "not_used"),
+                "failure_count": int(_row_get(row, "failure_count", 0) or 0),
+            }
+        )
+    return {
+        "enabled": os.getenv("MODAL_ROUTER_ENABLED", "0").strip().lower() in {"1", "true", "yes"},
+        "policy": "least_spend_healthy_under_budget",
+        "budget_enforcement": "app_soft_cap",
+        "accounts": accounts,
     }
 
 
@@ -1940,6 +1997,7 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
             "criteria": _json_loads(_row_get(settings, "autopilot_criteria"), _default_autopilot_criteria()),
             "hard_limits": _json_loads(_row_get(settings, "hard_limits"), _default_hard_limits()),
         },
+        "modal_router": _modal_router_summary(conn),
         "security": {
             "mode": "single_admin",
             "admin_secret_configured": bool(os.getenv("THRIVARC_ADMIN_PASSWORD")),

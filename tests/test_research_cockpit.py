@@ -35,6 +35,8 @@ def test_cockpit_creates_gates_followups_sandbox_and_events(tmp_path: Path, monk
     assert body["pending_approval"]["phase_name"] == "Topic"
     assert "approval_required" in body["sse_events"]
     assert body["autopilot"]["hard_limits"]["network_policy"] == "allowlist_only"
+    assert body["modal_router"]["policy"] == "least_spend_healthy_under_budget"
+    assert body["modal_router"]["budget_enforcement"] == "app_soft_cap"
 
     gate_id = body["pending_approval"]["id"]
     decided = client.post(f"/api/sessions/{session_id}/approvals/{gate_id}/decision", json={"decision": "approve", "approver": "admin"})

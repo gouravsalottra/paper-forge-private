@@ -100,3 +100,103 @@ def test_modal_failure_uses_api_side_repair_and_resubmits(tmp_path, monkeypatch)
     assert result["compute_backend"] == "modal"
     assert result["execution_attempts"] == 2
     assert result["primary_result"]["label"] == "Fixed analysis"
+
+
+def test_modal_router_selects_least_spend_healthy_account(tmp_path, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("SQLITE_DB_PATH", str(tmp_path / "router.db"))
+    from api import modal_compute as mc
+
+    accounts = [
+        mc.ModalAccount("primary", "id1", "secret1"),
+        mc.ModalAccount("secondary", "id2", "secret2"),
+        mc.ModalAccount("tertiary", "id3", "secret3"),
+    ]
+    with mc._connect_db() as conn:
+        mc._ensure_router_schema(conn)
+        month = mc._usage_month()
+        mc._execute(conn, "INSERT INTO modal_account_usage (alias, usage_month, estimated_spend_usd, monthly_budget_usd, status, failure_count) VALUES (?, ?, ?, ?, ?, ?)", ("primary", month, 12.0, 28.0, "healthy", 0))
+        mc._execute(conn, "INSERT INTO modal_account_usage (alias, usage_month, estimated_spend_usd, monthly_budget_usd, status, failure_count) VALUES (?, ?, ?, ?, ?, ?)", ("secondary", month, 2.0, 28.0, "healthy", 0))
+        mc._execute(conn, "INSERT INTO modal_account_usage (alias, usage_month, estimated_spend_usd, monthly_budget_usd, status, failure_count) VALUES (?, ?, ?, ?, ?, ?)", ("tertiary", month, 4.0, 28.0, "healthy", 0))
+        conn.commit()
+
+    account, routing = mc.select_modal_account(accounts)
+
+    assert account.alias == "secondary"
+    assert routing["routing_reason"] == "least_spend_healthy_under_budget"
+    assert routing["eligible_aliases"] == ["secondary", "tertiary", "primary"]
+
+
+def test_modal_router_excludes_over_budget_and_unhealthy_accounts(tmp_path, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("SQLITE_DB_PATH", str(tmp_path / "router.db"))
+    from api import modal_compute as mc
+
+    accounts = [
+        mc.ModalAccount("primary", "id1", "secret1"),
+        mc.ModalAccount("secondary", "id2", "secret2"),
+        mc.ModalAccount("tertiary", "id3", "secret3"),
+    ]
+    with mc._connect_db() as conn:
+        mc._ensure_router_schema(conn)
+        month = mc._usage_month()
+        mc._execute(conn, "INSERT INTO modal_account_usage (alias, usage_month, estimated_spend_usd, monthly_budget_usd, status, failure_count) VALUES (?, ?, ?, ?, ?, ?)", ("primary", month, 28.0, 28.0, "healthy", 0))
+        mc._execute(conn, "INSERT INTO modal_account_usage (alias, usage_month, estimated_spend_usd, monthly_budget_usd, status, failure_count) VALUES (?, ?, ?, ?, ?, ?)", ("secondary", month, 1.0, 28.0, "unhealthy", 3))
+        mc._execute(conn, "INSERT INTO modal_account_usage (alias, usage_month, estimated_spend_usd, monthly_budget_usd, status, failure_count) VALUES (?, ?, ?, ?, ?, ?)", ("tertiary", month, 7.0, 28.0, "healthy", 0))
+        conn.commit()
+
+    account, routing = mc.select_modal_account(accounts)
+
+    assert account.alias == "tertiary"
+    assert routing["eligible_aliases"] == ["tertiary"]
+
+
+def test_modal_router_failover_uses_next_account_for_platform_failure(tmp_path, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("SQLITE_DB_PATH", str(tmp_path / "router.db"))
+    monkeypatch.setenv("MODAL_ROUTER_ENABLED", "1")
+    monkeypatch.setenv("MODAL_ACCOUNT_ALIASES", "primary,secondary")
+    monkeypatch.setenv("MODAL_PRIMARY_TOKEN_ID", "id1")
+    monkeypatch.setenv("MODAL_PRIMARY_TOKEN_SECRET", "secret1")
+    monkeypatch.setenv("MODAL_SECONDARY_TOKEN_ID", "id2")
+    monkeypatch.setenv("MODAL_SECONDARY_TOKEN_SECRET", "secret2")
+    from api import modal_compute as mc
+
+    calls: list[str] = []
+
+    def fake_execute(payload, account):
+        calls.append(account.alias)
+        if account.alias == "primary":
+            raise RuntimeError("auth failed")
+        return {"success": True, "returncode": 0, "runtime_seconds": 5, "files": [], "parsed": {"primary_result": {"label": "ok"}}}
+
+    monkeypatch.setattr(mc, "execute_in_modal_account", fake_execute)
+
+    result = mc.execute_in_modal({"session_id": "unit"})
+
+    assert calls == ["primary", "secondary"]
+    assert result["modal_account_alias"] == "secondary"
+    assert result["routing"]["tried_aliases"] == ["primary", "secondary"]
+
+
+def test_modal_router_generated_code_failure_does_not_mark_account_unhealthy(tmp_path, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("SQLITE_DB_PATH", str(tmp_path / "router.db"))
+    monkeypatch.setenv("MODAL_ROUTER_ENABLED", "1")
+    monkeypatch.setenv("MODAL_ACCOUNT_ALIASES", "primary")
+    monkeypatch.setenv("MODAL_PRIMARY_TOKEN_ID", "id1")
+    monkeypatch.setenv("MODAL_PRIMARY_TOKEN_SECRET", "secret1")
+    from api import modal_compute as mc
+
+    def fake_execute(payload, account):
+        return {"success": False, "returncode": 1, "runtime_seconds": 2, "stderr": "NameError: generated code failed", "files": []}
+
+    monkeypatch.setattr(mc, "execute_in_modal_account", fake_execute)
+
+    result = mc.execute_in_modal({"session_id": "unit"})
+    with mc._connect_db() as conn:
+        row = mc._execute(conn, "SELECT status, failure_count FROM modal_account_usage WHERE alias=? AND usage_month=?", ("primary", mc._usage_month())).fetchone()
+
+    assert result["success"] is False
+    assert row["status"] == "healthy"
+    assert row["failure_count"] == 0
