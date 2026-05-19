@@ -1,525 +1,400 @@
 <div align="center">
 
-```
-██████╗  █████╗ ██████╗ ███████╗██████╗       ███████╗ ██████╗ ██████╗  ██████╗ ███████╗
-██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗      ██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝
-██████╔╝███████║██████╔╝█████╗  ██████╔╝█████╗█████╗  ██║   ██║██████╔╝██║  ███╗█████╗
-██╔═══╝ ██╔══██║██╔═══╝ ██╔══╝  ██╔══██╗╚════╝██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝
-██║     ██║  ██║██║     ███████╗██║  ██║      ██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗
-╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝      ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-```
+# Thrivarc
 
-### The autonomous finance research pipeline.
-### From idea to peer-review-ready paper — for **any** empirical finance question.
-### Scientific integrity enforced by architecture, not by trust.
+### Research cockpit for empirical finance
 
-<br/>
+From question to Blueprint to evidence preview to live analysis to Overleaf export.
 
-[![CI](https://github.com/gouravsalottra/paper-forge-private/actions/workflows/ci.yml/badge.svg)](https://github.com/gouravsalottra/paper-forge-private/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-159%20passing-brightgreen?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.13+-blue?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-<!-- MODEL: standardized to gpt-4o per STEP 0 audit -->
-![Model](https://img.shields.io/badge/model-gpt--4o-8b5cf6?style=flat-square)
-![DB](https://img.shields.io/badge/state-SQLite%20WAL-f97316?style=flat-square)
-![Integrity](https://img.shields.io/badge/integrity-cryptographically%20enforced-red?style=flat-square)
+[Open the product](https://app.thrivarc.studio) · [Start a study](https://app.thrivarc.studio/app.html#new)
 
 </div>
 
 ---
 
-## What Is Paper-Forge?
+## What Thrivarc is
 
-Paper-Forge is an **autonomous 11-agent research pipeline** for empirical finance. It takes a research idea and produces a fully auditable, reproducible, peer-review-ready paper — with every integrity guarantee enforced by the system, not by researcher discipline.
+Thrivarc is a researcher-controlled operating room for empirical finance. A user can begin with only a topic, a rough abstract, a directional hypothesis, or a dataset. Thrivarc then:
 
-It works for **any empirical finance research question**. LLM sentiment analysis, momentum strategies, climate risk pricing, systemic risk networks, ETF arbitrage, cryptocurrency session effects — any question with data and a testable claim.
+1. shapes the idea into a formal Blueprint
+2. blocks compute until the exact evidence is previewed and approved
+3. runs the study through a gated multi-agent pipeline
+4. streams artifacts, logs, prompts, and compute outputs live
+5. lets the researcher intervene with approvals, follow-up instructions, prompt amplifiers, and notebook-style compute cells
+6. exports an Overleaf-ready ZIP with LaTeX, figures, tables, logs, prompts, and provenance
 
-> **The core insight:** Most research integrity failures are not caused by dishonest researchers. They are caused by systems that allow unconscious hypothesis adjustment after seeing results. Paper-Forge makes that adjustment architecturally impossible.
+This is not a one-shot paper writer and not a generic chat wrapper. The product is built so the researcher can always answer:
 
----
+1. What question is actually being tested?
+2. What data is being used?
+3. What code ran?
+4. What outputs were produced?
+5. What objections were raised?
+6. What exactly went into the exported paper package?
 
-## The Problem
+## Why it exists
 
-Finance research has a replication crisis. Studies estimate more than half of published factor discoveries do not replicate. The cause is rarely fraud — it is a workflow problem.
+Most research workflows fail in quiet ways. The question changes after the data is seen. The benchmark drifts. The evidence route gets fuzzier over time. Compute produces outputs the writer then turns into authoritative prose that nobody can fully trace.
 
-| Traditional workflow | Paper-Forge workflow |
+Thrivarc is designed to reverse that pattern:
+
+1. Blueprint before compute
+2. evidence preview before launch
+3. live approvals before phase transitions
+4. reviewer pressure before paper writing
+5. provenance packaged with the final export
+
+## The product experience
+
+### New study
+
+The user enters:
+
+1. a topic
+2. a rough abstract
+3. a hypothesis
+4. or a dataset note
+
+Thrivarc then infers:
+
+1. research stance
+2. likely method family
+3. likely evidence route
+4. what still needs clarification
+
+### Blueprint
+
+Thrivarc generates a formal study plan and asks the researcher to approve it before anything expensive begins.
+
+### Evidence preview
+
+Thrivarc previews the exact dataset, schema, identifiers, date range, warnings, and fingerprint. The run cannot start until the researcher approves the evidence.
+
+### Cockpit
+
+After launch, the researcher enters a live cockpit with:
+
+1. phase timeline and approvals
+2. artifact gallery
+3. live logs
+4. prompt amplifiers
+5. model settings
+6. notebook-style compute cells
+7. paper quality checks
+8. Overleaf export
+
+### Export
+
+Thrivarc produces an Overleaf-ready ZIP containing:
+
+1. `final.tex`
+2. bibliography when available
+3. figures
+4. result tables and CSVs
+5. generated code outputs
+6. prompt manifest
+7. run manifest
+8. quality report
+9. README
+
+## Researcher flow
+
+### If the researcher has only a topic
+
+Example:
+
+`Does a rising VIX predict next-week negative SPY returns?`
+
+Flow:
+
+1. open `app.html#new`
+2. paste the question
+3. click `Build Blueprint`
+4. answer any targeted clarification
+5. approve the Blueprint
+6. preview the evidence
+7. approve the dataset
+8. enter the cockpit
+9. inspect outputs, approve gates, add instructions or cells, and export
+
+### If the researcher has a rough abstract
+
+The abstract can go directly into the main intake box and optional context fields. Thrivarc extracts the claim, mechanism, likely data route, and validation burden from that material.
+
+### If the researcher has their own dataset
+
+The researcher selects `Upload dataset` or `Stage source`, attaches the file, builds the Blueprint, and then reviews the schema preview before compute is allowed to begin.
+
+## What the cockpit contains
+
+### Left rail
+
+1. current phase
+2. approval gates
+3. sandbox job status
+4. autopilot state
+
+### Center workspace
+
+1. live artifacts
+2. figures
+3. tables
+4. notebook-style compute cells
+5. export panel
+
+### Right inspector
+
+1. follow-up instruction box
+2. queued follow-ups
+3. Prompt Studio
+4. model selector by phase
+5. quality report
+
+## Trust architecture
+
+The product is built around a small number of hard rules:
+
+| Rule | Why it matters |
 |---|---|
-| 1. Collect data | 1. Describe idea to INTAKE |
-| 2. Explore what looks significant | 2. INTAKE generates PROTOCOL.md |
-| 3. **Form hypothesis around result** ← the problem | 3. **Hypothesis locked in SQLite before data is touched** |
-| 4. Run "confirmatory" tests | 4. Tests run exactly as pre-specified |
-| 5. Write paper around significance | 5. Code audited against paper claims |
-| 6. Submit | 6. Hostile review before any prose is written |
+| PostgreSQL is the only durable state source | Session truth lives in one canonical place |
+| Azure Blob is the only durable artifact source | Files, figures, tables, logs, and papers stay traceable |
+| SSE is the live update channel | The UI reflects backend truth rather than browser invention |
+| Generated compute runs in Modal in production | Analysis code is isolated from the API container |
+| Writer is last | The paper cannot become the source of truth |
+| Prompt amplifiers are versioned | Researcher intervention remains inspectable |
+| Evidence must be previewed before launch | No silent data swaps or hidden compute |
 
----
-
-## Full Pipeline Architecture
-
-```mermaid
-flowchart TD
-    A["🧠 INTAKE\nAI Research Design Wizard\nPlain English → PROTOCOL.md"] --> B[PROTOCOL.md\nValidated before pipeline starts]
-    B --> C["⚡ CONDUCTOR\nOrchestrator — reads state only\nNever reads artifact content"]
-
-    C --> D["📚 LITERATURE\nSemantic Scholar + arXiv\n40 scanned · top 10 in full"]
-    C --> E["📊 DATAPULL\n10 connectors · SHA-256 signed\nWRDS · FRED · EDGAR · yfinance"]
-
-    D --> F
-    E --> F
-
-    F["🔒 PREREGISTER\nHypothesis locked in SQLite\nSHA-256 sealed · tamper-proof on resume"]
-
-    F -->|"SQL gate — no bypass"| G["⚙️ COMPUTE\nnone · backtest · event_study · rl · abm\nEpisodes & seeds from PROTOCOL.md only"]
-
-    G --> H["📐 STATSRUN\nRuns exactly the tests in PROTOCOL.md\n14-test library · seed consistency enforced"]
-
-    H --> I["🔍 CODEAUDIT\nReads source code only\nSeparate subprocess + API key"]
-    H --> J["📋 SPECAUDIT\nReads PROTOCOL.md only\nSeparate subprocess + API key"]
-
-    I --> K
-    J --> K
-
-    K["🔧 AUTOREPAIR\nPatches mismatches · re-verifies\nHuman escalation — never silent"]
-
-    K --> L["🦅 REVIEWER\nJF standard · reads CSVs only\nNever reads LaTeX or prose\nMax 3 cycles · routes fixes back"]
-
-    L -->|"approved"| M["✍️ WRITER\nDeterministic LaTeX scaffold\nEvery number traced to verified CSV"]
-    L -->|"revision"| K
-
-    M --> N["✅ paper_draft_v2.tex"]
-
-    style F fill:#faeeda,stroke:#BA7517,color:#633806
-    style L fill:#faece7,stroke:#993C1D,color:#712B13
-    style N fill:#EAF3DE,stroke:#3B6D11,color:#27500A
-```
-
-> **Note:** LITERATURE and DATAPULL run in parallel. The SQL gate at PREREGISTER is a database constraint — Python cannot bypass it.
-
----
-
-## Five Integrity Layers
+## Core workflow model
 
 ```mermaid
-graph LR
-    A["🔒 Hypothesis Lock\nCommitted to SQLite\nbefore any data is fetched\nSHA-256 signed"] --> B["📋 Data Certificate\nEvery dataset signed\nSource · rows · timestamp\nReviewer-verifiable"]
-    B --> C["🔍 Bidirectional Audit\nCODEAUDIT reads code only\nSPECAUDIT reads spec only\nSeparate subprocess + API key"]
-    C --> D["🌱 Seed Consistency\nFinding valid only if it holds\nacross all pre-registered seeds\nOne fails → finding_valid: false"]
-    D --> E["🦅 Hostile Review\nReads raw stats — never prose\nDatabase-level WriterGate\n7/10 minimum to approve"]
-
-    style A fill:#faeeda,stroke:#BA7517,color:#633806
-    style B fill:#E6F1FB,stroke:#185FA5,color:#0C447C
-    style C fill:#EEEDFE,stroke:#534AB7,color:#3C3489
-    style D fill:#EAF3DE,stroke:#3B6D11,color:#27500A
-    style E fill:#faece7,stroke:#993C1D,color:#712B13
+flowchart LR
+    A["Question or rough abstract"] --> B["Blueprint"]
+    B --> C["Clarifications if needed"]
+    C --> D["Blueprint approval"]
+    D --> E["Data preview"]
+    E --> F["Evidence approval"]
+    F --> G["Cockpit"]
+    G --> H["Compute, stats, review, repair"]
+    H --> I["Writer"]
+    I --> J["Overleaf ZIP export"]
 ```
 
----
+## Product surface area
 
-## Two Research Modes
+### Public routes
 
-### Confirmatory — you have a hypothesis
+1. `/`
+2. `/index.html`
+3. `/app`
+4. `/app.html`
+5. `/health`
+6. `/ready`
 
-```
-$ python intake.py
+### App routes
 
-INTAKE: Tell me about your research idea.
+1. `#dashboard`
+2. `#new`
+3. `#guide`
+4. `#research/{session_id}`
 
-You: Does conditioning sector ETF momentum on VIX term structure
-     inversion reduce crashes while preserving upside?
+### API surface
 
-INTAKE: Here is the hypothesis I'll pre-register. Once committed
-        this cannot change without starting a new run:
+The canonical workflow lives under `/api/sessions/*`, with supporting routes for guide building and data preview:
 
-        "Conditioning 12-1 month sector ETF momentum on VIX term
-         structure inversion reduces maximum drawdown by at least
-         15% during crash events while preserving 80% of Sharpe."
+1. `/api/guide/*`
+2. `/api/data/*`
+3. `/api/sessions/*`
 
-        Type 'commit' to lock, or 'edit' to modify.
+Important session endpoints include:
 
-You: commit
+1. session creation and list
+2. Blueprint state
+3. cockpit payload
+4. approvals
+5. follow-ups
+6. prompt amplifiers
+7. composed prompts
+8. model settings
+9. compute cells
+10. quality report
+11. artifact listing and download
+12. Overleaf ZIP export
+13. session SSE stream
 
-🔒 Hypothesis locked. SHA-256: 7f3a91c4...
-   PROTOCOL.md sealed. Pipeline starting.
-```
+## Architecture
 
-### Exploratory — you don't have a hypothesis yet
+### Frontend
 
-Paper-Forge supports this honestly — exploration is logged separately and transparently disclosed in the paper.
+Static HTML app served by FastAPI. The app uses hash routing and relies on backend state plus SSE updates rather than inventing truth client-side.
 
-```
-$ python intake.py
+### Backend
 
-INTAKE: Tell me about your research idea.
+FastAPI orchestrates:
 
-You: I've noticed something in how energy ETFs respond overnight
-     around climate policy announcements but I don't know what
-     direction or magnitude to expect.
+1. session creation
+2. Blueprint persistence
+3. approval gates
+4. follow-up classification
+5. prompt composition
+6. quality checks
+7. export packaging
 
-INTAKE: This is exploratory research. I'll set up an exploratory
-        run. Your analysis will be logged separately.
+### Compute
 
-        After you see the patterns, I'll help you form a hypothesis
-        and upgrade to a confirmatory run — with the exploration
-        disclosed in your methods section as required.
-```
+The API prepares the analysis request, the LLM writes or repairs study-specific code, and Modal executes the compute workload in an isolated environment. Returned outputs are uploaded to Azure Blob and attached to the session record.
 
-When ready:
+### Storage
 
-```
-$ python intake.py --upgrade-to-confirmatory --run-id explore-20260509
+1. PostgreSQL stores session and cockpit state
+2. Azure Blob stores artifacts
 
-INTAKE: Your exploration found:
-        ICLN overnight: +0.18% on COP dates (n=23)
-        XLE overnight:  -0.31% on the same dates
-        Spread strengthened post-2018
+## Security and secret handling
 
-        Here are three hypotheses you could pre-register.
-        Which is most honest given what you saw?
-```
+Secrets do not belong in git.
 
----
+Production secrets should live in Azure Container App secrets and environment variables, not in tracked files. This includes:
 
-## Data Sources
+1. `OPENAI_API_KEY`
+2. `OPENAI_API_KEY_PASS2`
+3. `DATABASE_URL`
+4. `AZURE_STORAGE_CONNECTION_STRING`
+5. `MODAL_*TOKEN*`
+6. `FRED_API_KEY`
+7. any admin password or private provider credential
 
-```mermaid
-graph LR
-    PF["DATAPULL\nConnector Registry"]
+Local development can use a gitignored `.env`, but production must source credentials from Azure-managed configuration.
 
-    PF --> W1["WRDS / CRSP\nBrowser OAuth → 2FA"]
-    PF --> W2["WRDS / Futures\nBrowser OAuth → 2FA"]
-    PF --> W3["WRDS / OptionMetrics\nBrowser OAuth → 2FA"]
-    PF --> L["LSEG / Refinitiv\nBrowser OAuth → 2FA"]
-    PF --> F["FRED\nAPI key · stored once"]
-    PF --> SE["SEC EDGAR\nPublic · no auth"]
-    PF --> YF["yfinance\nPublic · no auth"]
-    PF --> C["CCXT Crypto\nAPI key + secret"]
-    PF --> B["Bloomberg\nLocal Terminal"]
-    PF --> U["Upload\nCSV / parquet"]
+## Tech stack
 
-    style PF fill:#EEEDFE,stroke:#534AB7,color:#3C3489
-    style W1 fill:#E1F5EE,stroke:#0F6E56,color:#085041
-    style W2 fill:#E1F5EE,stroke:#0F6E56,color:#085041
-    style W3 fill:#E1F5EE,stroke:#0F6E56,color:#085041
-    style L fill:#E1F5EE,stroke:#0F6E56,color:#085041
-    style F fill:#E6F1FB,stroke:#185FA5,color:#0C447C
-    style SE fill:#F1EFE8,stroke:#5F5E5A,color:#444441
-    style YF fill:#F1EFE8,stroke:#5F5E5A,color:#444441
-    style C fill:#F1EFE8,stroke:#5F5E5A,color:#444441
-    style B fill:#F1EFE8,stroke:#5F5E5A,color:#444441
-    style U fill:#F1EFE8,stroke:#5F5E5A,color:#444441
-```
-
-Authenticate once per provider. Credentials stored securely. Every run fetches automatically after first auth.
-
-Adding a new connector: one file in `agents/datapull/connectors/`.
-
----
-
-## Statistical Test Library
-
-STATSRUN runs **exactly the tests PROTOCOL.md specifies** — no hardcoded battery. Adding a new test: one file in `agents/statsrun/tests/`.
-
-| Test | Suited for |
+| Layer | Current stack |
 |---|---|
-| `newey_west_hac` | Predictability, performance — t-test with autocorrelation correction |
-| `garch_11` | Any — volatility modeling and persistence |
-| `bootstrap_ci` | Any — non-parametric confidence intervals |
-| `deflated_sharpe` | Performance — Sharpe corrected for multiple testing |
-| `fama_macbeth` | Predictability, performance — two-pass cross-sectional |
-| `regime_switching` | Any — structural break detection |
-| `markov_switching` | Any — hidden state regime identification |
-| `event_study_car` | Causal — cumulative abnormal returns |
-| `placebo_test` | Predictability, causal — false discovery validation |
-| `out_of_sample_r2` | Predictability — genuine predictive power |
-| `granger_causality` | Causal — temporal precedence |
-| `panel_regression` | Any — fixed/random effects with clustering |
-| `descriptive_stats` | Exploratory — summary statistics |
-| `circular_stats` | Crypto, intraday — time-of-day effects |
+| Web/API | FastAPI |
+| Frontend | static HTML, CSS, JS |
+| Durable state | PostgreSQL |
+| Durable artifacts | Azure Blob Storage |
+| Live updates | Server-Sent Events |
+| LLM | Azure OpenAI `gpt-4o` |
+| Production compute | Modal |
+| Deployment | Azure Container Apps |
+| Document export | LaTeX + Overleaf ZIP |
 
-INTAKE recommends defaults by claim type:
+## Local development
 
-```
-predictability → fama_macbeth, out_of_sample_r2, placebo_test, newey_west_hac
-performance    → newey_west_hac, deflated_sharpe, bootstrap_ci, regime_switching
-causal         → event_study_car, placebo_test, newey_west_hac, granger_causality
-exploratory    → descriptive_stats, regime_switching, markov_switching
-```
-
----
-
-## Quick Start
+### 1. Clone and install
 
 ```bash
-git clone https://github.com/gouravsalottra/paper-forge-private
+git clone https://github.com/gouravsalottra/paper-forge-private.git
 cd paper-forge-private
-
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.lock      # fully pinned — identical environment guaranteed
-
-cp .env.example .env                  # add your OPENAI_API_KEY
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-**New research (recommended):**
+### 2. Configure environment
+
 ```bash
-python intake.py
-# Guides you in plain English, handles data auth, generates PROTOCOL.md
-python run_pipeline.py
+cp .env.example .env
 ```
 
-## Dependency Canon
-- Source of truth for dependency edits: `requirements.in`
-- Locked install artifact: `requirements.lock`
-- `requirements.txt` is a legacy forwarder to `requirements.lock`
+Use local values in `.env` only for development. Do not commit it.
 
-## Compatibility Shims
-Paper-Forge keeps a few intentional backward-compat import shims (for example root `aria/` + `conductor/` and select flat files in `agents/`).
-See [`SHIM_PATTERN.md`](SHIM_PATTERN.md) for the canonical policy.
-The root `aria/` and `conductor/` directories are **shim-only compatibility layers**; canonical implementations live under `agents/aria/` and `agents/conductor/`.
+### 3. Run the app
 
-## Planned Agent Modules
-The following modules are present for roadmap continuity and internal experimentation; they are not part of the default production pipeline contract:
-- `agents/analyst/` — `STATUS: planned`
-- `agents/vizier/` — `STATUS: planned`
-- `agents/assembler/` — `STATUS: planned`
-
-**Dev mode (no institutional data):**
 ```bash
-export PAPER_FORGE_MINER_SOURCE=yfinance
-python run_pipeline.py
+uvicorn main:app --reload
 ```
 
-**Resume a halted run:**
-```bash
-python run_pipeline.py --resume pf-live-20260422 --from CODEAUDIT
-# Hypothesis lock preserved and re-verified on resume
-```
+Open:
 
-**Run tests:**
+1. `http://127.0.0.1:8000/index.html`
+2. `http://127.0.0.1:8000/app.html#new`
+
+### 4. Run tests
+
 ```bash
 pytest -q
-# 129 passed, 1 skipped in 20.02s
 ```
 
----
+## Environment configuration
 
-## Run Dashboard
+The repo includes `.env.example` as a shape reference only. Use plain placeholders in git-tracked files and real values only in:
 
-```
-$ python dashboard.py
+1. local gitignored `.env` for development
+2. Azure Container App secrets / env vars for production
 
-RUN ID                    STATUS   STARTED           PHASES   COST
-pf-live-20260423-203428   DONE     2026-04-23 20:34   9/9     $3.42
-pf-live-20260423-185058   DONE     2026-04-23 18:50   9/9     $3.18
-pf-live-20260423-040430   DONE     2026-04-23 04:04   9/9     $2.97
-
-$ python dashboard.py --run-id pf-live-20260423-203428
-
-Phase           Status   Duration    Cost     Notes
-LITERATURE      done     4m 23s      $0.40    40 papers, 9 full reads
-DATAPULL        done     2m 11s      —        WRDS + FRED, SHA-256 certified
-PREREGISTER     done     0m 12s      $0.15    Hypothesis locked: 7f3a91c4...
-COMPUTE         done     —           —        type: backtest, 3 seeds
-STATSRUN        done     3m 44s      —        5 tests, finding_valid: true
-CODEAUDIT       done     8m 22s      $1.12    1 mismatch → AUTOREPAIR patched
-REVIEWER        done     6m 30s      $0.95    Approved cycle 2, score 8.1/10
-WRITER          done     12m 10s     $0.80    paper_draft_v2.tex
-
-Total: $3.42  │  Artifacts: runs/pf-live-20260423-203428/
-```
-
----
-
-## What Honest Failure Looks Like
-
-Most tools surface the favorable result. Paper-Forge surfaces everything.
-
-```json
-{
-  "consistent": false,
-  "finding_valid": false,
-  "conclusion": "Finding does NOT hold across all 3 seeds — invalid per PROTOCOL.md",
-  "seed_1337": { "direction": "negative", "significant": true },
-  "seed_42":   { "direction": "positive", "significant": false },
-  "seed_9999": { "direction": "negative", "significant": false }
-}
-```
-
-The pipeline reports this. The paper reports this. **A null result is a valid output.** The system is designed to report failures, not manufacture significance.
-
----
-
-## System Design Principles
-
-**For engineers and architects.**
-
-```mermaid
-graph TD
-    A["Orchestrator reads state, not content\nCONDUCTOR reads only typed flags\nNever reads artifact content\nProven by patching builtins.open"] --> B["Routing is data, not logic\nAdd agent = one line in routing_config.py\ncondutor.py never modified for routing"]
-
-    B --> C["Subprocess isolation\nCODEAUDIT + SPECAUDIT separate processes\nSeparate API keys\nZero context leakage — proven by SHA test"]
-
-    C --> D["Database-level results gate\nresults_gate computed boolean in SQLite\np_value_passes AND seed_consistent\nAND codeaudit_clean — schema constraint"]
-
-    D --> E["Token budget with hard limits\nEvery LLM call recorded in pipeline.db\nTokenBudgetExceededError before limit hit\nConfigurable soft + hard USD thresholds"]
-
-    E --> F["Prompt versioning\nAll prompts in prompts/ directory\nSHA-256 per call in agent_results\nTwo runs with diff prompts → diff hashes"]
-
-    F --> G["Append-only writes\nCONDUCTOR never deletes content rows\nFull audit trail always reconstructible\nWAL-mode SQLite + foreign keys ON"]
-
-    style A fill:#EEEDFE,stroke:#534AB7,color:#3C3489
-    style D fill:#faeeda,stroke:#BA7517,color:#633806
-    style G fill:#EAF3DE,stroke:#3B6D11,color:#27500A
-```
-
----
-
-## Extending Paper-Forge
-
-Adding a **data source** — one file:
-```python
-# agents/datapull/connectors/my_source.py
-from agents.datapull.connectors.registry import register
-
-@register
-class MySourceConnector:
-    source_name = "my_source"
-    def fetch(self, dataset, fields, date_range, filters, output_dir):
-        # return (dataframe, certificate_dict)
-```
-
-Adding a **statistical test** — one file:
-```python
-# agents/statsrun/tests/my_test.py
-from agents.statsrun.tests.registry import register
-
-@register
-class MyTest:
-    test_name = "my_test"
-    def run(self, data, seed, params):
-        # return dict with p_value, statistic, significant, effect_size
-```
-
-Adding a **compute adapter** — one file:
-```python
-# agents/compute/adapters/my_adapter.py
-from agents.compute.adapters.registry import register
-
-@register
-class MyAdapter:
-    adapter_type = "my_compute"
-    def run(self, params, output_dir, seeds):
-        # return results dict
-```
-
-Adding a **new agent** — one line:
-```python
-# agents/conductor/routing_config.py
-AGENT_SERVER_MAP = {
-    ...
-    "MY_AGENT": "my_server",   # ← that's it
-}
-```
-
----
-
-## What Gets Produced Per Run
-
-```
-runs/pf-live-YYYYMMDD-HHMMSS/
-├── literature_map.md           ← gap analysis, citation seeds
-├── data_certificate.json       ← SHA-256 signed data lineage
-├── hypothesis_lock.json        ← pre-registered hypothesis + hash
-├── stats_tables/
-│   ├── seed_consistency.csv    ← READ THIS FIRST: finding_valid true/false
-│   ├── primary_metric.csv      ← your primary result
-│   ├── ttest_results.csv       ← p-values and effect sizes
-│   └── library_versions.json   ← exact versions for replication
-├── codeaudit_spec.md           ← what the code actually implements
-├── specaudit_report.md         ← what PROTOCOL.md claimed
-├── codec_mismatch.md           ← where they diverged
-├── autorepair_report.md        ← fixes applied + human escalations
-├── reviewer_report_v1.md       ← full referee report
-├── reviewer_scores_v1.json     ← methodology rubric scores 1-10
-├── paper_draft_v1.tex          ← initial scaffold — never overwritten
-├── paper_draft_v2.tex          ← after REVIEWER revision
-└── pipeline.log                ← structured JSON log every agent event
-```
-
----
-
-## Environment Variables
+Example shape:
 
 ```bash
-OPENAI_API_KEY=sk-...                    # required
-OPENAI_API_KEY_PASS2=sk-...             # separate key for SPECAUDIT
-PAPER_FORGE_MINER_SOURCE=yfinance       # wrds (production) or yfinance (dev)
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_API_KEY_PASS2=your_optional_second_openai_api_key_here
+PAPER_FORGE_MINER_SOURCE=yfinance
 WRDS_USERNAME=your_wrds_username
-PAPERFORGE_SOFT_LIMIT_USD=10.0          # token budget soft warning
-PAPERFORGE_HARD_LIMIT_USD=25.0          # token budget hard stop
-PAPERFORGE_OVERRIDE_PAP_TAMPER=1        # expert use — logged as CRITICAL
+FRED_API_KEY=
+THRIVARC_COMPUTE_BACKEND=modal
+MODAL_ACCOUNT_ALIAS=primary
+MODAL_ROUTER_ENABLED=1
+MODAL_ACCOUNT_ALIASES=primary,secondary,tertiary
+MODAL_MONTHLY_BUDGET_USD=28
+MODAL_APP_NAME=thrivarc-compute
+MODAL_FUNCTION_NAME=run_analysis_code
 ```
 
----
+## Repository guide
 
-## MCP Servers
+| Path | Purpose |
+|---|---|
+| `frontend/` | landing page and app shell |
+| `api/` | session orchestration, guide, compute dispatch, writing, export |
+| `agents/` | legacy and supporting agent implementations |
+| `db/` | database connection and migrations |
+| `storage/` | blob storage adapters |
+| `integrity/` | PDF rendering, DataPassport, preregistration, deviation tools |
+| `tests/` | unit, integration, flow, and regression coverage |
 
-Three functional MCP servers expose pipeline capabilities as tools:
+## What makes Thrivarc different
 
-```
-mcp_servers/arxiv_server.py   → search_arxiv, fetch_arxiv_paper
-mcp_servers/latex_server.py   → compile_latex, validate_latex_syntax
-mcp_servers/modal_server.py   → dispatch_compute_job, check_compute_status
-```
+Most AI research tools stop at “generate a report.” Thrivarc is designed around the full research lifecycle:
 
----
+1. shaping the question
+2. locking the design
+3. inspecting the evidence
+4. running the analysis
+5. pressuring the study with review and repair
+6. exporting a package the researcher can actually continue
 
-## Examples
+The real product is not the text output. The real product is controlled, inspectable research motion.
 
-`examples/gsci_momentum/` — the first paper produced by Paper-Forge. A study of passive investor concentration effects on commodity futures momentum profitability. Shows what a complete PROTOCOL.md looks like for a performance claim, how to design a custom RL environment, and what a full pipeline run produces.
+## Current status
 
-Reference material only — not maintained as runnable code.
+Thrivarc is an active private system evolving from a pipeline into a full research cockpit. The live product already supports:
 
----
-
-## Known Limitations
-
-**WRITER produces a scaffold, not a finished paper.** Introduction, related work, discussion, and conclusion require human authorship. WRITER produces methodology, results, and tables — the sections that must be grounded in verified data.
-
-**COMPUTE adapters for backtest and event_study are scaffolded.** Interface defined and tested. Implementation needs to be built per research design. See `examples/gsci_momentum/compute/` for a complete RL reference.
-
-**WRDS requires institutional access.** Use `PAPER_FORGE_MINER_SOURCE=yfinance` for development.
-
----
+1. new-study intake
+2. Blueprint approval
+3. evidence preview
+4. cockpit approvals
+5. live artifacts
+6. prompt amplifiers
+7. notebook-style compute cells
+8. paper quality checks
+9. Overleaf ZIP export
 
 ## Contributing
 
-| Area | File | What's needed |
-|---|---|---|
-| New data connector | `agents/datapull/connectors/` | Any institutional data source |
-| New statistical test | `agents/statsrun/tests/` | Any test not in the library |
-| Backtest adapter | `agents/compute/adapters/backtest_adapter.py` | Full strategy engine |
-| Event study adapter | `agents/compute/adapters/event_study_adapter.py` | CAR computation |
-| New research domain | Run `python intake.py` | All integrity infrastructure carries over |
+Before changing product behavior:
 
-Before any PR: `pytest -q` must show 0 failures.
+1. keep PostgreSQL as the only durable state source
+2. keep Azure Blob as the only durable artifact source
+3. avoid reintroducing secrets into tracked files
+4. preserve the evidence-before-compute rule
+5. preserve the writer-last rule
 
----
+Run tests before shipping:
+
+```bash
+pytest -q
+```
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT. See [LICENSE](LICENSE).
 
----
-
-<div align="center">
-
-REVIEWER models Journal of Finance · Review of Financial Studies · Journal of Financial Economics standards
-
-Pre-registration inspired by OSF Pre-registration and AEA RCT Registry
-
-Multiple testing correction: Harvey, Liu & Zhu (2016)
-
-<br/>
-
-*Built by [Gourav Salottra](https://github.com/gouravsalottra) · Boston University*
-
-</div>

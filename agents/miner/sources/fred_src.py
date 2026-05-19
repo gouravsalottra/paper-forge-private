@@ -39,7 +39,7 @@ def fetch(config: dict[str, Any]) -> pd.DataFrame:
     series_ids = list(config.get("series_ids", []))
     start = config.get("start")
     end = config.get("end")
-    api_key = config.get('api_key') or os.environ.get('FRED_API_KEY') or 'f75fabefc0fc70f5e9e6e49d824da214'
+    api_key = config.get("api_key") or os.environ.get("FRED_API_KEY")
 
     if not series_ids:
         raise ValueError("config['series_ids'] is required and must be non-empty.")
