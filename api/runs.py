@@ -160,12 +160,98 @@ def _canonical_runs() -> list[dict[str, Any]]:
     from api import sessions
 
     with sessions._with_conn() as conn:
-        rows = sessions._fetchall(conn, "SELECT id FROM sessions ORDER BY updated_at DESC")
+        rows = sessions._fetchall(conn, "SELECT * FROM sessions ORDER BY updated_at DESC")
+        if not rows:
+            return []
+            
+        session_ids = [sessions._row_get(row, "id") for row in rows]
+        placeholders = ",".join("?" * len(session_ids))
+        
+        # Fetch blueprints
+        blueprint_rows = sessions._fetchall(conn, f"SELECT session_id, payload FROM blueprint_events WHERE session_id IN ({placeholders}) ORDER BY created_at ASC", tuple(session_ids))
+        blueprints = {}
+        for b in blueprint_rows:
+            blueprints[sessions._row_get(b, "session_id")] = sessions._blueprint_content(b)
+            
+        # Fetch phases
+        phase_rows = sessions._fetchall(conn, f"SELECT session_id, agent_name, status FROM phases WHERE session_id IN ({placeholders}) ORDER BY started_at ASC", tuple(session_ids))
+        phases_by_session = {}
+        for p in phase_rows:
+            sid = sessions._row_get(p, "session_id")
+            if sid not in phases_by_session:
+                phases_by_session[sid] = []
+            phases_by_session[sid].append(p)
+            
+        # Fetch reviewer scores
+        score_rows = sessions._fetchall(conn, f"SELECT session_id, gate_passed, average_score FROM reviewer_scores WHERE session_id IN ({placeholders}) ORDER BY cycle DESC", tuple(session_ids))
+        scores_by_session = {}
+        for s in score_rows:
+            sid = sessions._row_get(s, "session_id")
+            if sid not in scores_by_session:
+                scores_by_session[sid] = s
+
     runs: list[dict[str, Any]] = []
     for row in rows:
-        run = _canonical_run_object(sessions._row_get(row, "id"), include_passport=False)
-        if run:
-            runs.append(run)
+        run_id = sessions._row_get(row, "id")
+        blueprint = blueprints.get(run_id, {})
+        phases = phases_by_session.get(run_id, [])
+        score = scores_by_session.get(run_id)
+        
+        completed = [
+            SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
+            for phase in phases
+            if sessions._row_get(phase, "status") == "complete"
+        ]
+        completed = [phase for phase in completed if phase]
+        
+        current = next(
+            (
+                SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
+                for phase in phases
+                if sessions._row_get(phase, "status") == "running"
+            ),
+            None,
+        )
+        if current is None:
+            current = next(
+                (
+                    SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
+                    for phase in phases
+                    if sessions._row_get(phase, "status") in {"failed_resumable", "failed_terminal", "repair_required", "paper_locked"}
+                ),
+                None,
+            )
+            
+        status = sessions._row_get(row, "status")
+        gate_passed = bool(sessions._row_get(score, "gate_passed")) if score else False
+        data_sha = (
+            blueprint.get("uploaded_event_sha256")
+            or blueprint.get("data_preview_sha256")
+        )
+        
+        run_obj = {
+            "run_id": run_id,
+            "topic": sessions._row_get(row, "topic"),
+            "hypothesis": blueprint.get("hypothesis") or sessions._row_get(row, "topic"),
+            "status": status,
+            "current_phase": current,
+            "phase": current,
+            "phases_completed": sorted(set(completed), key=CANONICAL_PHASES.index),
+            "cost_usd": float(sessions._row_get(row, "credits_spent", 0) or 0),
+            "created_at": sessions._row_get(row, "created_at"),
+            "research_type": sessions._row_get(row, "research_type") or "unknown",
+            "research_state": sessions._row_get(row, "research_type") or "unknown",
+            "finding_valid": gate_passed if score else None,
+            "data_preview_sha256": data_sha,
+            "data_sha256": data_sha,
+            "data_passport": {},
+            "parent_run_id": sessions._row_get(row, "parent_run_id"),
+            "hypothesis_id": None,
+            "plan": blueprint,
+            "reviewer_gate": {"passed": gate_passed, "average_score": sessions._row_get(score, "average_score") if score else None},
+        }
+        runs.append(run_obj)
+        
     return runs
 
 
