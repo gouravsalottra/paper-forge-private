@@ -79,7 +79,7 @@ def _canonical_session_exists(run_id: str) -> bool:
         return sessions._session_row(conn, run_id) is not None
 
 
-def _canonical_run_object(run_id: str) -> dict[str, Any] | None:
+def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[str, Any] | None:
     from api import sessions
 
     with sessions._with_conn() as conn:
@@ -98,10 +98,11 @@ def _canonical_run_object(run_id: str) -> dict[str, Any] | None:
             (run_id,),
         )
     data_passport: dict[str, Any] = {}
-    try:
-        data_passport = json.loads(read_artifact(run_id, "03_data/data_passport.json").decode("utf-8"))
-    except Exception:
-        data_passport = {}
+    if include_passport:
+        try:
+            data_passport = json.loads(read_artifact(run_id, "03_data/data_passport.json").decode("utf-8"))
+        except Exception:
+            data_passport = {}
     completed = [
         SESSION_PHASE_TO_LEGACY.get(sessions._row_get(phase, "agent_name"))
         for phase in phases
@@ -162,7 +163,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
         rows = sessions._fetchall(conn, "SELECT id FROM sessions ORDER BY updated_at DESC")
     runs: list[dict[str, Any]] = []
     for row in rows:
-        run = _canonical_run_object(sessions._row_get(row, "id"))
+        run = _canonical_run_object(sessions._row_get(row, "id"), include_passport=False)
         if run:
             runs.append(run)
     return runs
