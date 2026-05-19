@@ -3103,26 +3103,74 @@ function renderGuide(){
 let activeAgent = 'literature';
 let currentResearchId = null;
 
+const AGENT_MAP = {
+  literature: 'Literature Agent',
+  data: 'Data Agent',
+  stats: 'Statistics Agent',
+  verifier: 'Code Audit Agent',
+  reviewer: 'Reviewer Agent',
+  writer: 'Writer Agent'
+};
+
 const AGENT_CONFIG = {
-  literature: { name: 'Literature Agent', icon: '🔍', prompt: 'You are the Literature Agent. Gather papers coherent to this topic. Provide summaries, highlight contradictions, and build a foundational literature review.', model: 'gpt-4o' },
-  data: { name: 'Data & Compute Environment', icon: '📊', prompt: 'You are the Data Agent. Write python code to gather data, clean it, and run statistical tests. I will run your code in the Modal notebook below.', model: 'gpt-4-turbo' },
-  stats: { name: 'Stats & Methods', icon: '📈', prompt: 'You are the Stats and Methods Agent. Determine the best empirical models, statistical tests, and econometric strategies for this research.', model: 'claude-3-opus' },
-  verifier: { name: 'Verifier', icon: '🛡️', prompt: 'You are the Verifier. Audit the code against the findings, and the findings against the code. Ensure no leakage or p-hacking occurred.', model: 'claude-3-5-sonnet' },
-  reviewer: { name: 'Reviewer Gauntlet', icon: '⚖️', prompt: 'You are a panel of three reviewers: The Skeptic, The Methodologist, and The Economist. Challenge every claim and recommend edits.', model: 'gpt-4o' },
-  writer: { name: 'LaTeX Writer', icon: '✍️', prompt: 'You are the Writer Agent. Synthesize all findings, charts, and tables into a 40-page LaTeX paper ready for Overleaf.', model: 'gpt-4o' }
+  literature: { name: 'Literature Agent', icon: '🔍', prompt: '', model: 'gpt-4o' },
+  data: { name: 'Data & Compute Environment', icon: '📊', prompt: '', model: 'gpt-4-turbo' },
+  stats: { name: 'Stats & Methods', icon: '📈', prompt: '', model: 'claude-3-opus' },
+  verifier: { name: 'Verifier', icon: '🛡️', prompt: '', model: 'claude-3-5-sonnet' },
+  reviewer: { name: 'Reviewer Gauntlet', icon: '⚖️', prompt: '', model: 'gpt-4o' },
+  writer: { name: 'LaTeX Writer', icon: '✍️', prompt: '', model: 'gpt-4o' }
 };
 
 const MODELS = ['gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-5-sonnet', 'gemini-1.5-pro', 'llama-3-70b'];
 
-function renderWorkspace(id) {
+let activeCells = [];
+let agentPrompts = {};
+let agentModels = {};
+let followupsCache = [];
+
+async function renderWorkspace(id) {
   currentResearchId = id;
   const app = qs('#app');
   
+  if(!agentPrompts[activeAgent]){
+    app.innerHTML = '<div class="card">Loading workspace...</div>';
+    
+    // Load backend data concurrently
+    const [st, cellsRes, followupsRes, ampsRes, modsRes] = await Promise.all([
+      api(`/runs/${id}/status`).catch(()=>({})),
+      api(`/sessions/${id}/compute-cells`).catch(()=>({cells:[]})),
+      api(`/sessions/${id}/followups`).catch(()=>({followups:[]})),
+      api(`/sessions/${id}/prompt-amplifiers`).catch(()=>({amplifiers:[]})),
+      api(`/sessions/${id}/model-settings`).catch(()=>({settings:[]}))
+    ]);
+    
+    activeCells = cellsRes.cells || [];
+    followupsCache = followupsRes.followups || [];
+    
+    // Process backend models
+    (modsRes.settings || []).forEach(s => {
+      const k = Object.keys(AGENT_MAP).find(key => AGENT_MAP[key] === s.agent);
+      if(k) agentModels[k] = s.model_name;
+    });
+
+    // Process backend prompts
+    for (const key of Object.keys(AGENT_MAP)) {
+      const backendAgentName = AGENT_MAP[key];
+      const composed = await api(`/sessions/${id}/prompts/composed?agent=${encodeURIComponent(backendAgentName)}`).catch(()=>({prompt:''}));
+      const amp = (ampsRes.amplifiers || []).find(a => a.agent === backendAgentName);
+      // We will show the composed prompt as the editable base, or the user's amplifier.
+      agentPrompts[key] = amp ? amp.prompt_amplifier : (composed.prompt || AGENT_CONFIG[key].prompt || 'You are the ' + AGENT_MAP[key]);
+    }
+  }
+
   app.innerHTML = `
     <div class="row" style="margin-bottom:20px; align-items:flex-end">
       <div>
         <h2 style="margin:0 0 8px 0">Researcher OS</h2>
         <p class="muted" style="margin:0">Live multi-agent workspace for session <code>${esc(id)}</code></p>
+      </div>
+      <div>
+         <button class="btn primary" onclick="window.location.hash=''">Back to Dashboard</button>
       </div>
     </div>
     <div class="workspace-shell">
@@ -3145,44 +3193,122 @@ function switchAgent(agentKey) {
   renderWorkspace(currentResearchId);
 }
 
+async function updateAgentPrompt(val) {
+  agentPrompts[activeAgent] = val;
+  await api(`/sessions/${currentResearchId}/prompt-amplifiers`, {
+    method: 'PUT',
+    body: JSON.stringify({ agent: AGENT_MAP[activeAgent], prompt_amplifier: val })
+  });
+  toast('Agent prompt saved.');
+}
+
+async function updateAgentModel(val) {
+  agentModels[activeAgent] = val;
+  await api(`/sessions/${currentResearchId}/model-settings`, {
+    method: 'PUT',
+    body: JSON.stringify({ agent: AGENT_MAP[activeAgent], model_name: val })
+  });
+  toast('Agent model updated.');
+}
+
+async function runComputeCell(cellId) {
+  const btn = event.target;
+  btn.textContent = 'Running...';
+  btn.disabled = true;
+  await api(`/sessions/${currentResearchId}/compute-cells/${cellId}/run`, { method: 'POST' });
+  
+  // Simple poll to check completion
+  const poll = setInterval(async () => {
+    const res = await api(`/sessions/${currentResearchId}/compute-cells`);
+    activeCells = res.cells || [];
+    const updated = activeCells.find(c => c.id === cellId);
+    if(updated && updated.status !== 'running') {
+      clearInterval(poll);
+      renderWorkspace(currentResearchId);
+    }
+  }, 2000);
+}
+
+async function sendFollowup() {
+  const input = qs('#chat-input');
+  const txt = input.value.trim();
+  if(!txt) return;
+  
+  input.value = '';
+  input.disabled = true;
+  
+  await api(`/sessions/${currentResearchId}/followups`, {
+    method: 'POST',
+    body: JSON.stringify({
+      action_label: `Message to ${AGENT_CONFIG[activeAgent].name}`,
+      reason: txt,
+      owner_phase: AGENT_MAP[activeAgent],
+      rerun_scope: [AGENT_MAP[activeAgent]],
+      technical: txt,
+      plain: txt
+    })
+  });
+  
+  const followupsRes = await api(`/sessions/${currentResearchId}/followups`);
+  followupsCache = followupsRes.followups || [];
+  renderWorkspace(currentResearchId);
+}
+
 function renderActiveAgentWorkspace() {
   const agent = AGENT_CONFIG[activeAgent];
+  const currentModel = agentModels[activeAgent] || agent.model;
+  const currentPrompt = agentPrompts[activeAgent] || '';
   
-  const modelOptions = MODELS.map(m => `<option value="${m}" ${m === agent.model ? 'selected' : ''}>${m}</option>`).join('');
+  const modelOptions = MODELS.map(m => `<option value="${m}" ${m === currentModel ? 'selected' : ''}>${m}</option>`).join('');
+
   
   let contentArea = '';
-  if (activeAgent === 'data') {
-    contentArea = `
-      <div class="notebook-cell">
+  
+  // Render Chat History
+  const agentFollowups = followupsCache.filter(f => f.owner_phase === AGENT_MAP[activeAgent]);
+  let chatHistoryHtml = agentFollowups.map(f => `
+    <div class="chat-bubble user">
+      <strong>You:</strong> ${esc(f.reason || '')}
+    </div>
+    <div class="chat-bubble agent" style="margin-top: 8px;">
+      <strong>${agent.name} [${esc(f.status || 'pending')}]:</strong> ${f.status === 'done' ? 'I have completed this request.' : 'Working on it...'}
+    </div>
+  `).join('');
+
+  if (activeAgent === 'data' || activeAgent === 'stats') {
+    const agentCells = activeCells.filter(c => activeAgent === 'stats' ? c.phase === 'STATSRUN' : (c.phase !== 'STATSRUN'));
+    let cellsHtml = agentCells.map((c, i) => `
+      <div class="notebook-cell" style="margin-bottom:12px;">
         <div class="notebook-cell-header">
-          <span>In [1]: Data Fetching & Cleaning</span>
+          <span>In [${i+1}]: ${esc(c.file_name || 'Compute Cell')}</span>
           <div>
-            <button class="btn" style="padding: 4px 8px; font-size: 11px; min-height: auto;">Run Code</button>
+            <button class="btn" style="padding: 4px 8px; font-size: 11px; min-height: auto;" onclick="runComputeCell('${c.id}')" ${c.status === 'running' ? 'disabled' : ''}>
+              ${c.status === 'running' ? 'Running...' : 'Run Code'}
+            </button>
           </div>
         </div>
-        <textarea class="notebook-cell-code" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">import pandas as pd
-import yfinance as yf
-
-# Example: Fetching baseline data
-df = yf.download("SPY", start="2015-01-01", end="2024-01-01")
-df.head()</textarea>
-        <div class="notebook-cell-output">
-                  Open        High         Low       Close   Adj Close     Volume
-Date                                                                         
-2015-01-02  206.38  207.28   204.93  205.43   176.43  121465900
-2015-01-05  204.17  204.37   201.35  201.72   173.25  169632600
-2015-01-06  202.09  203.02   199.27  199.82   171.61  209151400
-        </div>
+        <textarea class="notebook-cell-code" readonly oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(c.code || '# No code generated yet')}</textarea>
+        ${c.output_stdout || c.output_stderr ? `<div class="notebook-cell-output">
+${esc(c.output_stdout || '')}
+<span style="color:red">${esc(c.output_stderr || '')}</span>
+        </div>` : ''}
       </div>
-      <div class="chat-bubble agent" style="margin-top: 16px;">
-        <strong>Data Agent:</strong> I've prepared the initial data pipeline. Do you want to add factor models or macroeconomic indicators?
-      </div>
+    `).join('');
+    
+    if(!cellsHtml) {
+      cellsHtml = `<div class="muted">No compute cells generated for this agent yet.</div>`;
+    }
+    
+    contentArea = `
+      ${cellsHtml}
+      ${chatHistoryHtml}
     `;
   } else {
     contentArea = `
       <div class="chat-bubble agent">
         <strong>${agent.name}:</strong> Ready. How would you like to proceed with the ${agent.name.toLowerCase()} phase?
       </div>
+      ${chatHistoryHtml}
     `;
   }
 
@@ -3190,19 +3316,19 @@ Date
     <div class="agent-header">
       <div class="row" style="justify-content:space-between">
         <h3 style="margin:0">${agent.icon} ${esc(agent.name)}</h3>
-        <select class="model-select">${modelOptions}</select>
+        <select class="model-select" onchange="updateAgentModel(this.value)">${modelOptions}</select>
       </div>
       <div>
         <div class="mini" style="margin-bottom:6px;font-weight:600;color:var(--muted)">BASE PROMPT (EDITABLE)</div>
-        <textarea class="prompt-editor" oninput="AGENT_CONFIG['${activeAgent}'].prompt = this.value">${esc(agent.prompt)}</textarea>
+        <textarea class="prompt-editor" onblur="updateAgentPrompt(this.value)">${esc(currentPrompt)}</textarea>
       </div>
     </div>
     <div class="agent-chat">
       ${contentArea}
     </div>
     <div class="agent-input-zone">
-      <textarea placeholder="Message ${esc(agent.name)}... (Press Cmd+Enter to send)"></textarea>
-      <button class="btn primary" style="align-self: flex-end;">Send</button>
+      <textarea id="chat-input" placeholder="Message ${esc(agent.name)}..."></textarea>
+      <button class="btn primary" style="align-self: flex-end;" onclick="sendFollowup()">Send</button>
     </div>
   `;
 }
