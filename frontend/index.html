@@ -3,219 +3,143 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Thrivarc AI - The research operating system for finance</title>
+  <title>Thrivarc AI - Research Cockpit</title>
   <style>
     :root {
-      --bg: #f4efe6;
-      --surface: #fffdf8;
-      --surface-soft: #f8f1e4;
-      --surface-deep: #ede1cc;
-      --ink: #18212b;
-      --muted: #5f6b78;
-      --line: #d8cfbf;
+      --bg: #f6f8fb;
+      --surface: rgba(255,255,255,.86);
+      --surface-soft: #f7f9fc;
+      --ink: #111827;
+      --muted: #687385;
+      --line: rgba(17,24,39,.10);
       --brand: #145f52;
       --brand-2: #d88645;
-      --brand-3: #10272d;
-      --radius: 22px;
-      --shadow: 0 20px 54px rgba(24,33,43,.08);
-      --display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      --brand-3: #17242c;
+      --shadow: 0 28px 90px rgba(15,23,42,.10);
+      --shadow-sm: 0 12px 34px rgba(15,23,42,.07);
       --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
-      background: radial-gradient(circle at 10% 0%, rgba(216, 134, 69, 0.06), transparent 30%),
-                  radial-gradient(circle at 90% 0%, rgba(20, 95, 82, 0.06), transparent 30%),
-                  var(--bg);
       color: var(--ink);
       font-family: var(--sans);
-      line-height: 1.6;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(circle at 12% -8%, rgba(47,109,246,.14), transparent 28%),
+        radial-gradient(circle at 88% 0%, rgba(20,95,82,.10), transparent 26%),
+        linear-gradient(180deg, #fbfcff 0%, #f5f7fb 46%, #edf2f7 100%);
       overflow-x: hidden;
     }
-    a { text-decoration: none; color: inherit; transition: color 0.2s ease; }
-
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-
-    /* Navigation - Glassmorphism */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(17,24,39,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(17,24,39,.028) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,.40), transparent 72%);
+      z-index: -1;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { width: min(1180px, calc(100vw - 40px)); margin: 0 auto; }
     .nav {
       position: sticky;
       top: 0;
       z-index: 50;
-      background: rgba(244, 239, 230, 0.85);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(216, 207, 191, 0.6);
-      transition: all 0.3s ease;
+      background: rgba(248,250,252,.78);
+      border-bottom: 1px solid rgba(17,24,39,.08);
+      backdrop-filter: blur(22px) saturate(1.15);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.80);
     }
-    .navin { height: 80px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .brand { display: flex; align-items: center; gap: 16px; font-weight: 700; letter-spacing: -0.01em; }
-    .mark {
-      width: 44px; height: 44px; border-radius: 12px;
-      background: linear-gradient(135deg, var(--brand), #0a3a24);
-      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 20px;
-      box-shadow: 0 8px 24px rgba(15, 81, 50, 0.25);
-      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    .navin { height: 68px; display: flex; justify-content: space-between; align-items: center; gap: 22px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 900; letter-spacing: -.03em; }
+    .mark { width: 38px; height: 38px; border-radius: 14px; display: grid; place-items: center; color: #fff; background: linear-gradient(145deg, #111827, #263241 56%, var(--brand)); box-shadow: 0 14px 28px rgba(17,24,39,.18), inset 0 1px 0 rgba(255,255,255,.18); }
+    .mini { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .links { display: flex; align-items: center; gap: 18px; color: #475569; font-size: 13px; font-weight: 800; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.72); font-weight: 900; box-shadow: inset 0 1px 0 rgba(255,255,255,.78); transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+    .btn:hover { transform: translateY(-1px); background: #fff; box-shadow: 0 14px 28px rgba(15,23,42,.08); }
+    .btn.primary { color: #fff; border-color: transparent; background: linear-gradient(145deg, #111827, #1f2937 56%, var(--brand)); box-shadow: 0 18px 38px rgba(17,24,39,.18), inset 0 1px 0 rgba(255,255,255,.16); }
+    .eyebrow { display: inline-flex; width: fit-content; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.72); color: #64748b; text-transform: uppercase; letter-spacing: .17em; font-size: 11px; font-weight: 900; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { letter-spacing: -.07em; line-height: .95; }
+    .hero { padding: 72px 0 34px; }
+    .hero-shell {
+      min-height: 660px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 18px;
+      border-radius: 42px;
+      padding: clamp(28px, 5vw, 64px);
+      overflow: hidden;
+      position: relative;
+      background:
+        radial-gradient(circle at 86% 10%, rgba(47,109,246,.16), transparent 30%),
+        radial-gradient(circle at 10% 90%, rgba(20,95,82,.12), transparent 32%),
+        linear-gradient(135deg, rgba(255,255,255,.92), rgba(247,249,252,.78));
+      border: 1px solid rgba(17,24,39,.085);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(20px) saturate(1.14);
     }
-    .brand:hover .mark { transform: scale(1.05) rotate(-3deg); }
-    .mini { font-size: 13px; color: var(--muted); font-weight: 500; }
-
-    .links { display: flex; align-items: center; gap: 24px; color: var(--muted); font-weight: 500; font-size: 15px; }
-    .links a:hover { color: var(--brand); }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 12px 24px; border-radius: 999px;
-      border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-      font-weight: 600; font-size: 15px; cursor: pointer;
-      transition: all 0.2s ease;
+    .hero-copy { display: flex; flex-direction: column; justify-content: space-between; gap: 32px; }
+    h1 { max-width: 920px; font-size: clamp(4rem, 8vw, 7.8rem); }
+    .lead { max-width: 760px; color: var(--muted); font-size: clamp(18px, 1.6vw, 22px); line-height: 1.45; }
+    .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .product-rail { display: grid; gap: 12px; }
+    .rail-card, .panel, .cockpit-preview, .story-card {
+      border-radius: 28px;
+      border: 1px solid rgba(17,24,39,.09);
+      background: rgba(255,255,255,.76);
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(18px) saturate(1.12);
     }
-    .btn:hover { background: var(--surface-soft); border-color: var(--line); transform: translateY(-1px); }
-    .btn.primary {
-      background: linear-gradient(135deg, var(--brand), #0c4a3d);
-      border: none; color: #fff;
-      box-shadow: 0 8px 24px rgba(20, 95, 82, 0.2);
-    }
-    .btn.primary:hover {
-      box-shadow: 0 12px 32px rgba(20, 95, 82, 0.3);
-      transform: translateY(-2px);
-    }
-
-    /* Hero */
-    .hero { padding: 90px 0 46px; }
-    .eyebrow { font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--brand); font-weight: 700; display: inline-flex; align-items: center; gap: 8px; background: #eef7f4; padding: 6px 16px; border-radius: 999px; margin-bottom: 16px; }
-    h1, h2, h3, h4 { margin: 0; color: var(--ink); letter-spacing: -0.02em; }
-    h1 { font-family: var(--display); font-size: clamp(48px, 7vw, 86px); line-height: .97; max-width: 920px; margin-top: 14px; }
-    .lead { font-size: 20px; color: var(--muted); max-width: 780px; margin-top: 18px; }
-    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
-
-    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch; margin-top: 64px; text-align: left; }
-    .panel, .card {
-      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-      box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .panel { padding: 32px; }
-    .stack { display: grid; gap: 16px; }
-
-    .signal {
-      padding: 20px; border-radius: 12px; background: var(--surface-soft); border: 1px solid var(--line);
-      transition: transform 0.2s ease, background 0.2s ease;
-    }
-    .signal:hover { background: var(--surface); transform: translateX(4px); border-color: var(--line); }
-    .signal strong { display: block; margin-bottom: 6px; font-size: 16px; color: var(--brand-3); }
-
-    .hero-map {
-      padding: 32px; border-radius: var(--radius);
-      background: linear-gradient(160deg, rgba(15, 81, 50, 0.03), rgba(198, 106, 38, 0.05));
-      border: 1px solid rgba(15, 81, 50, 0.08);
-      position: relative; overflow: hidden;
-    }
-    .hero-map::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 60%); z-index: 0; pointer-events: none; }
-    .hero-map > * { position: relative; z-index: 1; }
-    .hero-map .rail { display: grid; gap: 12px; margin-top: 20px; }
-    .hero-map .rail div {
-      padding: 16px 20px; border-radius: 12px; background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(216, 207, 191, 0.8);
-      box-shadow: 0 4px 12px rgba(24, 33, 43, 0.04); transition: transform 0.2s ease;
-      display: flex; flex-direction: column;
-    }
-    .hero-map .rail div:hover { transform: scale(1.02); }
-
-    .stat-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
-    .stat { padding: 20px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
-    .stat strong { display: block; font-size: 28px; font-family: var(--display); color: var(--brand); margin-bottom: 4px; }
-
-    section { padding: 96px 0; }
-    .section-head { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 24px; }
-    .section-head p { max-width: 760px; margin: 0; color: var(--muted); }
-
-    .grid { display: grid; gap: 24px; }
-    .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-
-    .card { padding: 28px; display: flex; flex-direction: column; gap: 12px; }
-    .card:hover { box-shadow: 0 24px 64px rgba(24,33,43,.10); transform: translateY(-4px); }
-    .card h3 { font-size: 20px; }
-
-    .timeline { display: grid; gap: 16px; position: relative; }
-    .timeline::before { content: ''; position: absolute; left: 24px; top: 0; bottom: 0; width: 2px; background: var(--line); }
-    .timeline .card { padding: 24px; padding-left: 64px; position: relative; }
-    .timeline .card::before { content: ''; position: absolute; left: 18px; top: 28px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); border: 3px solid var(--surface); box-shadow: 0 0 0 2px rgba(20,95,82,0.15); }
-    .timeline strong { display: block; margin-bottom: 8px; color: var(--brand-3); font-size: 18px; }
-
-    .studio { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
-    .diagram {
-      padding: 40px; border-radius: var(--radius);
-      background: linear-gradient(135deg, #0a191f, #143542); color: #f1f7f5;
-      border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 32px 80px rgba(16, 39, 45, 0.4);
-    }
-    .diagram h3 { color: #fff; }
-    .diagram-step {
-      margin-top: 16px; padding: 20px; border-radius: 12px;
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-      backdrop-filter: blur(10px); transition: background 0.2s ease;
-    }
-    .diagram-step:hover { background: rgba(255,255,255,0.1); }
-    .diagram-step strong { color: #fff; font-size: 16px; display: block; margin-bottom: 4px; }
-
-    .comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
-    .comparison .card { border-top: 4px solid var(--line); }
-    .comparison .card:first-child { border-top-color: var(--brand-2); }
-    .comparison .card:last-child { border-top-color: var(--brand); background: #eef7f4; border-color: rgba(20,95,82,0.1); border-top: 4px solid var(--brand); }
-    .comparison ul { margin: 16px 0 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
-
-    .check { display: flex; gap: 12px; align-items: flex-start; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--brand); margin-top: 6px; flex: 0 0 auto; box-shadow: 0 0 8px rgba(20,95,82,0.3); }
-
-    .persona { display: grid; gap: 16px; }
-    .persona .card { text-align: center; align-items: center; }
-    .persona .mini { min-height: 48px; }
-    .quote { padding: 24px; border-left: 4px solid var(--brand-2); background: linear-gradient(90deg, rgba(198, 106, 38, 0.08), transparent); border-radius: 0 16px 16px 0; font-style: italic; font-size: 16px; }
-
-    .cta-band {
-      padding: 64px 40px; border-radius: 32px; text-align: center;
-      background: linear-gradient(135deg, var(--brand), #0c4a3d); color: #fff;
-      border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 32px 80px rgba(20, 95, 82, 0.3);
-      position: relative; overflow: hidden;
-    }
-    .cta-band::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 60%); z-index: 0; }
-    .cta-band > * { position: relative; z-index: 1; }
-    .cta-band h2 { font-size: 48px; margin-bottom: 16px; color: #fff; }
-    .cta-band p { color: rgba(255,255,255,0.8); font-size: 20px; max-width: 600px; margin: 0 auto 32px; }
-
-    footer { padding: 48px 0; color: var(--muted); border-top: 1px solid var(--line); margin-top: 48px; display: flex; justify-content: space-between; align-items: center; }
-
+    .rail-card { padding: 18px; }
+    .rail-card.dark { display: flex; flex-direction: column; justify-content: space-between; min-height: 230px; color: #fff; background: linear-gradient(145deg, #111827, #1f2937 58%, #123d37); }
+    .rail-card.dark .mini { color: rgba(255,255,255,.72); }
+    .big-num { font-size: 58px; font-weight: 900; letter-spacing: -.08em; line-height: .9; }
+    section { padding: 82px 0; }
+    .section-head { display: grid; grid-template-columns: minmax(0, .9fr) minmax(320px, .55fr); gap: 28px; align-items: end; margin-bottom: 24px; }
+    h2 { font-size: clamp(2.5rem, 5vw, 5.2rem); margin: 10px 0 0; }
+    .section-head p { color: var(--muted); margin: 0; font-size: 17px; }
+    .workflow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .story-card { padding: 22px; min-height: 230px; display: flex; flex-direction: column; justify-content: space-between; }
+    .story-card strong { display: block; font-size: 18px; letter-spacing: -.03em; }
+    .step-index { width: 38px; height: 38px; border-radius: 14px; display: grid; place-items: center; color: white; font-weight: 900; background: linear-gradient(145deg, #111827, var(--brand)); }
+    .cockpit-preview { display: grid; grid-template-columns: 240px 1fr 280px; overflow: hidden; min-height: 520px; }
+    .preview-pane { padding: 22px; border-right: 1px solid var(--line); }
+    .preview-pane:last-child { border-right: 0; background: rgba(248,250,252,.70); }
+    .phase-row, .artifact-row, .prompt-row { padding: 12px; border-radius: 16px; background: rgba(255,255,255,.72); border: 1px solid var(--line); margin-top: 10px; }
+    .phase-row { display: grid; grid-template-columns: 12px 1fr; gap: 10px; align-items: center; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px rgba(20,95,82,.10); }
+    .artifact-row { display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: center; }
+    .file-icon { width: 32px; height: 40px; border-radius: 8px; background: linear-gradient(145deg, #eef2f7, #fff); border: 1px solid var(--line); }
+    .quote-band { padding: 42px; border-radius: 34px; color: #fff; background: linear-gradient(145deg, #111827, #1f2937 58%, #123d37); box-shadow: var(--shadow); }
+    .quote-band h2 { color: #fff; max-width: 850px; }
+    .quote-band p { color: rgba(255,255,255,.76); max-width: 760px; font-size: 18px; }
+    footer { padding: 44px 0; color: var(--muted); border-top: 1px solid var(--line); }
     @media (max-width: 980px) {
       .links { display: none; }
-      .hero-grid, .studio, .comparison, .g2, .g3, .g4, .stat-row { grid-template-columns: 1fr; }
-      h1 { max-width: none; font-size: 40px; }
-      .timeline::before { left: 16px; }
-      .timeline .card { padding-left: 48px; }
-      .timeline .card::before { left: 10px; }
+      .hero-shell, .section-head, .workflow, .cockpit-preview { grid-template-columns: 1fr; }
+      h1 { font-size: clamp(3.2rem, 15vw, 5rem); }
+      .hero-shell { min-height: auto; border-radius: 30px; }
+      .preview-pane { border-right: 0; border-bottom: 1px solid var(--line); }
     }
-    .icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 24px; color: var(--brand); }
-    .icon svg { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
   <header class="nav">
     <div class="wrap navin">
-      <a href="/" class="brand">
-        <div class="mark">T</div>
-        <div>
-          <div>Thrivarc AI</div>
-          <div class="mini">The research operating system for empirical finance</div>
-        </div>
-      </a>
+      <a href="/" class="brand"><span class="mark">T</span><span>Thrivarc AI<br><span class="mini">Research cockpit for empirical finance</span></span></a>
       <nav class="links">
-        <a href="#how-it-works">How it works</a>
-        <a href="#capability">Capability</a>
-        <a href="#who">Modes</a>
-        <a href="#why-pay">Why pay</a>
-        <a class="btn primary" href="app.html#new">Start Researching Free</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#cockpit">Cockpit</a>
+        <a href="#why">Why it matters</a>
+        <a class="btn primary" href="app.html#new">Start Research</a>
       </nav>
     </div>
   </header>
@@ -223,231 +147,89 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <div class="eyebrow">Anyone can do research now</div>
-        <div class="mini" style="margin-top:8px;color:var(--brand);font-weight:700;letter-spacing:.12em;text-transform:uppercase">The research operating system for finance</div>
-        <h1>Turn a research question into a result you can defend.</h1>
-        <p class="lead">Thrivarc helps shape the study, define the evidence path, execute the analysis, pressure-test the result like a real reviewer, and draft the paper only after the finding survives.</p>
-        <div class="hero-actions">
-          <a class="btn primary" href="app.html#new">Start Researching Free</a>
-          <a class="btn" href="#how-it-works">See the research journey</a>
-        </div>
-
-        <div class="hero-grid">
-          <div class="panel stack">
-            <div class="signal">
-              <strong>Start with a question, not a workflow</strong>
-              Bring a topic, a claim, or even a half-formed curiosity. Thrivarc decides whether the study should stay exploratory, become confirmatory, or split into staged validation.
+        <div class="hero-shell">
+          <div class="hero-copy">
+            <div>
+              <span class="eyebrow">Research cockpit</span>
+              <h1>From question to defensible evidence.</h1>
+              <p class="lead">Thrivarc gives researchers a live operating room for empirical finance: Blueprint approval, data preview, sandboxed compute, prompt control, notebook-style cells, reviewer pressure, and an Overleaf-ready export.</p>
             </div>
-            <div class="signal">
-              <strong>Get a research blueprint before anything runs</strong>
-              Evidence route, cadence logic, method family, validation burden, and reviewer attack surface are shaped first and shown back to you in plain English.
-            </div>
-            <div class="signal">
-              <strong>Keep the integrity. Lose the grunt work.</strong>
-              Data checks, robustness tests, audit passes, follow-up runs, reviewer simulation, and paper drafting happen inside one research system instead of across ten disconnected tools.
-            </div>
-            <div class="stat-row">
-              <div class="stat"><strong>Question</strong><span class="mini">Natural-language intake that shapes the study</span></div>
-              <div class="stat"><strong>Blueprint</strong><span class="mini">Single contract every agent executes</span></div>
-              <div class="stat"><strong>Defense</strong><span class="mini">Reviewer and audit pressure before writing</span></div>
+            <div class="hero-actions">
+              <a class="btn primary" href="app.html#new">Open the cockpit</a>
+              <a class="btn" href="#cockpit">See the interface</a>
             </div>
           </div>
-
-          <div class="hero-map">
-            <div class="eyebrow" style="letter-spacing:.12em">What Thrivarc actually does</div>
-            <div class="rail">
-              <div><strong>1. Interview the research problem</strong><br><span class="mini">Question, context, evidence reality, validation burden.</span></div>
-              <div><strong>2. Build the research blueprint</strong><br><span class="mini">Method, cadence, evidence route, test battery, reviewer rubric.</span></div>
-              <div><strong>3. Preview and certify the data</strong><br><span class="mini">Nothing starts until the exact evidence is approved.</span></div>
-              <div><strong>4. Execute, challenge, repair</strong><br><span class="mini">Analysis, statistics, audits, reviewer loops, follow-up runs.</span></div>
-              <div><strong>5. Draft only after the result holds</strong><br><span class="mini">Paper sections come last, not first.</span></div>
-            </div>
-          </div>
+          <aside class="product-rail">
+            <div class="rail-card dark"><div><span class="eyebrow" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.68);border-color:rgba(255,255,255,.16)">Control</span><div class="big-num">4</div></div><p class="mini">Question → Blueprint → Data Preview → Cockpit</p></div>
+            <div class="rail-card"><strong>Nothing computes unseen.</strong><p class="mini">Blueprint and data preview approval happen before the engine starts.</p></div>
+            <div class="rail-card"><strong>Writer is last.</strong><p class="mini">The paper is built from verified outputs, logs, figures, and tables.</p></div>
+          </aside>
         </div>
       </div>
     </section>
 
-    <section id="capability">
+    <section id="workflow">
       <div class="wrap">
         <div class="section-head">
-          <div>
-            <div class="eyebrow">Capability</div>
-            <h2>A research system, not a general chatbot</h2>
-          </div>
-          <p>Thrivarc is opinionated about how serious empirical finance research should work: planner first, evidence second, execution third, reviewer pressure before writing, and one blueprint that every specialist agent obeys.</p>
+          <div><span class="eyebrow">Workflow</span><h2>Designed around researcher judgment.</h2></div>
+          <p>The product does not pretend one prompt is research. It pauses, shows evidence, accepts follow-up instructions, executes in Modal, and records the trail.</p>
         </div>
-        <div class="grid g4">
-          <div class="card"><span class="icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg></span><h3>Research architect</h3><p class="mini">Interprets the research problem and asks for clarification only when it truly matters.</p></div>
-          <div class="card"><span class="icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="10" cy="5" rx="7" ry="3"/><path d="M3 5v5c0 1.66 3.13 3 7 3s7-1.34 7-3V5"/><path d="M3 10v5c0 1.66 3.13 3 7 3s7-1.34 7-3v-5"/></svg></span><h3>Evidence discipline</h3><p class="mini">The exact dataset is previewed, fingerprinted, and approved before any pipeline can start.</p></div>
-          <div class="card"><span class="icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2l6 3v5c0 4-3 6.5-6 8-3-1.5-6-4-6-8V5l6-3z"/><path d="M7 10l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h3>Adversarial review</h3><p class="mini">Reviewer and audit stages challenge the finding before the outside world gets the first shot.</p></div>
-          <div class="card"><span class="icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l5 5-10 10H2v-5L12 3z"/></svg></span><h3>Paper from verified outputs</h3><p class="mini">The writer reads findings and tables after the evidence path is complete. It does not improvise the result.</p></div>
+        <div class="workflow">
+          <article class="story-card"><span class="step-index">1</span><div><strong>Enter the question</strong><p class="mini">Topic-only is enough. Optional notes help when you know the mechanism, sample, or benchmark.</p></div></article>
+          <article class="story-card"><span class="step-index">2</span><div><strong>Approve the Blueprint</strong><p class="mini">Research stance, method family, evidence route, and reviewer burden are visible before compute.</p></div></article>
+          <article class="story-card"><span class="step-index">3</span><div><strong>Inspect live outputs</strong><p class="mini">Figures, tables, logs, generated code, prompt snapshots, and sandbox jobs arrive in the cockpit.</p></div></article>
+          <article class="story-card"><span class="step-index">4</span><div><strong>Export to Overleaf</strong><p class="mini">Download a ZIP with final.tex, bibliography, figures, tables, code, manifests, and README.</p></div></article>
         </div>
       </div>
     </section>
 
-    <section id="how-it-works">
+    <section id="cockpit">
       <div class="wrap">
         <div class="section-head">
-          <div>
-            <div class="eyebrow">How it works</div>
-            <h2>One researcher journey, not a maze of tools</h2>
-          </div>
-          <p>Thrivarc keeps the experience centered on the research question while the system absorbs the process complexity underneath.</p>
+          <div><span class="eyebrow">Cockpit</span><h2>Not a chat. A research operating room.</h2></div>
+          <p>Approvals, outputs, cells, prompts, logs, and export readiness are separated into surfaces that match how researchers actually work.</p>
         </div>
-        <div class="studio">
-          <div class="timeline">
-            <div class="card"><strong>1. Clarify the question</strong> Thrivarc turns a raw curiosity into a study worth running, including exploratory work when a hypothesis is not ready yet.</div>
-            <div class="card"><strong>2. Choose or stage the evidence</strong> Upload your own dataset, use public market data, or stage an external source for preview.</div>
-            <div class="card"><strong>3. Approve the research blueprint</strong> Before anything runs, you see the method logic, cadence logic, evidence route, validation burden, and planned stages.</div>
-            <div class="card"><strong>4. Let the engine execute and self-challenge</strong> Data collection, methodology checks, statistical analysis, reviewer simulation, and revision loops happen in sequence.</div>
-            <div class="card"><strong>5. Read findings, criticism, and paper-ready outputs</strong> The result arrives with reviewer pressure, follow-up recommendations, and writing support built on verified outputs.</div>
+        <div class="cockpit-preview">
+          <div class="preview-pane">
+            <span class="eyebrow">Left rail</span>
+            <h3>Phase control</h3>
+            <div class="phase-row"><span class="dot"></span><span>Blueprint approval</span></div>
+            <div class="phase-row"><span class="dot"></span><span>Data preview</span></div>
+            <div class="phase-row"><span class="dot"></span><span>Compute gate</span></div>
+            <div class="phase-row"><span class="dot"></span><span>Writer unlock</span></div>
           </div>
-          <div class="diagram">
-            <div class="eyebrow" style="color:#b8d9d2">Inside the system</div>
-            <h3 style="font-family:var(--display);font-size:36px;margin-top:10px">One blueprint. Many specialist agents.</h3>
-            <div class="diagram-step"><strong>Research architect</strong><br><span class="mini" style="color:rgba(241,247,245,.74)">Shapes the study from natural language and writes the plan.</span></div>
-            <div class="diagram-step"><strong>Data / compute / stats agents</strong><br><span class="mini" style="color:rgba(241,247,245,.74)">Execute only what the blueprint calls for.</span></div>
-            <div class="diagram-step"><strong>Reviewer + audit layer</strong><br><span class="mini" style="color:rgba(241,247,245,.74)">Pressure-test the finding and send targeted follow-up work when needed.</span></div>
-            <div class="diagram-step"><strong>Writer</strong><br><span class="mini" style="color:rgba(241,247,245,.74)">Drafts paper-ready sections only after evidence and consistency gates pass.</span></div>
+          <div class="preview-pane">
+            <span class="eyebrow">Center</span>
+            <h3>Live workspace</h3>
+            <div class="artifact-row"><span class="file-icon"></span><span><strong>analysis.ipynb</strong><br><span class="mini">Modal execution artifact</span></span></div>
+            <div class="artifact-row"><span class="file-icon"></span><span><strong>results_table.csv</strong><br><span class="mini">Verified statistical output</span></span></div>
+            <div class="artifact-row"><span class="file-icon"></span><span><strong>figure_01.png</strong><br><span class="mini">Generated from compute phase</span></span></div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="who">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">Modes</div>
-            <h2>Three ways to work. One research engine.</h2>
-          </div>
-          <p>Thrivarc no longer slices people into fake persona buckets. One product supports three natural working styles: guided exploration, structured research, and expert inspection.</p>
-        </div>
-        <div class="grid g3">
-          <div class="card persona"><h3>Explorer</h3><div class="mini">Start from curiosity. Thrivarc helps turn an observation into a real study and explains the logic in plain English.</div><a class="btn" href="app.html?persona=explorer#new">Start as Explorer</a></div>
-          <div class="card persona"><h3>Researcher</h3><div class="mini">Start from a topic. Thrivarc helps shape the evidence path, confirm the blueprint, and run the project without drowning you in system internals.</div><a class="btn" href="app.html?persona=researcher#new">Start as Researcher</a></div>
-          <div class="card persona"><h3>Expert</h3><div class="mini">Inspect the blueprint, reviewer rubric, and technical output in detail when you want full control and traceability.</div><a class="btn" href="app.html?persona=expert#new">Start as Expert</a></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="output">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">What you get</div>
-            <h2>Outputs a researcher can actually use</h2>
-          </div>
-          <p>Thrivarc produces a research package you can understand, challenge, improve, and write from. It does not stop at generic text.</p>
-        </div>
-        <div class="grid g2">
-          <div class="card">
-            <h3>For the finding</h3>
-            <div class="stack" style="margin-top:12px">
-              <div class="check"><span class="dot"></span><div><strong>Finding summary</strong><div class="mini">Plain-English explanation of what was found and how strong it is.</div></div></div>
-              <div class="check"><span class="dot"></span><div><strong>Charts and tables</strong><div class="mini">Ready-to-use visuals and exports for reports, papers, and internal review.</div></div></div>
-              <div class="check"><span class="dot"></span><div><strong>Reviewer feedback</strong><div class="mini">A structured critique that tells you what still needs to be stronger.</div></div></div>
-            </div>
-          </div>
-          <div class="card">
-            <h3>For credibility</h3>
-            <div class="stack" style="margin-top:12px">
-              <div class="check"><span class="dot"></span><div><strong>Research lock when appropriate</strong><div class="mini">Confirmatory projects can be locked before analysis. Exploratory work is clearly labeled as exploratory.</div></div></div>
-              <div class="check"><span class="dot"></span><div><strong>Data provenance checks</strong><div class="mini">Thrivarc records what data was used, when it was fetched, and what the researcher approved.</div></div></div>
-              <div class="check"><span class="dot"></span><div><strong>Method and result consistency checks</strong><div class="mini">The system checks that the story, the code, and the results still match.</div></div></div>
-            </div>
+          <div class="preview-pane">
+            <span class="eyebrow">Inspector</span>
+            <h3>Prompt and model control</h3>
+            <div class="prompt-row"><strong>Writer amplifier</strong><p class="mini">Task-specific instructions layered after locked safety contracts.</p></div>
+            <div class="prompt-row"><strong>Compute cells</strong><p class="mini">Edit and rerun notebook-style cells through Modal.</p></div>
+            <div class="prompt-row"><strong>Export readiness</strong><p class="mini">Quality report before Overleaf ZIP.</p></div>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="learning">
+    <section id="why">
       <div class="wrap">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">Why pay for it</div>
-            <h2>Researchers pay for three things: speed, discipline, and defense.</h2>
-          </div>
-          <p>Thrivarc earns its place only if it helps ask better questions, execute stronger studies, and catch weaknesses before a referee, coauthor, PM, or IC committee does.</p>
-        </div>
-        <div class="comparison">
-          <div class="card">
-            <h3>Without Thrivarc</h3>
-            <ul>
-              <li>Question design lives across notes, chats, and half-remembered assumptions.</li>
-              <li>Data, tests, and robustness checks get wired up manually.</li>
-              <li>Writing begins before the evidence path is truly stable.</li>
-              <li>Reviewer-style criticism arrives late, after the work feels finished.</li>
-            </ul>
-          </div>
-          <div class="card">
-            <h3>With Thrivarc</h3>
-            <ul>
-              <li>The system shapes one explicit research blueprint before anything runs.</li>
-              <li>Evidence is previewed and approved before launch.</li>
-              <li>Method, stats, reviewer, and audit stages pressure-test the finding before writing.</li>
-              <li>Follow-up runs become a structured part of the workflow instead of extra manual projects.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="pricing">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">Pricing logic</div>
-            <h2>Use the product on your own work before you believe the pitch.</h2>
-          </div>
-          <p>Thrivarc should earn trust by saving research time and catching design weaknesses. The right way to evaluate it is to run your own real question through the studio.</p>
-        </div>
-        <div class="grid g3">
-          <div class="card"><h3>Start with one question</h3><p class="mini">Use the studio to see whether Thrivarc can shape, execute, and defend a study you actually care about.</p></div>
-          <div class="card"><h3>Pay for saved time</h3><p class="mini">If it saves weeks of glue work and catches one serious methodological weakness, it has already paid for itself.</p></div>
-          <div class="card"><h3>Pay for stronger research</h3><p class="mini">The real value is not text generation. It is better planning, cleaner evidence, and sharper reviewer pressure before submission.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="faq">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">FAQ</div>
-            <h2>Questions researchers actually ask</h2>
-          </div>
-          <p>Thrivarc is designed for real finance research, so the product has to answer the operational questions, not just the marketing ones.</p>
-        </div>
-        <div class="grid g2">
-          <div class="card"><h3>Can I start without a hypothesis?</h3><p>Yes. Exploratory research is a first-class path. Thrivarc helps turn a broad topic into a sharper study before you commit to a claim.</p></div>
-          <div class="card"><h3>Can I use my own data?</h3><p>Yes. Upload directly now, or stage an external extract and review the schema before the run begins. Public connectors can still supply benchmarks and controls.</p></div>
-          <div class="card"><h3>Will I only get positive findings?</h3><p>No. Null findings are valid outcomes. Thrivarc is built to tell you the truth, not to flatter the hypothesis.</p></div>
-          <div class="card"><h3>Is this only for finance?</h3><p>Today the system is focused on empirical finance and adjacent market research. The product language, data connectors, and testing flow are tuned for that domain.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="wrap">
-        <div class="cta-band">
-          <div class="eyebrow" style="color:#b8d9d2">Start now</div>
-          <h2 style="font-family:var(--display);font-size:54px;line-height:1.02;margin-top:8px">Bring the question. Let the system carry the process.</h2>
-          <p class="lead" style="max-width:760px;margin-top:12px">Thrivarc is at its best when the thinking is strong and the execution burden is heavy. Put it on your own real question and make it prove its value.</p>
-          <div class="hero-actions" style="margin-top:18px">
-            <a class="btn primary" href="app.html#new">Open the Research Studio</a>
-            <a class="btn" href="#how-it-works" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#f3f7f5">Review the flow</a>
-          </div>
+        <div class="quote-band">
+          <span class="eyebrow" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.68);border-color:rgba(255,255,255,.16)">Why it matters</span>
+          <h2>Research tools should protect the researcher from their own shortcuts.</h2>
+          <p>Thrivarc exists to make the disciplined path easier than the sloppy path: lock intent, inspect evidence, execute transparently, review harshly, and write only from verified outputs.</p>
+          <div class="hero-actions"><a class="btn primary" href="app.html#new">Start a study</a><a class="btn" href="#workflow" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#fff">Review workflow</a></div>
         </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <div class="wrap">
-      <strong>Thrivarc AI</strong> - The research operating system for empirical finance<br>
-      <span class="mini">Start with a question. End with a result you can defend.</span>
-    </div>
+    <div class="wrap"><strong>Thrivarc AI</strong><br><span class="mini">Start with a question. End with a defensible research package.</span></div>
   </footer>
 </body>
 </html>

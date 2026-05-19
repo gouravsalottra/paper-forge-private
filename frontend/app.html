@@ -6,465 +6,426 @@
   <title>Thrivarc AI - Research Studio</title>
   <style>
     :root {
-      --bg: #f3efe6;
-      --surface: #fffdf8;
-      --surface-soft: #f8f1e4;
-      --surface-deep: #ede1cc;
-      --ink: #16202b;
-      --muted: #5d6775;
-      --line: #d8d0c2;
+      --bg: #f6f8fb;
+      --canvas: #eef2f7;
+      --surface: rgba(255,255,255,.86);
+      --surface-strong: #ffffff;
+      --surface-soft: #f7f9fc;
+      --surface-deep: #e7ecf3;
+      --ink: #111827;
+      --ink-soft: #263241;
+      --muted: #687385;
+      --line: rgba(17,24,39,.10);
+      --line-strong: rgba(17,24,39,.16);
       --brand: #145f52;
       --brand-light: #eef7f4;
-      --brand-soft: #eef7f4;
+      --brand-soft: rgba(20,95,82,.07);
       --brand-2: #d88645;
-      --brand-3: #10272d;
+      --brand-3: #17242c;
       --ok: #1f8a5b;
       --ok-bg: #eef7f4;
       --warn: #d88645;
-      --warn-bg: #fef5ec;
+      --warn-bg: #fff6ed;
       --bad: #d64f4f;
-      --bad-bg: #fef0f0;
-      --rad: 16px;
-      --shadow: 0 16px 44px rgba(22,32,43,.08);
-      --shadow-sm: 0 4px 12px rgba(22,32,43,.06);
-      --shadow-md: 0 12px 32px rgba(22,32,43,.08);
-      --shadow-lg: 0 24px 64px rgba(22,32,43,.10);
+      --bad-bg: #fff1f1;
+      --blue: #2f6df6;
+      --violet: #6b5cff;
+      --rad: 24px;
+      --rad-sm: 14px;
+      --shadow: 0 28px 90px rgba(15,23,42,.10);
+      --shadow-sm: 0 10px 34px rgba(15,23,42,.065);
+      --shadow-md: 0 18px 56px rgba(15,23,42,.09);
       --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
-      background: radial-gradient(circle at 10% 0%, rgba(216, 134, 69, 0.04), transparent 30%),
-                  radial-gradient(circle at 90% 0%, rgba(20, 95, 82, 0.04), transparent 30%),
-                  var(--bg);
+      min-height: 100vh;
       color: var(--ink);
       font-family: var(--sans);
-      line-height: 1.6;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(circle at 12% -8%, rgba(47,109,246,.14), transparent 28%),
+        radial-gradient(circle at 88% 0%, rgba(20,95,82,.10), transparent 26%),
+        linear-gradient(180deg, #fbfcff 0%, #f5f7fb 46%, #edf2f7 100%);
+      overflow-x: hidden;
     }
-
-    .nav {
-      position: sticky; top: 0; z-index: 50;
-      background: rgba(243, 239, 230, 0.85);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(216, 208, 194, 0.6);
-      transition: all 0.3s ease;
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(17,24,39,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(17,24,39,.028) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,.40), transparent 72%);
+      z-index: -1;
     }
-    .navin {
-      max-width: 1200px; margin: auto; padding: 16px 24px;
-      display: flex; justify-content: space-between; align-items: center; gap: 16px;
-    }
-    .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; letter-spacing: -0.01em; color: inherit; text-decoration: none; }
-    .brand-mark {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: linear-gradient(135deg, var(--brand), #0a3a24);
-      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 16px;
-      box-shadow: 0 8px 24px rgba(15, 81, 50, 0.25);
-    }
-    .badge {
-      border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px;
-      color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer;
-      background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px);
-      transition: all 0.2s ease;
-    }
-    .badge:hover { background: #fff; border-color: #cbd5e1; }
-
-    .wrap { max-width: 1200px; margin: auto; padding: 24px; }
-
-    .card {
-      background: var(--surface); border: 1px solid var(--line); border-radius: var(--rad);
-      padding: 24px; box-shadow: var(--shadow-sm);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .card:hover { box-shadow: var(--shadow-md); }
-
-    .row { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 10px 20px; border-radius: 999px;
-      border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-      font-weight: 600; font-size: 14px; cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .btn:hover:not(:disabled) { background: var(--surface-soft); border-color: var(--line); transform: translateY(-1px); }
-    .btn.primary {
-      background: linear-gradient(135deg, var(--brand), #0c4a3d);
-      border: none; color: #fff;
-      box-shadow: 0 8px 24px rgba(20, 95, 82, 0.2);
-    }
-    .btn.primary:hover:not(:disabled) {
-      box-shadow: 0 12px 32px rgba(20, 95, 82, 0.3);
-      transform: translateY(-2px);
-    }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
+    a { color: inherit; text-decoration: none; }
+    h1, h2, h3, h4, p { margin-top: 0; }
+    h1, h2, h3, h4 { letter-spacing: -.045em; line-height: 1.05; }
     .muted { color: var(--muted); }
-
-    .hero { background: linear-gradient(160deg, rgba(15, 81, 50, 0.03), rgba(198, 106, 38, 0.05)); border: 1px solid rgba(15, 81, 50, 0.08); }
-    .proposal { background: #fcfaf4; border: 1px solid #ddd4c7; }
-
-    .kpi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-    .kpi .card { padding: 16px; text-align: center; }
-
-    .chip {
-      display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px;
-      border: 1px solid var(--line); font-size: 13px; font-weight: 500;
-      background: rgba(255, 255, 255, 0.9);
-    }
-
-    a { color: inherit; text-decoration: none; transition: color 0.2s ease; }
-    .grid { display: grid; gap: 16px; }
-    .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-    input, textarea, select {
-      width: 100%; background: #fff; color: var(--ink);
-      border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px;
-      font-family: inherit; font-size: 14px; transition: border-color 0.2s ease, box-shadow 0.2s ease;
-      margin-top: 6px; margin-bottom: 12px;
-    }
-    input:focus, textarea:focus, select:focus {
-      outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(15, 81, 50, 0.1);
-    }
-    textarea { min-height: 120px; resize: vertical; }
-    label { font-weight: 600; font-size: 14px; color: var(--ink); display: block; }
-
-    /* Structured Data Tables */
-    .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--line); background: #fff; margin-top: 12px; }
-    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
-    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--line); }
-    th { background: var(--surface-soft); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
-    tr:last-child td { border-bottom: none; }
-    tbody tr { transition: background 0.15s ease; }
-    tbody tr:hover { background: rgba(15, 81, 50, 0.02); }
-
-    .timeline { display: grid; gap: 16px; }
-    .step {
-      border-left: 2px solid var(--line); padding-left: 16px; position: relative;
-    }
-    .step::before {
-      content: ''; position: absolute; left: -5px; top: 6px; width: 8px; height: 8px;
-      border-radius: 50%; background: var(--line);
-    }
-    .step[data-state="running"] { border-left-color: var(--warn); }
-    .step[data-state="running"]::before { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-bg); }
-    .step[data-state="done"] { border-left-color: var(--ok); }
-    .step[data-state="done"]::before { background: var(--ok); }
-
-    .pill { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-    .ok { color: var(--ok); background: var(--ok-bg); border-color: rgba(21, 109, 79, 0.2); }
-    .warn { color: var(--warn); background: var(--warn-bg); border-color: rgba(160, 72, 36, 0.2); }
-    .bad { color: var(--bad); background: var(--bad-bg); border-color: rgba(217, 56, 38, 0.2); }
+    .mini { color: var(--muted); font-size: 13px; line-height: 1.45; }
     .hidden { display: none !important; }
 
-    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-    .tab {
-      padding: 8px 16px; border: 1px solid var(--line); border-radius: 999px;
-      cursor: pointer; font-size: 14px; font-weight: 500; background: var(--surface);
-      transition: all 0.2s ease;
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(248,250,252,.78);
+      border-bottom: 1px solid rgba(17,24,39,.08);
+      backdrop-filter: blur(22px) saturate(1.15);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.80);
     }
-    .tab:hover { background: var(--surface-soft); }
-    .tab.active { border-color: var(--brand); color: var(--brand); background: var(--brand-light); font-weight: 600; }
-
-    .toast {
-      position: fixed; right: 24px; bottom: 24px; background: var(--surface);
-      border: 1px solid var(--line); padding: 16px 20px; border-radius: 12px;
-      box-shadow: var(--shadow-lg); font-weight: 500; font-size: 14px;
-      animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    @keyframes slideIn { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
-    .replay { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; margin-top: 12px; }
-    .replay > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), #22c55e); transition: width 0.3s ease; }
-
-    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
-
-    .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .choice-card {
-      padding: 24px; border: 1px solid var(--line); border-radius: 16px;
-      background: var(--surface); cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    .choice-card:hover, .choice-card.active {
-      transform: translateY(-4px); box-shadow: var(--shadow-md);
-      border-color: var(--brand); background: var(--brand-light);
-    }
-
-    .story-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-
-    .signal-list { display: grid; gap: 12px; }
-    .signal-item {
-      display: flex; gap: 16px; align-items: flex-start; padding: 16px;
-      border-radius: 12px; background: var(--surface-soft); border: 1px solid var(--line);
-      transition: transform 0.2s ease;
-    }
-    .signal-item:hover { transform: translateX(4px); background: #fff; }
-    .signal-icon {
-      width: 40px; height: 40px; border-radius: 10px; background: var(--brand-light);
-      display: grid; place-items: center; color: var(--brand); font-weight: 700; flex: 0 0 40px;
-    }
-
-    .editorial-hero {
-      padding: 32px; border-radius: 20px;
-      background: linear-gradient(135deg, rgba(15, 81, 50, 0.05), rgba(255, 255, 255, 0.9) 40%, rgba(198, 106, 38, 0.05));
-      border: 1px solid rgba(15, 81, 50, 0.1); position: relative; overflow: hidden;
-    }
-    .editorial-hero:after {
-      content: ""; position: absolute; right: -50px; bottom: -50px; width: 250px; height: 250px;
-      background: radial-gradient(circle, rgba(198, 106, 38, 0.1), transparent 60%); pointer-events: none;
-    }
-
-    .hero-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr);
-      gap: 28px;
-      align-items: start;
-    }
-    .kicker { margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.15em; color: var(--brand); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
-    .hero-title { margin: 0 0 16px 0; font-size: clamp(2rem, 3.5vw, 2.75rem); line-height: 1.1; font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif; letter-spacing: -0.02em; }
-    .hero-copy { color: var(--muted); font-size: 16px; line-height: 1.6; max-width: 65ch; }
-
-    .callout-band { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0 12px; }
-    .callout-band .chip { background: var(--brand-light); border-color: rgba(15, 81, 50, 0.2); color: var(--brand); font-weight: 600; }
-
-    .stage-track {
-      grid-column: 1 / -1;
-      display: grid;
-      grid-template-columns: repeat(5, minmax(150px, 1fr));
-      gap: 10px;
-      margin-top: 6px;
-      padding: 12px;
-      border-radius: 20px;
-      background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(248,241,228,.92));
-      border: 1px solid rgba(20, 95, 82, 0.12);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.82), var(--shadow-sm);
-      counter-reset: stage;
-    }
-    .stage-node {
-      position: relative;
-      min-height: 156px;
-      padding: 18px 16px 18px 18px;
-      border-radius: 16px;
-      background: rgba(255, 253, 248, 0.94);
-      border: 1px solid rgba(20, 95, 82, 0.13);
-      box-shadow: 0 10px 24px rgba(22,32,43,.05);
-      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-      overflow: hidden;
-    }
-    .stage-node::before {
-      counter-increment: stage;
-      content: "0" counter(stage);
-      display: inline-flex;
+    .navin {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 12px 24px;
+      display: flex;
       align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 34px;
-      margin-bottom: 18px;
-      border-radius: 999px;
-      background: var(--brand);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .08em;
-      box-shadow: 0 10px 24px rgba(20,95,82,.20);
+      justify-content: space-between;
+      gap: 18px;
     }
-    .stage-node::after {
+    .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -.02em; }
+    .brand-mark {
+      width: 34px; height: 34px; border-radius: 12px;
+      display: grid; place-items: center;
+      color: white; font-size: 15px; font-weight: 900;
+      background: linear-gradient(145deg, #111827, #263241 56%, var(--brand));
+      box-shadow: 0 14px 28px rgba(17,24,39,.18), inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .nav .row { gap: 12px; }
+    .nav .muted { font-size: 13px; font-weight: 700; color: #475569; }
+    .wrap { max-width: 1440px; margin: 0 auto; padding: 20px 24px 48px; }
+
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+    .grid { display: grid; gap: 16px; }
+    .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .card, .panel, .glass-panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--rad);
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(18px) saturate(1.12);
+    }
+    .card { padding: 22px; }
+    .card:hover { box-shadow: var(--shadow-md); }
+
+    .btn {
+      min-height: 42px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.72);
+      color: var(--ink);
+      font: 800 14px/1 var(--sans);
+      cursor: pointer;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); background: #fff; box-shadow: 0 14px 28px rgba(15,23,42,.08); }
+    .btn.primary { background: linear-gradient(145deg, #111827, #1f2937 56%, var(--brand)); color: #fff; border-color: transparent; box-shadow: 0 18px 38px rgba(17,24,39,.18), inset 0 1px 0 rgba(255,255,255,.16); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .badge, .chip, .pill, .tag, .tab {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.72);
+      color: #475569;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
+    }
+    .badge { padding: 6px 11px; font-size: 12px; font-weight: 800; cursor: pointer; }
+    .chip, .tag { padding: 6px 10px; font-size: 12px; font-weight: 800; }
+    .pill { padding: 4px 9px; font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+    .ok { color: var(--ok); background: var(--ok-bg); border-color: rgba(31,138,91,.22); }
+    .warn { color: var(--warn); background: var(--warn-bg); border-color: rgba(216,134,69,.28); }
+    .bad { color: var(--bad); background: var(--bad-bg); border-color: rgba(214,79,79,.25); }
+
+    input, textarea, select {
+      width: 100%;
+      margin: 6px 0 12px;
+      border: 1px solid rgba(17,24,39,.11);
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,.88);
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.88);
+      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    textarea { min-height: 118px; resize: vertical; }
+    label { display: block; font-weight: 800; font-size: 13px; color: #1f2937; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: rgba(20,95,82,.55); box-shadow: 0 0 0 4px rgba(20,95,82,.10), inset 0 1px 0 rgba(255,255,255,.88); background: #fff; }
+    pre { font-family: var(--mono); background: #0f172a; color: #dbeafe; border-radius: 18px; padding: 14px; overflow: auto; }
+
+    .app-shell { min-height: calc(100vh - 80px); display: grid; align-items: start; }
+    .command-entry {
+      min-height: calc(100vh - 116px);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 18px;
+      align-items: stretch;
+    }
+    .command-main {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 690px;
+      padding: clamp(24px, 4vw, 54px);
+      overflow: hidden;
+      border-radius: 38px;
+      background:
+        radial-gradient(circle at 88% 8%, rgba(47,109,246,.16), transparent 28%),
+        radial-gradient(circle at 8% 88%, rgba(20,95,82,.11), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.92), rgba(247,249,252,.78));
+      border: 1px solid rgba(17,24,39,.085);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(20px) saturate(1.14);
+    }
+    .command-main::after {
       content: "";
       position: absolute;
-      inset: auto 14px 14px auto;
-      width: 54px;
-      height: 54px;
+      right: -160px; top: -180px;
+      width: 460px; height: 460px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(216,134,69,.13), transparent 64%);
+      background: conic-gradient(from 210deg, rgba(47,109,246,.15), rgba(20,95,82,.13), rgba(216,134,69,.12), rgba(47,109,246,.15));
+      filter: blur(16px);
       pointer-events: none;
     }
-    .stage-node:hover {
-      transform: translateY(-3px);
-      border-color: rgba(20,95,82,.26);
-      box-shadow: 0 18px 36px rgba(22,32,43,.08);
+    .command-main > * { position: relative; z-index: 1; }
+    .command-kicker, .section-label {
+      margin: 0 0 10px;
+      width: fit-content;
+      text-transform: uppercase;
+      letter-spacing: .17em;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 900;
     }
-    .stage-node strong { display: block; margin-bottom: 8px; font-size: 16px; color: var(--brand-3); }
-    .stage-node .mini { line-height: 1.55; }
-
-    .insight-grid { display: grid; gap: 12px; align-content: start; }
-    .insight-card {
-      padding: 18px;
-      border-radius: 16px;
-      background: rgba(248,241,228,.74);
-      border: 1px solid rgba(216,208,194,.95);
-      box-shadow: inset 0 2px 0 rgba(255,255,255,0.8);
+    .command-title { max-width: 920px; margin: 0; font-size: clamp(3rem, 7vw, 6.3rem); line-height: .91; letter-spacing: -.085em; }
+    .command-copy { max-width: 720px; margin: 18px 0 0; color: var(--muted); font-size: clamp(16px, 1.5vw, 19px); }
+    .command-bar {
+      margin-top: 34px;
+      max-width: 920px;
+      padding: 14px;
+      border-radius: 30px;
+      background: rgba(255,255,255,.84);
+      border: 1px solid rgba(17,24,39,.09);
+      box-shadow: 0 20px 54px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.85);
     }
-    .hero-insights .insight-card:first-child {
+    .question-label { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 8px; }
+    .question-label strong { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: #334155; }
+    .command-question {
+      min-height: 138px;
+      margin: 0;
+      padding: 18px 18px;
+      border: 0;
+      border-radius: 22px;
+      background: linear-gradient(180deg, #fff, #fbfdff);
+      font-size: clamp(18px, 2vw, 24px);
+      line-height: 1.35;
+      letter-spacing: -.025em;
+      box-shadow: inset 0 0 0 1px rgba(17,24,39,.08);
+    }
+    .command-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .example-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .example-pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(17,24,39,.10);
+      background: rgba(255,255,255,.74);
+      color: #334155;
+      font-weight: 900;
+      cursor: pointer;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+    }
+    .example-pill:hover { transform: translateY(-1px); background: #fff; border-color: rgba(20,95,82,.28); }
+    .command-secondary {
       display: grid;
-      grid-template-columns: auto 1fr;
-      column-gap: 18px;
-      align-items: center;
-      background: linear-gradient(135deg, rgba(20,95,82,.09), rgba(248,241,228,.78));
-      border-color: rgba(20,95,82,.18);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+      max-width: 920px;
     }
-    .hero-insights .insight-card:first-child .kicker { grid-column: 1 / -1; }
-    .stat-em { display: block; font-size: 32px; font-weight: 700; font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif; color: var(--brand); margin-bottom: 8px; }
-    .hero-insights .stat-em { font-size: 54px; line-height: .9; margin: 2px 0 0; }
+    .drawer-card {
+      border-radius: 22px;
+      border: 1px solid rgba(17,24,39,.09);
+      background: rgba(255,255,255,.68);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+      overflow: hidden;
+    }
+    .drawer-card summary { cursor: pointer; padding: 15px 16px; font-weight: 900; color: #1f2937; }
+    .drawer-body { padding: 0 16px 16px; }
+    .data-mode-grid { display: grid; gap: 8px; }
+    .choice-card {
+      width: 100%;
+      text-align: left;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(17,24,39,.09);
+      background: rgba(255,255,255,.72);
+      cursor: pointer;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+    .choice-card:hover, .choice-card.active { transform: translateY(-1px); background: #fff; border-color: rgba(20,95,82,.32); box-shadow: 0 14px 30px rgba(15,23,42,.08); }
+    .choice-card h3 { margin: 0 0 4px; font-size: 14px; letter-spacing: -.02em; }
+    .approval-note { border-left: 3px solid var(--brand); padding: 11px 13px; border-radius: 16px; background: rgba(20,95,82,.06); color: #334155; }
 
-    .workbench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .question-canvas {
-      position: relative; background: linear-gradient(180deg, #ffffff, #fcfbf8);
-      border: 1px solid var(--line); border-radius: 20px; padding: 32px; overflow: hidden;
+    .research-rail { display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
+    .rail-panel {
+      padding: 18px;
+      border-radius: 28px;
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(17,24,39,.09);
       box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(18px) saturate(1.1);
     }
-    .question-canvas:before {
-      content: ""; position: absolute; left: 0; top: 0; width: 250px; height: 250px;
-      background: radial-gradient(circle at top left, rgba(15, 81, 50, 0.08), transparent 70%); pointer-events: none;
+    .rail-steps { display: grid; gap: 11px; counter-reset: railstep; }
+    .rail-step { counter-increment: railstep; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; color: #475569; font-size: 13px; }
+    .rail-step::before { content: counter(railstep); width: 30px; height: 30px; border-radius: 12px; display: grid; place-items: center; background: #eef2f7; color: #334155; font-weight: 900; }
+    .rail-callout { min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(145deg, #111827, #1f2937 60%, #123d37); color: white; }
+    .rail-callout .mini { color: rgba(255,255,255,.72); }
+    .rail-number { font-size: 54px; line-height: .9; font-weight: 900; letter-spacing: -.07em; }
+
+
+    .editorial-hero, .hero {
+      padding: 24px;
+      border-radius: 30px;
+      background: linear-gradient(135deg, rgba(255,255,255,.86), rgba(247,249,252,.72));
+      border: 1px solid rgba(17,24,39,.09);
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(18px) saturate(1.12);
     }
-    .question-canvas > * { position: relative; z-index: 1; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .86fr); gap: 18px; align-items: start; }
+    .hero-copy { color: var(--muted); max-width: 72ch; }
+    .callout-band { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .insight-card, .signal-item {
+      border-radius: 18px;
+      border: 1px solid rgba(17,24,39,.09);
+      background: rgba(255,255,255,.70);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
+      padding: 14px;
+    }
+    .stat-em { display: block; margin: 6px 0; font-size: 38px; line-height: .95; font-weight: 900; letter-spacing: -.07em; }
+    .signal-list { display: grid; gap: 10px; }
+    .signal-item { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+    .signal-icon { width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-weight: 900; background: linear-gradient(145deg, #111827, var(--brand)); }
+    .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
 
-    .aside-stack { display: grid; gap: 16px; }
-    .note-card { background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(238, 247, 244, 0.5)); border: 1px solid rgba(15, 81, 50, 0.15); }
+    .table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--line); background: #fff; margin-top: 12px; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { background: var(--surface-soft); color: #475569; text-transform: uppercase; letter-spacing: .07em; font-size: 11px; font-weight: 900; }
+    tr:last-child td { border-bottom: none; }
 
+    .phase-tracker, .timeline { display: grid; gap: 0; }
+    .phase-step { display: grid; grid-template-columns: 32px 1fr; gap: 0; position: relative; }
+    .phase-rail { display: flex; flex-direction: column; align-items: center; }
+    .phase-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-strong); background: #fff; margin-top: 4px; z-index: 2; transition: all .25s ease; }
+    .phase-line { width: 2px; flex: 1; background: var(--line); margin-top: 3px; }
+    .phase-step:last-child .phase-line { display: none; }
+    .phase-body { padding: 0 0 18px 8px; }
+    .phase-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+    .phase-head strong { font-size: 14px; }
+    .phase-hook, .phase-detail { margin-top: 7px; padding: 9px 11px; border-radius: 14px; background: rgba(255,255,255,.70); border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .phase-step[data-phase-state="done"] .phase-dot { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg); }
+    .phase-step[data-phase-state="done"] .phase-line { background: var(--ok); }
+    .phase-step[data-phase-state="running"] .phase-dot { background: var(--warn); border-color: var(--warn); box-shadow: 0 0 0 4px var(--warn-bg); animation: phasePulse 1.5s ease-in-out infinite; }
+    .phase-step[data-phase-state="failed"] .phase-dot { background: var(--bad); border-color: var(--bad); box-shadow: 0 0 0 4px var(--bad-bg); }
+    @keyframes phasePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+
+    .cockpit-shell {
+      display: grid;
+      grid-template-columns: 270px minmax(0, 1fr) 340px;
+      min-height: 760px;
+      border-radius: 34px;
+      overflow: hidden;
+      background: rgba(255,255,255,.78);
+      border: 1px solid rgba(17,24,39,.09);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(20px) saturate(1.12);
+    }
+    .cockpit-left, .cockpit-center, .cockpit-right { padding: 22px; min-width: 0; }
+    .cockpit-left { background: rgba(248,250,252,.72); border-right: 1px solid var(--line); }
+    .cockpit-center { background: rgba(255,255,255,.54); display: grid; align-content: start; gap: 16px; }
+    .cockpit-right { background: rgba(248,250,252,.68); border-left: 1px solid var(--line); display: grid; gap: 14px; align-content: start; }
+    .cockpit-title { margin: 0; font-size: 34px; letter-spacing: -.06em; }
+    .workspace-panel, .inspector-panel, .approval-card, .artifact-tile, .notebook-cell, .prompt-panel {
+      border-radius: 22px;
+      border: 1px solid rgba(17,24,39,.09);
+      background: rgba(255,255,255,.76);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
+      padding: 16px;
+    }
+    .workspace-panel.hero { background: linear-gradient(135deg, rgba(255,255,255,.92), rgba(247,249,252,.78)); border-color: rgba(20,95,82,.16); }
+    .artifact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .artifact-tile { display: block; min-height: 92px; color: #1f2937; }
+    .artifact-tile strong { display: block; font-size: 13px; margin-bottom: 8px; word-break: break-word; }
+    .artifact-tile::before { content: ""; display: block; width: 28px; height: 34px; border-radius: 8px; margin-bottom: 10px; background: linear-gradient(145deg, #eef2f7, #fff); border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255,255,255,.8); }
+    .approval-card { border-left: 4px solid var(--brand); }
+    .approval-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .log-stream { display: grid; gap: 8px; list-style: none; padding: 0; margin: 0; }
+    .log-stream li { padding: 9px 11px; border-radius: 14px; background: rgba(15,23,42,.04); color: #475569; font-size: 13px; }
+    .prompt-panel details, .notebook-cell details { border: 0; }
+    .notebook-cell textarea { font-family: var(--mono); min-height: 180px; }
+
+    .gate-card, .blueprint-doc { border-radius: 24px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); margin-bottom: 16px; }
+    .gate-header, .blueprint-header { padding: 22px 26px; background: linear-gradient(135deg, rgba(20,95,82,.07), rgba(255,255,255,.84)); border-bottom: 1px solid var(--line); }
+    .gate-body, .blueprint-body { padding: 22px 26px; }
+    .gate-dims, .blueprint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .gate-dim, .blueprint-field { padding: 14px; border-radius: 16px; background: rgba(248,250,252,.74); border: 1px solid var(--line); }
+    .blueprint-section-title, .blueprint-field-label { color: #64748b; text-transform: uppercase; letter-spacing: .10em; font-size: 11px; font-weight: 900; }
+
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 100; padding: 15px 18px; border-radius: 18px; background: rgba(255,255,255,.92); border: 1px solid var(--line); box-shadow: var(--shadow-md); font-weight: 800; animation: slideIn .24s ease both; }
+    @keyframes slideIn { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .replay { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+    .replay > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), var(--blue)); transition: width .3s ease; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
     #api-offline-banner { display: none; }
-    #api-offline-banner:not([hidden]) { display: block; background: var(--bad-bg); color: var(--bad); border-color: rgba(217, 56, 38, 0.2); }
-    #api-status-dot[data-status="online"]   { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
+    #api-offline-banner:not([hidden]) { display: block; background: var(--bad-bg); color: var(--bad); border-color: rgba(214,79,79,.25); }
+    #api-status-dot[data-status="online"] { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,.4); }
     #api-status-dot[data-status="checking"] { background: #f59e0b; }
-    #api-status-dot[data-status="offline"]  { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+    #api-status-dot[data-status="offline"] { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.4); }
 
-    /* ── SVG Icon System ── */
     .icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: 0 0 20px; }
     .icon svg { width: 100%; height: 100%; }
     .icon-sm { width: 16px; height: 16px; flex: 0 0 16px; }
     .icon-lg { width: 28px; height: 28px; flex: 0 0 28px; }
     .icon-xl { width: 36px; height: 36px; flex: 0 0 36px; }
 
-    /* ── Enhanced Phase Tracker ── */
-    .phase-tracker { display: grid; gap: 0; position: relative; }
-    .phase-step {
-      display: grid; grid-template-columns: 40px 1fr; gap: 0; position: relative;
-    }
-    .phase-rail {
-      display: flex; flex-direction: column; align-items: center; position: relative;
-    }
-    .phase-dot {
-      width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--line);
-      background: var(--surface); z-index: 2; margin-top: 4px; flex: 0 0 14px;
-      transition: all 0.3s ease;
-    }
-    .phase-line {
-      width: 2px; flex: 1; background: var(--line); margin-top: 2px;
-      transition: background 0.3s ease;
-    }
-    .phase-step:last-child .phase-line { display: none; }
-    .phase-body {
-      padding: 0 0 24px 8px;
-    }
-    .phase-head {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
-    }
-    .phase-head strong { font-size: 15px; }
-    .phase-hook { font-size: 13px; color: var(--muted); margin-top: 4px; padding: 8px 12px; border-radius: 8px; background: var(--surface-soft); border: 1px solid var(--line); }
-    .phase-detail { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .command-main, .research-rail, .cockpit-shell, .card, .panel { animation: riseIn .48s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes riseIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* State: done */
-    .phase-step[data-phase-state="done"] .phase-dot {
-      background: var(--ok); border-color: var(--ok);
-      box-shadow: 0 0 0 4px var(--ok-bg);
+    @media (max-width: 1180px) {
+      .command-entry, .cockpit-shell { grid-template-columns: 1fr; }
+      .research-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto; }
+      .cockpit-left, .cockpit-right { border: 0; }
+      .cockpit-shell { overflow: visible; }
+      .command-secondary { grid-template-columns: 1fr; }
     }
-    .phase-step[data-phase-state="done"] .phase-line { background: var(--ok); }
-
-    /* State: running */
-    .phase-step[data-phase-state="running"] .phase-dot {
-      background: var(--warn); border-color: var(--warn);
-      box-shadow: 0 0 0 4px var(--warn-bg);
-      animation: phasePulse 1.5s ease-in-out infinite;
-    }
-    .phase-step[data-phase-state="running"] .phase-line { background: linear-gradient(180deg, var(--warn), var(--line)); }
-    @keyframes phasePulse {
-      0%, 100% { box-shadow: 0 0 0 4px var(--warn-bg); }
-      50% { box-shadow: 0 0 0 8px rgba(160, 72, 36, 0.1); }
-    }
-
-    /* State: failed */
-    .phase-step[data-phase-state="failed"] .phase-dot {
-      background: var(--bad); border-color: var(--bad);
-      box-shadow: 0 0 0 4px var(--bad-bg);
-    }
-
-    /* ── Reviewer Gate Scorecard ── */
-    .gate-card {
-      border-radius: 16px; overflow: hidden; border: 1px solid rgba(160, 72, 36, 0.2);
-      background: var(--surface); margin-bottom: 16px;
-    }
-    .gate-header {
-      padding: 20px 24px;
-      background: linear-gradient(135deg, rgba(198, 106, 38, 0.08), rgba(15, 81, 50, 0.04));
-      border-bottom: 1px solid rgba(160, 72, 36, 0.12);
-      display: flex; align-items: center; gap: 12px;
-    }
-    .gate-header .icon { color: var(--brand-2); }
-    .gate-header h4 { margin: 0; font-size: 18px; }
-    .gate-body { padding: 20px 24px; }
-    .gate-thresholds {
-      display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 16px;
-      padding: 16px; border-radius: 10px; background: var(--surface-soft); border: 1px solid var(--line);
-    }
-    .gate-threshold { display: flex; flex-direction: column; gap: 2px; }
-    .gate-threshold-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
-    .gate-threshold-value { font-size: 22px; font-weight: 700; color: var(--brand); }
-    .gate-dims { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-    .gate-dim {
-      padding: 14px; border-radius: 10px; background: var(--surface-soft); border: 1px solid var(--line);
-      display: flex; flex-direction: column; gap: 4px;
-    }
-    .gate-dim strong { font-size: 14px; }
-    .gate-dim .mini { font-size: 12px; }
-    .gate-bands { margin-top: 16px; }
-    .gate-band-row {
-      display: grid; grid-template-columns: 100px 1fr 1fr; gap: 12px; padding: 10px 0;
-      border-bottom: 1px solid var(--line); font-size: 13px; align-items: center;
-    }
-    .gate-band-row:last-child { border-bottom: none; }
-    .gate-band-range { font-weight: 700; }
-    .gate-rules { margin-top: 16px; display: grid; gap: 8px; }
-    .gate-rule { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
-    .gate-rule .icon { color: var(--brand); margin-top: 2px; }
-
-    /* ── Blueprint Document Layout ── */
-    .blueprint-doc {
-      border-radius: 20px; overflow: hidden; border: 1px solid var(--line);
-      background: var(--surface); margin-bottom: 16px;
-    }
-    .blueprint-header {
-      padding: 28px 32px;
-      background: linear-gradient(135deg, rgba(15, 81, 50, 0.06), rgba(255, 255, 255, 0.9) 50%, rgba(198, 106, 38, 0.04));
-      border-bottom: 1px solid var(--line);
-    }
-    .blueprint-header .kicker { margin-bottom: 8px; }
-    .blueprint-header h3 { font-size: 24px; margin-bottom: 8px; letter-spacing: -0.02em; }
-    .blueprint-header p { color: var(--muted); font-size: 15px; margin: 0; max-width: 70ch; line-height: 1.6; }
-    .blueprint-body { padding: 24px 32px; }
-    .blueprint-section { margin-bottom: 24px; }
-    .blueprint-section-title {
-      font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--brand);
-      font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
-    }
-    .blueprint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-    .blueprint-field {
-      padding: 16px; border-radius: 12px; background: var(--surface-soft);
-      border: 1px solid var(--line); transition: transform 0.2s ease;
-    }
-    .blueprint-field:hover { transform: translateY(-2px); }
-    .blueprint-field-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-    .blueprint-field-value { font-size: 15px; font-weight: 600; color: var(--ink); }
-    .blueprint-field-note { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
-    .blueprint-footer {
-      padding: 20px 32px; border-top: 1px solid var(--line);
-      background: var(--surface-soft);
-    }
-
-    @media (max-width: 980px) {
-      .g4, .g3, .g2, .choice-grid, .story-grid, .hero-grid, .workbench-grid, .stage-track { grid-template-columns: 1fr; }
-      .stage-node { min-height: auto; }
+    @media (max-width: 760px) {
+      .navin { padding: 11px 14px; align-items: flex-start; }
+      .nav .row { display: none; }
+      .wrap { padding: 14px; }
+      .command-main { min-height: auto; border-radius: 28px; padding: 18px; }
+      .command-title { font-size: clamp(2.15rem, 11vw, 3.4rem); letter-spacing: -.07em; }
+      .command-copy { font-size: 14px; margin-top: 10px; }
+      .command-bar { margin-top: 18px; }
+      .command-bar { padding: 10px; border-radius: 24px; }
+      .command-question { min-height: 128px; font-size: 18px; }
+      .research-rail { grid-template-columns: 1fr; }
+      .g2, .g3, .g4 { grid-template-columns: 1fr; }
+      .artifact-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -982,50 +943,9 @@ const STARTER_GUIDE_EXAMPLES = {
 };
 
 function renderStarterGuide(){
-  const cards = Object.entries(STARTER_GUIDE_EXAMPLES).map(([key, example]) => `
-    <button class="choice-card" type="button" data-starter-example="${esc(key)}" style="text-align:left">
-      <h3 style="margin:0 0 6px 0">${esc(example.label)}</h3>
-      <p class="muted" style="margin:0">${esc(example.question)}</p>
-    </button>
+  return Object.entries(STARTER_GUIDE_EXAMPLES).map(([key, example]) => `
+    <button class="example-pill" type="button" data-starter-example="${esc(key)}">${esc(example.label)}</button>
   `).join('');
-  return `
-    <div class="card note-card" style="margin:14px 0;background:var(--brand-light)">
-      <div class="row" style="align-items:flex-start;justify-content:space-between;gap:12px">
-        <div>
-          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Research Starter Guide</p>
-          <h3 style="margin:0 0 8px 0">If you only have a topic, start there</h3>
-          <p class="muted" style="margin:0">You can paste a topic, a rough abstract, a specific hypothesis, or a note about your dataset. Thrivarc will infer the stance, method family, likely data route, missing clarifications, and a first Blueprint before any compute starts.</p>
-        </div>
-      </div>
-      <div class="choice-grid" style="margin-top:12px">${cards}</div>
-      <div class="grid g2" style="margin-top:12px">
-        <div class="card" style="padding:12px;background:var(--surface)">
-          <strong>What Thrivarc will do with this</strong>
-          <div class="signal-list" style="margin-top:8px">
-            <div class="signal-item"><div class="signal-icon">1</div><div><strong>Infer the research stance</strong><div class="mini">Exploratory, confirmatory, or confirmatory with pre-registration if the claim is specific enough.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">2</div><div><strong>Infer method and evidence route</strong><div class="mini">The Blueprint proposes the method family and whether public data, upload, or staged evidence is needed.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">3</div><div><strong>Ask only necessary clarifications</strong><div class="mini">If the benchmark, window, identifiers, or data reality is ambiguous, Thrivarc blocks politely and asks for the next useful answer.</div></div></div>
-          </div>
-        </div>
-        <div class="card" style="padding:12px;background:var(--surface)">
-          <strong>What happens next</strong>
-          <ol class="mini" style="margin:8px 0 0 18px;line-height:1.7">
-            <li>Enter topic or abstract.</li>
-            <li>Build Blueprint.</li>
-            <li>Review or answer clarifications.</li>
-            <li>Approve Blueprint.</li>
-            <li>Preview fetched or uploaded data.</li>
-            <li>Approve data.</li>
-            <li>Enter the cockpit for prompts, cells, outputs, logs, and Overleaf export.</li>
-          </ol>
-        </div>
-      </div>
-      <div class="card" style="padding:12px;margin-top:12px;background:#fcfaf4">
-        <strong>Important checkpoint rule</strong>
-        <p class="mini" style="margin:8px 0 0 0">Blueprint approval does not start compute. Data preview approval is the final checkpoint before launch. If public data is enough, Thrivarc fetches and previews it; if uploaded or staged data is needed, you will see file and schema guidance first.</p>
-      </div>
-    </div>
-  `;
 }
 
 function applyStarterGuideExample(key){
@@ -1051,147 +971,93 @@ function applyStarterGuideExample(key){
 async function renderNew(){
   const app=qs('#app');
   app.innerHTML = `
-    <div class="editorial-hero">
-      <div class="hero-grid">
-        <div>
-          <p class="kicker">Research brief</p>
-          <h2 class="hero-title">Start with a question worth defending</h2>
-          <p class="hero-copy">Thrivarc will shape a research blueprint from your question, clarify what is missing, preview the evidence, and only then launch the work.</p>
-          <div class="callout-band">
-            <span class="chip">Question to evidence to defense</span>
-            <span class="chip">Exploratory or confirmatory stance inferred automatically</span>
-            <span class="chip">Preview gate before compute</span>
+    <div class="app-shell">
+      <div class="command-entry">
+        <main class="command-main">
+          <div>
+            <p class="command-kicker">Research command entry</p>
+            <h1 class="command-title">What are you studying?</h1>
+            <p class="command-copy">Paste a topic, abstract, hypothesis, or dataset note. Thrivarc builds the Blueprint before any compute starts.</p>
           </div>
-          <div class="tabs" style="margin-top:12px">
-            <span class="tab active">Question</span>
-            <span class="tab">Context</span>
-            <span class="tab">Data access</span>
-            <span class="tab">Thrivarc blueprint</span>
-            <span class="tab">Clarifications</span>
-            <span class="tab">Data preview</span>
-            <span class="tab">Run</span>
-          </div>
-        </div>
-        <div class="insight-grid hero-insights">
-          <div class="insight-card">
-            <p class="kicker" style="margin-bottom:6px">What Thrivarc resolves before compute</p>
-            <span class="stat-em">5</span>
-            <div class="mini">Stance, evidence route, method family, cadence treatment, and reviewer burden are all resolved before the run can start.</div>
-          </div>
-          <div class="insight-card">
-            <strong>A well-framed brief is half the study</strong>
-            <div class="mini" style="margin-top:6px">A serious brief tells Thrivarc what decision matters, what the comparison set is, and how much proof the claim has to carry.</div>
-          </div>
-          <div class="insight-card">
-            <strong>Why the preview gate matters</strong>
-            <div class="mini" style="margin-top:6px">The system should never compute on a dataset you have not seen for coverage, identifiers, timing, and schema reality.</div>
-          </div>
-        </div>
-        <div class="stage-track">
-          <div class="stage-node"><strong>Question</strong><div class="mini">State the problem in plain language instead of forcing a method first.</div></div>
-          <div class="stage-node"><strong>Blueprint</strong><div class="mini">Thrivarc decides stance, evidence route, method family, cadence treatment, and output intent.</div></div>
-          <div class="stage-node"><strong>Clarification</strong><div class="mini">Only the missing detail gets pressed, one sharper answer at a time.</div></div>
-          <div class="stage-node"><strong>Evidence</strong><div class="mini">Preview identifiers, dates, missingness, and fingerprint before anything runs.</div></div>
-          <div class="stage-node"><strong>Defense</strong><div class="mini">Reviewer pressure starts from the blueprint instead of appearing only at the end.</div></div>
-        </div>
+
+          <section class="command-bar" aria-label="Research question intake">
+            <div class="question-label">
+              <strong>Research question or rough abstract</strong>
+              <span class="mini">Topic-only is enough</span>
+            </div>
+            <textarea id="rq-question" class="command-question" placeholder="Example: Does a rising VIX predict next-week negative SPY returns?"></textarea>
+            <div id="rq-question-error" class="mini" style="color:var(--warn);margin-top:8px;display:none"></div>
+            <div class="command-actions">
+              <div class="example-chips" aria-label="Example prompts">${renderStarterGuide()}</div>
+              <button class="btn primary" id="build-blueprint">Build Blueprint →</button>
+            </div>
+          </section>
+
+          <section class="command-secondary" aria-label="Optional research controls">
+            <details class="drawer-card">
+              <summary>Context</summary>
+              <div class="drawer-body">
+                <label>Context<textarea id="rq-context" placeholder="What market, sample, outcome, benchmark, or mechanism should Thrivarc understand?"></textarea></label>
+                <p class="mini">If you only have a topic, leave this blank. If you know the economic mechanism, put it here.</p>
+              </div>
+            </details>
+            <details class="drawer-card">
+              <summary>Data route</summary>
+              <div class="drawer-body">
+                <div class="data-mode-grid">
+                  <button class="choice-card active" type="button" data-access-mode="builtin"><h3>Fetch public data</h3><p class="mini">Use public market, macro, or filing sources.</p></button>
+                  <button class="choice-card" type="button" data-access-mode="upload"><h3>Upload dataset</h3><p class="mini">Stage CSV, XLSX, or Parquet and inspect schema.</p></button>
+                  <button class="choice-card" type="button" data-access-mode="connect"><h3>Stage source</h3><p class="mini">Use a vendor export or internal extract.</p></button>
+                </div>
+                <div class="approval-note" id="data-access-note" style="margin-top:12px">You still approve the exact data sample, schema, date range, and fingerprint before launch.</div>
+                <div class="drawer-card" id="intake-file-panel" style="margin-top:12px;display:none;padding:14px">
+                  <strong id="rq-stage-file-title">Stage your research file now</strong>
+                  <p class="mini" id="rq-stage-file-lead" style="margin:8px 0 0">If you already have the evidence, stage it now. Thrivarc carries it into preview after Blueprint approval.</p>
+                  <input id="rq-stage-file" type="file" style="margin-top:10px" />
+                  <div class="mini" id="rq-stage-file-state" style="margin-top:8px">No file staged yet. You can still continue and attach evidence at the preview gate.</div>
+                </div>
+              </div>
+            </details>
+            <details class="drawer-card">
+              <summary>Design notes</summary>
+              <div class="drawer-body">
+                <label>Specific claim<input id="rq-hypothesis" placeholder="Example: Rising VIX predicts lower next-week SPY returns."></label>
+                <label>Evidence reality<textarea id="rq-data-notes" placeholder="Public ETFs, macro series, event dates, proprietary panel, staged vendor file..."></textarea></label>
+                <label>Design constraints<textarea id="rq-design-notes" placeholder="Benchmark, horizon, cadence, event window, controls, or investor objective."></textarea></label>
+                <label>Validation expectations<textarea id="rq-validation-notes" placeholder="Out-of-sample validation, regime stability, transaction costs, factor controls..."></textarea></label>
+                <div class="grid g2">
+                  <label>Universe or identifiers<input id="rq-instruments" placeholder="Examples: SPY, ^VIX, sector ETFs"></label>
+                  <label>Historical window<input id="rq-window" placeholder="Example: 2004-present"></label>
+                </div>
+              </div>
+            </details>
+          </section>
+        </main>
+
+        <aside class="research-rail">
+          <section class="rail-panel rail-callout">
+            <div>
+              <p class="section-label" style="color:rgba(255,255,255,.62)">Control model</p>
+              <div class="rail-number">4</div>
+            </div>
+            <p class="mini">Question → Blueprint → Data preview → Cockpit. Compute never starts before the evidence is visible.</p>
+          </section>
+          <section class="rail-panel" id="architect-transcript">
+            <p class="section-label">What happens next</p>
+            <div id="architect-thread" class="rail-steps">
+              <div class="rail-step"><strong>Build a Blueprint</strong><span class="mini">Thrivarc infers stance, method family, evidence route, and reviewer burden.</span></div>
+              <div class="rail-step"><strong>Answer blockers</strong><span class="mini">If timing, identifiers, benchmark, or source reality is unclear, you get one targeted card.</span></div>
+              <div class="rail-step"><strong>Approve evidence</strong><span class="mini">Preview rows, columns, date range, warnings, and fingerprint.</span></div>
+              <div class="rail-step"><strong>Enter cockpit</strong><span class="mini">Inspect outputs, prompts, cells, logs, approvals, and Overleaf export.</span></div>
+            </div>
+          </section>
+          <section class="rail-panel" id="draft-readout"></section>
+        </aside>
       </div>
     </div>
-    <div class="workbench-grid" style="margin-top:12px">
-      <div class="question-canvas">
-        <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:700;margin:0 0 6px 0">What do you want to research?</p>
-        <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Question</p>
-        <h3 style="margin:0 0 8px 0">What do you want to find out?</h3>
-        <p class="muted">You do not need a hypothesis, dataset, or method yet. Start with the research question in plain English. Thrivarc will infer whether this should stay exploratory, become confirmatory, or split into staged validation.</p>
-        ${renderStarterGuide()}
-        <label>Question<textarea id="rq-question" placeholder="Example: I want to test whether shifts in earnings-call sentiment predict overnight sector ETF returns once analyst surprise and implied volatility are controlled for."></textarea></label>
-        <div id="rq-question-error" class="mini" style="color:var(--warn);margin-top:8px;display:none"></div>
-
-        <label style="margin-top:12px">Context<textarea id="rq-context" placeholder="Describe the market, benchmark, time horizon, cadence, or why this question matters to you."></textarea></label>
-        <p class="mini">Describe any benchmark, horizon, cadence, or validation detail in plain English.</p>
-
-        <div style="margin-top:14px">
-          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Data access</p>
-          <div class="choice-grid">
-            <button class="choice-card active" type="button" data-access-mode="builtin">
-              <h3 style="margin:0 0 6px 0">Fetch public market data for me</h3>
-              <p class="muted" style="margin:0">Use public sources like yfinance, FRED, or EDGAR when the question can be researched from public evidence.</p>
-            </button>
-            <button class="choice-card" type="button" data-access-mode="upload">
-              <h3 style="margin:0 0 6px 0">Upload your dataset</h3>
-              <p class="muted" style="margin:0">Best when the study depends on proprietary, internal, survey, or alternative data that you already have.</p>
-            </button>
-            <button class="choice-card" type="button" data-access-mode="connect">
-              <h3 style="margin:0 0 6px 0">Connect or stage an external source</h3>
-              <p class="muted" style="margin:0">Use this when the study depends on a vendor export, internal system extract, or external file you will stage for Thrivarc.</p>
-            </button>
-          </div>
-          <div class="card note-card" id="data-access-note" style="margin-top:10px;background:var(--brand-soft)">
-            Thrivarc will use this preference when it builds the blueprint. You will still preview the exact data sample and fingerprint before anything runs.
-          </div>
-          <div class="card note-card" id="intake-file-panel" style="margin-top:10px;display:none">
-            <strong id="rq-stage-file-title">Stage your research file now (recommended)</strong>
-            <p class="mini" id="rq-stage-file-lead" style="margin:8px 0 0 0">If you already have the evidence, stage it now. Thrivarc will carry it into the evidence preview after the blueprint is approved.</p>
-            <input id="rq-stage-file" type="file" style="margin-top:10px" />
-            <div class="mini" id="rq-stage-file-state" style="margin-top:8px">No file staged yet. You can still continue with the blueprint and attach the evidence at the preview gate.</div>
-          </div>
-        </div>
-
-        <details class="card" style="margin-top:14px">
-          <summary><strong>Research design notes</strong></summary>
-          <p class="mini" style="margin-top:8px">Use plain English. Thrivarc will infer the formal method, validation path, and evidence plan from what you write here.</p>
-          <div class="grid g2">
-            <label>If you already have a specific claim, write it here<input id="rq-hypothesis" placeholder="Example: Defensive sectors outperform during risk-off periods."></label>
-            <label>Evidence reality<textarea id="rq-data-notes" placeholder="Tell Thrivarc what evidence exists: public ETFs, macro series, event dates, a proprietary panel, staged vendor data, transcript files, or uploaded spreadsheets."></textarea><div class="mini">Say whether Thrivarc should fetch public evidence, expect your upload, or work from an external source you will stage.</div></label>
-            <label>Design constraints<textarea id="rq-design-notes" placeholder="Explain the benchmark, horizon, cadence, rebalancing logic, event window, investor objective, or anything else that changes the research design."></textarea><div class="mini">This is where cadence belongs if cadence matters to the research itself.</div></label>
-            <label>Validation expectations<textarea id="rq-validation-notes" placeholder="Describe the burden of proof: out-of-sample validation, regime stability, reviewer-grade robustness, transaction costs, factor controls, or anything else a serious reviewer would demand."></textarea><div class="mini">Thrivarc uses this to infer the strongest validation plan instead of forcing you to pick tests from a list.</div></label>
-            <label>Universe or identifiers (optional)<input id="rq-instruments" placeholder="Examples: TSX 60 sectors, XLK XLE XLF, regional bank ETFs, FOMC dates"></label>
-            <label>Historical window (optional)<input id="rq-window" placeholder="Example: 2004-present, post-GFC, 20 years, 2010-2024"></label>
-          </div>
-        </details>
-
-        <div class="row" style="margin-top:14px">
-          <button class="btn primary" id="build-blueprint">Build my research blueprint →</button>
-        </div>
-        <div class="card note-card" style="margin-top:14px;background:#fcfaf4">
-          <h4 style="margin:0 0 8px 0">What this session produces</h4>
-          <div class="signal-list">
-            <div class="signal-item"><div class="signal-icon">A</div><div><strong>A formal research blueprint</strong><div class="mini">Thrivarc decides the stance, evidence route, method family, cadence treatment, and reviewer burden before any run can start.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">B</div><div><strong>A previewable evidence plan</strong><div class="mini">You will see the exact dataset, identifiers, date coverage, and fingerprint before compute is allowed to begin.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">C</div><div><strong>A research-defense starting point</strong><div class="mini">Thrivarc frames what a serious reviewer is likely to attack so the work starts with the right burden of proof.</div></div></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="aside-stack">
-        <div class="card note-card" id="architect-transcript">
-          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Research architect</p>
-          <h3 style="margin:0 0 8px 0">Thrivarc will think with you before it computes</h3>
-          <div class="mini" style="margin-bottom:10px">This panel becomes the planning conversation: what Thrivarc understood, what kind of study it thinks this is, and the next thing it wants sharpened.</div>
-          <div id="architect-thread">
-            <div class="signal-item"><div class="signal-icon">1</div><div><strong>Interpret the real research problem</strong><div class="mini">Thrivarc separates the topic, the claim, the data reality, and the validation burden instead of forcing you into dropdown assumptions.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">2</div><div><strong>Decide what kind of study this really is</strong><div class="mini">Exploratory and confirmatory research are handled differently, and the system decides that from your framing unless you override it.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">3</div><div><strong>Ask for clarification only when needed</strong><div class="mini">If a benchmark, timing, or evidence gap matters, Thrivarc asks a targeted follow-up instead of making you fill a long form first.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">4</div><div><strong>Preview the exact evidence before launch</strong><div class="mini">Every run waits for a real data preview, fingerprint, and approval step before the pipeline can start.</div></div></div>
-          </div>
-        </div>
-        <div class="card note-card" id="draft-readout"></div>
-        <div class="card note-card">
-          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">What good research briefs usually mention</p>
-          <div class="signal-list">
-            <div class="signal-item"><div class="signal-icon">1</div><div><strong>The decision problem</strong><div class="mini">What would a reader, investor, policy team, or referee actually care about if the result turned out to be true?</div></div></div>
-            <div class="signal-item"><div class="signal-icon">2</div><div><strong>The comparison set</strong><div class="mini">Mention the universe, benchmark, event set, or comparison regime if you already know it. Thrivarc will still infer what it can from the brief.</div></div></div>
-            <div class="signal-item"><div class="signal-icon">3</div><div><strong>The burden of proof</strong><div class="mini">Say whether you care about transaction costs, out-of-sample stability, policy readability, or journal-grade robustness. That changes the blueprint.</div></div></div>
-          </div>
-        </div>
-        <div class="card">
-          <p class="kicker">Blueprint discipline</p>
-          <div class="mini">Thrivarc should not let examples mutate into defaults. Every run is planned from the brief, not from inherited demo assumptions.</div>
-        </div>
-      </div>
-    </div>
-    <div id="clarify-zone" style="margin-top:12px"></div>
-    <div id="blueprint-zone" style="margin-top:12px"></div>
-    <div id="data-zone" style="margin-top:12px"></div>
+    <div id="clarify-zone" style="margin-top:18px"></div>
+    <div id="blueprint-zone" style="margin-top:18px"></div>
+    <div id="data-zone" style="margin-top:18px"></div>
   `;
   document.querySelectorAll('[data-access-mode]').forEach(btn=>btn.addEventListener('click', ()=>{
     setDataAccessMode(btn.getAttribute('data-access-mode') || 'builtin');
@@ -2393,113 +2259,123 @@ function renderCockpitPanel(cockpit, sessionId){
   const allowedModels = modelSettings.allowed_models || ['gpt-4o'];
   const quality = cockpit.quality_report || {};
   const gateRows = gates.map(g=>`
-    <div class="card" style="margin-top:8px">
-      <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start">
+    <article class="approval-card">
+      <div class="row" style="align-items:flex-start">
         <div><strong>${esc(g.phase_name || 'Phase gate')}</strong><div class="mini">${esc(g.required_action || 'Approve / Revise / Stop')} · ${g.autopilot_eligible ? 'autopilot eligible' : 'manual gate'}</div></div>
         <span class="pill ${g.status==='approved'||g.status==='auto_approved'?'ok':g.status==='stopped'?'bad':'warn'}">${esc(g.status || 'pending')}</span>
       </div>
-      <div class="row" style="margin-top:8px">
+      <div class="approval-actions">
         <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="approve">Approve</button>
         <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="revise">Revise</button>
         <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="stop">Stop</button>
       </div>
-    </div>`).join('');
+    </article>`).join('');
   const followupRows = followups.slice(-5).map(f=>`
-    <div class="mini" style="padding:8px 0;border-bottom:1px solid rgba(20,95,82,.12)">
-      <strong>${esc(f.classification || 'queued')}</strong> · ${esc(f.approval_status || '')}<br>
-      ${esc(f.raw_instruction || '')}
-    </div>`).join('');
-  const jobRows = jobs.slice(-5).map(j=>`<li>${esc(j.phase_name || 'Compute')} · ${esc(j.status || 'queued')}</li>`).join('');
-  const artifactRows = arts.slice(-6).map(a=>`<li><a href="${esc(a.download_url || '#')}" download>${esc(a.name || a.path || 'artifact')}</a> <span class="mini">${esc(a.status || 'complete')}</span></li>`).join('');
+    <li><strong>${esc(f.classification || 'queued')}</strong><span>${esc(f.approval_status || '')}</span><div>${esc(f.raw_instruction || '')}</div></li>`).join('');
+  const jobRows = jobs.slice(-5).map(j=>`<li><strong>${esc(j.phase_name || 'Compute')}</strong><span>${esc(j.status || 'queued')}</span></li>`).join('');
+  const artifactRows = arts.slice(-8).map(a=>`
+    <a class="artifact-tile" href="${esc(a.download_url || '#')}" download>
+      <strong>${esc(a.name || (a.path || 'artifact').split('/').pop() || 'artifact')}</strong>
+      <span class="mini">${esc(a.status || 'complete')}</span>
+    </a>`).join('');
   const latestAmp = agent => amplifiers.find(a=>a.agent_name===agent)?.amplifier_text || '';
   const promptRows = (promptStudio.agents || []).filter(a=>['Research Architect','Literature Agent','Method / Compute Agent','Statistics Agent','Code Audit Agent','Reviewer Agent','Writer Agent'].includes(a)).map(agent=>`
-    <details class="card" style="margin-top:8px">
-      <summary><strong>${esc(agent)}</strong> <span class="mini">task-specific amplifier</span></summary>
-      <textarea data-prompt-agent="${esc(agent)}" style="min-height:120px;margin-top:8px" placeholder="Add your task-specific instruction for ${esc(agent)}">${esc(latestAmp(agent))}</textarea>
-      <div class="row" style="margin-top:8px">
-        <button class="btn" data-save-prompt="${esc(agent)}">Save amplifier</button>
-        <button class="btn" data-view-prompt="${esc(agent)}">View composed prompt</button>
+    <details class="prompt-panel">
+      <summary><strong>${esc(agent)}</strong> <span class="mini">amplifier</span></summary>
+      <textarea data-prompt-agent="${esc(agent)}" style="min-height:110px;margin-top:10px" placeholder="Add task-specific instruction for ${esc(agent)}">${esc(latestAmp(agent))}</textarea>
+      <div class="approval-actions">
+        <button class="btn" data-save-prompt="${esc(agent)}">Save</button>
+        <button class="btn" data-view-prompt="${esc(agent)}">View composed</button>
       </div>
     </details>`).join('');
   const cellRows = cells.map(c=>`
-    <details class="card" style="margin-top:8px" ${c.status==='failed'?'open':''}>
-      <summary><strong>Cell ${esc(String(c.cell_order))}: ${esc(c.title || 'Untitled')}</strong> <span class="pill ${c.status==='complete'?'ok':c.status==='failed'?'bad':'muted'}">${esc(c.status || 'draft')}</span></summary>
-      <input data-cell-title="${esc(c.id)}" value="${esc(c.title || '')}" style="margin-top:8px">
-      <textarea data-cell-code="${esc(c.id)}" style="min-height:180px;font-family:ui-monospace,Menlo,monospace;margin-top:8px">${esc(c.code || '')}</textarea>
-      <div class="row" style="margin-top:8px">
-        <button class="btn" data-save-cell="${esc(c.id)}">Save cell</button>
-        <button class="btn primary" data-run-cell="${esc(c.id)}">Run through this cell</button>
-      </div>
-      ${c.stdout ? `<pre style="white-space:pre-wrap;max-height:180px;overflow:auto">${esc(c.stdout)}</pre>` : ''}
-      ${c.stderr ? `<pre style="white-space:pre-wrap;max-height:180px;overflow:auto;color:#8a2b1b">${esc(c.stderr)}</pre>` : ''}
-    </details>`).join('');
+    <article class="notebook-cell">
+      <details ${c.status==='failed'?'open':''}>
+        <summary><strong>Cell ${esc(String(c.cell_order))}: ${esc(c.title || 'Untitled')}</strong> <span class="pill ${c.status==='complete'?'ok':c.status==='failed'?'bad':'muted'}">${esc(c.status || 'draft')}</span></summary>
+        <input data-cell-title="${esc(c.id)}" value="${esc(c.title || '')}" style="margin-top:10px">
+        <textarea data-cell-code="${esc(c.id)}">${esc(c.code || '')}</textarea>
+        <div class="approval-actions">
+          <button class="btn" data-save-cell="${esc(c.id)}">Save cell</button>
+          <button class="btn primary" data-run-cell="${esc(c.id)}">Run through this cell</button>
+        </div>
+        ${c.stdout ? `<pre>${esc(c.stdout)}</pre>` : ''}
+        ${c.stderr ? `<pre style="color:#fecaca">${esc(c.stderr)}</pre>` : ''}
+      </details>
+    </article>`).join('');
   const phaseModelRows = phaseModel.map(phase=>{
     const selected = (modelSettings.phase_settings || []).find(s=>s.phase_name===phase)?.model_name || modelSettings.default_model || 'gpt-4o';
-    return `<label class="mini">${esc(phase)}
-      <select data-model-phase="${esc(phase)}">${allowedModels.map(m=>`<option value="${esc(m)}" ${m===selected?'selected':''}>${esc(m)}</option>`).join('')}</select>
-    </label>`;
+    return `<label class="mini">${esc(phase)}<select data-model-phase="${esc(phase)}">${allowedModels.map(m=>`<option value="${esc(m)}" ${m===selected?'selected':''}>${esc(m)}</option>`).join('')}</select></label>`;
   }).join('');
   return `
-    <div class="card cockpit-panel" style="margin-bottom:12px" data-truth-source="api.sessions.cockpit">
-      <div class="row" style="justify-content:space-between;gap:10px;align-items:flex-start">
-        <div>
-          <h3>Research cockpit</h3>
-          <p class="muted">You are the pilot. Thrivarc streams artifacts, queues follow-ups safely, and pauses at approval gates.</p>
-        </div>
-        <span class="pill ${autopilot.enabled?'ok':'muted'}">Autopilot ${autopilot.enabled?'on':'off'}</span>
-      </div>
-      <div class="grid g2" style="margin-top:10px">
-        <div class="card">
-          <h4>Current phase</h4>
-          <p><strong>${esc(current.agent_name || current.phase_name || 'Waiting')}</strong></p>
-          <p class="mini">${esc(current.summary_text || 'No active phase summary yet.')}</p>
-          <p class="mini">Workflow: ${esc(phaseModel.join(' → '))}</p>
-        </div>
-        <div class="card">
-          <h4>Co-pilot instruction</h4>
-          <textarea id="cockpit-followup-text" placeholder="Ask for a revision, extra robustness check, chart, or note for the next safe pause point." style="min-height:96px"></textarea>
-          <div class="row" style="margin-top:8px"><button class="btn primary" id="cockpit-followup-submit">Queue instruction</button></div>
-        </div>
-      </div>
-      <div class="grid g2" style="margin-top:10px">
-        <div><h4>Approval gates</h4>${gateRows || '<p class="muted">No approval gates yet.</p>'}</div>
-        <div>
-          <h4>Live outputs</h4>
-          <ul>${artifactRows || '<li class="muted">Artifacts will appear here as they arrive.</li>'}</ul>
-          <h4>Sandbox jobs</h4>
-          <ul>${jobRows || '<li class="muted">No sandbox jobs queued.</li>'}</ul>
-          <h4>Queued follow-ups</h4>
-          ${followupRows || '<p class="muted">No follow-up instructions queued.</p>'}
-          <div class="row" style="margin-top:10px">
-            <a class="btn" href="${API_BASE}/api/sessions/${esc(sessionId)}/export/overleaf.zip" download>Download Overleaf ZIP</a>
+    <section class="cockpit-shell" data-truth-source="api.sessions.cockpit">
+      <aside class="cockpit-left">
+        <div class="row" style="align-items:flex-start;margin-bottom:18px">
+          <div>
+            <p class="section-label">Flight deck</p>
+            <h3 class="cockpit-title">Cockpit</h3>
           </div>
+          <span class="pill ${autopilot.enabled?'ok':'muted'}">Auto ${autopilot.enabled?'on':'off'}</span>
         </div>
-      </div>
-      <div class="grid g2" style="margin-top:10px">
-        <div>
+        <div class="workspace-panel hero" style="margin-bottom:16px">
+          <h4 style="margin:0 0 8px">Current phase</h4>
+          <strong>${esc(current.agent_name || current.phase_name || 'Waiting')}</strong>
+          <p class="mini" style="margin:8px 0 0">${esc(current.summary_text || 'No active phase summary yet.')}</p>
+        </div>
+        <h4 style="margin:0 0 10px">Approval gates</h4>
+        <div class="grid" style="gap:10px">${gateRows || '<p class="mini">No approval gates yet.</p>'}</div>
+        <h4 style="margin:18px 0 10px">Sandbox jobs</h4>
+        <ul class="log-stream">${jobRows || '<li>No sandbox jobs queued.</li>'}</ul>
+      </aside>
+
+      <main class="cockpit-center">
+        <section class="workspace-panel hero">
+          <div class="row" style="align-items:flex-start">
+            <div>
+              <p class="section-label">Live workspace</p>
+              <h3 style="margin:0;font-size:30px">Outputs arrive here as the run works</h3>
+              <p class="mini" style="margin-top:8px">Workflow: ${esc(phaseModel.join(' → ') || 'Waiting for phase model')}</p>
+            </div>
+            <a class="btn primary" href="${API_BASE}/api/sessions/${esc(sessionId)}/export/overleaf.zip" download>Download ZIP</a>
+          </div>
+        </section>
+        <section class="workspace-panel">
+          <h4 style="margin:0 0 12px">Artifacts</h4>
+          <div class="artifact-grid">${artifactRows || '<div class="artifact-tile"><strong>No artifacts yet</strong><span class="mini">Files, figures, tables, logs, and exports will appear here.</span></div>'}</div>
+        </section>
+        <section class="workspace-panel">
+          <h4 style="margin:0 0 12px">Cockpit Cells</h4>
+          <p class="mini">Notebook-style cells are stored with the session and executed in the sandbox backend.</p>
+          <div class="grid" style="gap:10px">${cellRows || '<p class="mini">No cells yet.</p>'}</div>
+          <div class="approval-actions">
+            <button class="btn" id="cockpit-add-cell">Add cell</button>
+            <button class="btn primary" id="cockpit-run-all-cells">Run all cells in Modal</button>
+          </div>
+        </section>
+      </main>
+
+      <aside class="cockpit-right">
+        <section class="inspector-panel">
+          <h4>Co-pilot instruction</h4>
+          <textarea id="cockpit-followup-text" placeholder="Ask for a revision, robustness check, chart, or note for the next safe pause point." style="min-height:104px"></textarea>
+          <button class="btn primary" id="cockpit-followup-submit">Queue instruction</button>
+        </section>
+        <section class="inspector-panel">
+          <h4>Queued follow-ups</h4>
+          <ul class="log-stream">${followupRows || '<li>No follow-up instructions queued.</li>'}</ul>
+        </section>
+        <section class="inspector-panel">
           <h4>Prompt Studio</h4>
-          <p class="mini">${esc(promptStudio.locked_contract_summary || 'Locked safety contract remains enforced; edit only task-specific amplifiers.')}</p>
-          ${promptRows || '<p class="muted">Prompt amplifiers will appear here.</p>'}
-        </div>
-        <div>
-          <h4>Model selector</h4>
-          <p class="mini">Only backend-allowed models appear here. Unsupported names are blocked server-side.</p>
-          <div class="stack">${phaseModelRows}</div>
-          <h4 style="margin-top:12px">Paper quality</h4>
-          <p><span class="pill ${quality.status==='pass'?'ok':'warn'}">${esc(quality.status || 'not checked')}</span> Score ${esc(String(quality.score ?? '—'))}/10</p>
+          <p class="mini">${esc(promptStudio.locked_contract_summary || 'Locked safety contract remains enforced; edit task-specific amplifiers only.')}</p>
+          <div class="grid" style="gap:10px">${promptRows || '<p class="mini">Prompt amplifiers will appear here.</p>'}</div>
+        </section>
+        <section class="inspector-panel">
+          <h4>Models and quality</h4>
+          <div class="grid" style="gap:8px">${phaseModelRows || '<p class="mini">Model settings will appear here.</p>'}</div>
+          <p style="margin-top:10px"><span class="pill ${quality.status==='pass'?'ok':'warn'}">${esc(quality.status || 'not checked')}</span> <span class="mini">Score ${esc(String(quality.score ?? '—'))}/10</span></p>
           <button class="btn" id="cockpit-quality-refresh">Run quality check</button>
-        </div>
-      </div>
-      <div class="card" style="margin-top:10px">
-        <h4>Cockpit Cells</h4>
-        <p class="muted">Notebook-style cells are stored with the session and executed in the sandbox backend. Full-script and .ipynb exports are preserved.</p>
-        ${cellRows || '<p class="muted">No cells yet.</p>'}
-        <div class="row" style="margin-top:10px">
-          <button class="btn" id="cockpit-add-cell">Add cell</button>
-          <button class="btn primary" id="cockpit-run-all-cells">Run all cells in Modal</button>
-        </div>
-      </div>
-    </div>`;
+        </section>
+      </aside>
+    </section>`;
 }
 
 async function renderResearch(id){
