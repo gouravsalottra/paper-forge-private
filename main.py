@@ -112,10 +112,10 @@ def web_root() -> RedirectResponse:
 
 @app.get("/index.html")
 def web_index() -> FileResponse:
-    return FileResponse(FRONTEND / "index.html")
+    return FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/app")
 @app.get("/app.html")
 def web_app() -> FileResponse:
-    return FileResponse(FRONTEND / "app.html")
+    return FileResponse(FRONTEND / "app.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
