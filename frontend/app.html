@@ -559,6 +559,13 @@
     .gate-body, .blueprint-body { padding: 20px 24px; }
     .gate-dims, .blueprint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
     .gate-dim, .blueprint-field { padding: 13px; border-radius: var(--rad-sm); background: rgba(248,250,252,.76); border: 1px solid var(--line); }
+    .editable-blueprint-field {
+      width: 100%; border: 1px solid transparent; background: transparent; padding: 4px;
+      font-family: inherit; font-size: 14px; color: var(--ink); border-radius: 4px; margin-top: 4px;
+      resize: vertical; min-height: 32px;
+    }
+    .editable-blueprint-field:hover { background: rgba(0,0,0,0.03); }
+    .editable-blueprint-field:focus { outline: none; border-color: var(--brand); background: var(--surface-strong); }
     .blueprint-section-title, .blueprint-field-label {
       color: var(--muted-light);
       text-transform: uppercase;
@@ -624,7 +631,49 @@
       .g2, .g3, .g4 { grid-template-columns: 1fr; }
       .artifact-grid { grid-template-columns: 1fr; }
       .hero-grid { grid-template-columns: 1fr; }
+      .workspace-shell { grid-template-columns: 1fr; }
     }
+    
+    /* ── WORKSPACE UI ────────────────────────────────────────────────────────── */
+    .workspace-shell {
+      display: grid; grid-template-columns: 240px 1fr; gap: 24px; align-items: start;
+      margin-top: 20px; min-height: calc(100vh - 120px);
+    }
+    .workspace-nav { display: flex; flex-direction: column; gap: 4px; }
+    .workspace-nav-item {
+      padding: 10px 16px; border-radius: var(--rad-sm); cursor: pointer;
+      font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 10px;
+      transition: all 0.2s ease;
+    }
+    .workspace-nav-item:hover { background: rgba(15,23,42,.04); color: var(--ink); }
+    .workspace-nav-item.active { background: #fff; color: var(--brand); box-shadow: var(--shadow); border: 1px solid var(--line); }
+    .workspace-main {
+      background: #fff; border-radius: var(--rad-md); border: 1px solid var(--line); box-shadow: var(--shadow);
+      display: flex; flex-direction: column; min-height: 75vh; overflow: hidden;
+    }
+    .agent-header {
+      padding: 16px 24px; border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(13,79,68,.04), rgba(255,255,255,1));
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .agent-chat { flex: 1; padding: 24px; overflow-y: auto; background: var(--surface-soft); display: flex; flex-direction: column; gap: 16px; }
+    .agent-input-zone { padding: 16px 24px; border-top: 1px solid var(--line); background: #fff; display: flex; gap: 12px; }
+    .agent-input-zone textarea {
+      flex: 1; min-height: 50px; resize: none; padding: 12px; border-radius: var(--rad-sm);
+      border: 1px solid var(--line); font-family: var(--sans); font-size: 14px;
+    }
+    .agent-input-zone textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(13,79,68,.1); }
+    .chat-bubble { max-width: 85%; padding: 14px 18px; border-radius: var(--rad-sm); font-size: 14px; line-height: 1.6; }
+    .chat-bubble.user { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+    .chat-bubble.agent { align-self: flex-start; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); border-bottom-left-radius: 4px; }
+    .notebook-cell { background: #fff; border: 1px solid var(--line); border-radius: var(--rad-sm); overflow: hidden; box-shadow: var(--shadow); }
+    .notebook-cell-header { padding: 8px 12px; background: rgba(15,23,42,.03); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .notebook-cell-code { padding: 12px; font-family: var(--mono); font-size: 13px; color: var(--ink); background: #fdfdfd; border: none; width: 100%; min-height: 100px; resize: vertical; }
+    .notebook-cell-code:focus { outline: none; background: #fff; }
+    .notebook-cell-output { padding: 12px; font-family: var(--mono); font-size: 12px; background: #111; color: #0f0; max-height: 300px; overflow-y: auto; border-top: 1px solid var(--line); }
+    .prompt-editor { width: 100%; min-height: 80px; resize: vertical; padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: var(--rad-sm); background: #fbfbfc; }
+    .prompt-editor:focus { outline: none; border-color: var(--brand); background: #fff; color: var(--ink); }
+    .model-select { padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); font-size: 13px; font-weight: 500; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -637,7 +686,7 @@
       <span id="persona-badge" class="badge" role="button" tabindex="0" aria-haspopup="true">🧭 Researcher</span>
       <span id="spend-chip" class="badge" data-truth-source="sessions.credits_spent">$0.00 spent</span>
       <nav class="row" aria-label="App navigation">
-        <a href="#dashboard" class="muted">Research Home</a>
+        <a href="#dashboard" class="muted">Dashboard</a>
         <a href="#new" class="muted">Start Research</a>
         <a href="#guide" class="muted">How Thrivarc Helps</a>
         <a href="/" class="muted">Home</a>
@@ -1190,6 +1239,13 @@ async function renderNew(){
               <span class="mini">Topic-only is enough</span>
             </div>
             <textarea id="rq-question" class="command-question" placeholder="Example: Does a rising VIX predict next-week negative SPY returns?"></textarea>
+            <div style="margin-top: 12px; margin-bottom: 12px;">
+              <label style="font-weight: 600; font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px;">Research Stance (Required)</label>
+              <select id="rq-stance" style="width: 100%; padding: 10px; border-radius: var(--rad-sm); border: 1px solid var(--line); font-size: 14px; background: #fff;">
+                <option value="exploratory">Exploratory (Discover patterns before locking claims)</option>
+                <option value="confirmatory_pap">Confirmatory (Pre-register claims before running tests)</option>
+              </select>
+            </div>
             <div id="rq-question-error" class="mini" style="color:var(--warn);margin-top:8px;display:none"></div>
             <div class="command-actions">
               <div class="example-chips" aria-label="Example prompts">${renderStarterGuide()}</div>
@@ -1512,11 +1568,13 @@ function buildResearchPayload(){
   const designNotes = (qs('#rq-design-notes')?.value || '').trim();
   const validationNotes = (qs('#rq-validation-notes')?.value || '').trim();
   const horizon = (qs('#rq-window')?.value || '').trim();
+  const stance = qs('#rq-stance')?.value || 'exploratory';
   const notes = [context, evidenceReality, designNotes, validationNotes, horizon].filter(Boolean).join('\n\n');
   return {
     topic,
     abstract: context,
     notes,
+    stance,
     data_instructions: evidenceReality,
     design_instructions: designNotes,
     validation_notes: validationNotes,
@@ -2135,27 +2193,27 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
           <div class="blueprint-grid">
             <div class="blueprint-field">
               <div class="blueprint-field-label">Research stance</div>
-              <div class="blueprint-field-value">${esc(stateLabel)}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(stateLabel)}</textarea>
               <div class="blueprint-field-note">${esc(plannerSummary.why_this_stance || (summary.state === 'confirmatory_pap' ? 'Thrivarc will lock the claim before analysis begins.' : 'Thrivarc will explore the pattern first and keep the language honest.'))}</div>
         </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Evidence source</div>
-              <div class="blueprint-field-value">${esc(summary.connector)}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(summary.connector)}</textarea>
               <div class="blueprint-field-note">${esc(plannerSummary.why_this_evidence_route || 'This is the source Thrivarc expects to preview and fingerprint before launch.')}</div>
         </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Method style</div>
-              <div class="blueprint-field-value">${esc(plannerSummary.method_style || summary.method)}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.method_style || summary.method)}</textarea>
               <div class="blueprint-field-note">${esc(plannerSummary.why_this_method || (summary.method === 'none' ? 'No simulation or backtest is needed for this design.' : 'Thrivarc will only run this method if the data preview is approved.'))}</div>
         </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Validation plan</div>
-              <div class="blueprint-field-value">${esc(summary.tests.slice(0,3).join(', ') || 'template-selected tests')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(summary.tests.slice(0,3).join(', ') || 'template-selected tests')}</textarea>
               <div class="blueprint-field-note">${esc(plannerSummary.reviewer_focus || 'Tests come from the research template, not a hardcoded universal battery.')}</div>
             </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Cadence logic</div>
-              <div class="blueprint-field-value">${esc(cadenceRoleLabel)} · ${esc(plannerSummary.recommended_frequency || firstSpec?.datapull?.frequency || 'daily')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(cadenceRoleLabel)} · ${esc(plannerSummary.recommended_frequency || firstSpec?.datapull?.frequency || 'daily')}</textarea>
               <div class="blueprint-field-note">${esc(plannerSummary.cadence_explanation || 'Cadence is inferred from the research design and can be treated as either a fixed choice or something the study should compare.')}</div>
             </div>
           </div>
@@ -2165,22 +2223,22 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
           <div class="blueprint-grid">
             <div class="blueprint-field">
               <div class="blueprint-field-label">Decision problem</div>
-              <div class="blueprint-field-value">${esc(plannerSummary.decision_problem || 'Thrivarc is still inferring what decision this evidence is supposed to change.')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.decision_problem || 'Thrivarc is still inferring what decision this evidence is supposed to change.')}</textarea>
               <div class="blueprint-field-note">This is the decision the run should sharpen for the eventual reader, investor, policy team, or referee.</div>
             </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Comparison set</div>
-              <div class="blueprint-field-value">${esc(plannerSummary.comparison_set || 'Thrivarc is still sharpening the benchmark or working universe.')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.comparison_set || 'Thrivarc is still sharpening the benchmark or working universe.')}</textarea>
               <div class="blueprint-field-note">A serious study needs a concrete comparison frame before evidence and claims can stay honest.</div>
             </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Burden of proof</div>
-              <div class="blueprint-field-value">${esc(plannerSummary.burden_of_proof || 'Thrivarc is still deciding which reviewer demands matter most for this run.')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.burden_of_proof || 'Thrivarc is still deciding which reviewer demands matter most for this run.')}</textarea>
               <div class="blueprint-field-note">This is the first version of what the reviewer layer will push on before the study can feel defensible.</div>
             </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">If this finding holds</div>
-              <div class="blueprint-field-value">${esc(plannerSummary.if_true || 'Thrivarc is still deciding what decision or claim this study should ultimately move.')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.if_true || 'Thrivarc is still deciding what decision or claim this study should ultimately move.')}</textarea>
               <div class="blueprint-field-note">This keeps the study aimed at the decision or claim that actually matters if the evidence survives.</div>
             </div>
           </div>
@@ -2190,22 +2248,22 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
           <div class="blueprint-grid">
             <div class="blueprint-field">
               <div class="blueprint-field-label">Evidence readiness</div>
-              <div class="blueprint-field-value">${esc(plannerSummary.evidence_readiness || 'Thrivarc is still checking whether the evidence route is truly launch-ready.')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.evidence_readiness || 'Thrivarc is still checking whether the evidence route is truly launch-ready.')}</textarea>
               <div class="blueprint-field-note">Preview gate discipline means the evidence has to be real before any compute is allowed to start.</div>
             </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Output target</div>
-              <div class="blueprint-field-value">${esc(firstSpec?.research?.output_format || 'research_report')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(firstSpec?.research?.output_format || 'research_report')}</textarea>
               <div class="blueprint-field-note">${esc(plannerSummary.output_plan || 'Thrivarc will target a research package first, then turn it into paper-ready output after the evidence holds.')}</div>
             </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Universe hints</div>
-              <div class="blueprint-field-value">${esc((plannerSummary.inferred_identifiers || []).join(', ') || (firstSpec?.datapull?.symbols || []).join(', ') || 'Still needs to be sharpened')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc((plannerSummary.inferred_identifiers || []).join(', ') || (firstSpec?.datapull?.symbols || []).join(', ') || 'Still needs to be sharpened')}</textarea>
               <div class="blueprint-field-note">Thrivarc now mines the brief itself for identifiers and benchmark hints so you do not have to fill every field manually.</div>
             </div>
             <div class="blueprint-field">
               <div class="blueprint-field-label">Historical window</div>
-              <div class="blueprint-field-value">${esc(plannerSummary.inferred_window?.start || firstSpec?.datapull?.start_date || '2010-01-01')} → ${esc(plannerSummary.inferred_window?.end || firstSpec?.datapull?.end_date || '2024-12-31')}</div>
+              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.inferred_window?.start || firstSpec?.datapull?.start_date || '2010-01-01')} → ${esc(plannerSummary.inferred_window?.end || firstSpec?.datapull?.end_date || '2024-12-31')}</textarea>
               <div class="blueprint-field-note">If your brief already names a regime or a time span, Thrivarc folds that into the blueprint instead of waiting for a separate date form.</div>
             </div>
           </div>
@@ -3042,7 +3100,114 @@ function renderGuide(){
   document.querySelectorAll('[data-tab]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('active'));t.classList.add('active');body.innerHTML=content[t.getAttribute('data-tab')];}));
 }
 
-function route(){ stopAllPolling(); const h=(location.hash||'#new').slice(1); if(h.startsWith('research/')) return renderResearch(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }
+let activeAgent = 'literature';
+let currentResearchId = null;
+
+const AGENT_CONFIG = {
+  literature: { name: 'Literature Agent', icon: '🔍', prompt: 'You are the Literature Agent. Gather papers coherent to this topic. Provide summaries, highlight contradictions, and build a foundational literature review.', model: 'gpt-4o' },
+  data: { name: 'Data & Compute Environment', icon: '📊', prompt: 'You are the Data Agent. Write python code to gather data, clean it, and run statistical tests. I will run your code in the Modal notebook below.', model: 'gpt-4-turbo' },
+  stats: { name: 'Stats & Methods', icon: '📈', prompt: 'You are the Stats and Methods Agent. Determine the best empirical models, statistical tests, and econometric strategies for this research.', model: 'claude-3-opus' },
+  verifier: { name: 'Verifier', icon: '🛡️', prompt: 'You are the Verifier. Audit the code against the findings, and the findings against the code. Ensure no leakage or p-hacking occurred.', model: 'claude-3-5-sonnet' },
+  reviewer: { name: 'Reviewer Gauntlet', icon: '⚖️', prompt: 'You are a panel of three reviewers: The Skeptic, The Methodologist, and The Economist. Challenge every claim and recommend edits.', model: 'gpt-4o' },
+  writer: { name: 'LaTeX Writer', icon: '✍️', prompt: 'You are the Writer Agent. Synthesize all findings, charts, and tables into a 40-page LaTeX paper ready for Overleaf.', model: 'gpt-4o' }
+};
+
+const MODELS = ['gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-5-sonnet', 'gemini-1.5-pro', 'llama-3-70b'];
+
+function renderWorkspace(id) {
+  currentResearchId = id;
+  const app = qs('#app');
+  
+  app.innerHTML = `
+    <div class="row" style="margin-bottom:20px; align-items:flex-end">
+      <div>
+        <h2 style="margin:0 0 8px 0">Researcher OS</h2>
+        <p class="muted" style="margin:0">Live multi-agent workspace for session <code>${esc(id)}</code></p>
+      </div>
+    </div>
+    <div class="workspace-shell">
+      <aside class="workspace-nav">
+        ${Object.entries(AGENT_CONFIG).map(([k, v]) => `
+          <div class="workspace-nav-item ${activeAgent === k ? 'active' : ''}" onclick="switchAgent('${k}')">
+            <span>${v.icon}</span> <span>${esc(v.name)}</span>
+          </div>
+        `).join('')}
+      </aside>
+      <div class="workspace-main" id="workspace-main">
+        ${renderActiveAgentWorkspace()}
+      </div>
+    </div>
+  `;
+}
+
+function switchAgent(agentKey) {
+  activeAgent = agentKey;
+  renderWorkspace(currentResearchId);
+}
+
+function renderActiveAgentWorkspace() {
+  const agent = AGENT_CONFIG[activeAgent];
+  
+  const modelOptions = MODELS.map(m => `<option value="${m}" ${m === agent.model ? 'selected' : ''}>${m}</option>`).join('');
+  
+  let contentArea = '';
+  if (activeAgent === 'data') {
+    contentArea = `
+      <div class="notebook-cell">
+        <div class="notebook-cell-header">
+          <span>In [1]: Data Fetching & Cleaning</span>
+          <div>
+            <button class="btn" style="padding: 4px 8px; font-size: 11px; min-height: auto;">Run Code</button>
+          </div>
+        </div>
+        <textarea class="notebook-cell-code" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">import pandas as pd
+import yfinance as yf
+
+# Example: Fetching baseline data
+df = yf.download("SPY", start="2015-01-01", end="2024-01-01")
+df.head()</textarea>
+        <div class="notebook-cell-output">
+                  Open        High         Low       Close   Adj Close     Volume
+Date                                                                         
+2015-01-02  206.38  207.28   204.93  205.43   176.43  121465900
+2015-01-05  204.17  204.37   201.35  201.72   173.25  169632600
+2015-01-06  202.09  203.02   199.27  199.82   171.61  209151400
+        </div>
+      </div>
+      <div class="chat-bubble agent" style="margin-top: 16px;">
+        <strong>Data Agent:</strong> I've prepared the initial data pipeline. Do you want to add factor models or macroeconomic indicators?
+      </div>
+    `;
+  } else {
+    contentArea = `
+      <div class="chat-bubble agent">
+        <strong>${agent.name}:</strong> Ready. How would you like to proceed with the ${agent.name.toLowerCase()} phase?
+      </div>
+    `;
+  }
+
+  return `
+    <div class="agent-header">
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">${agent.icon} ${esc(agent.name)}</h3>
+        <select class="model-select">${modelOptions}</select>
+      </div>
+      <div>
+        <div class="mini" style="margin-bottom:6px;font-weight:600;color:var(--muted)">BASE PROMPT (EDITABLE)</div>
+        <textarea class="prompt-editor" oninput="AGENT_CONFIG['${activeAgent}'].prompt = this.value">${esc(agent.prompt)}</textarea>
+      </div>
+    </div>
+    <div class="agent-chat">
+      ${contentArea}
+    </div>
+    <div class="agent-input-zone">
+      <textarea placeholder="Message ${esc(agent.name)}... (Press Cmd+Enter to send)"></textarea>
+      <button class="btn primary" style="align-self: flex-end;">Send</button>
+    </div>
+  `;
+}
+
+function route(){ stopAllPolling(); const h=(location.hash||'#new').slice(1); if(h.startsWith('research/')) return renderWorkspace(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }
 window.addEventListener('hashchange', route);
 document.addEventListener('DOMContentLoaded', () => {
   setPersona(localStorage.getItem('thrivarc_persona') || 'auto');
