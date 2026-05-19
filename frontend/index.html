@@ -4,138 +4,415 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Thrivarc AI - Research Cockpit</title>
+
+  <!-- OG / Social -->
+  <meta name="description" content="Thrivarc gives researchers a live operating room for empirical finance: blueprint approval, data preview, sandboxed compute, and an Overleaf-ready export." />
+  <meta property="og:title" content="Thrivarc AI — Research Cockpit" />
+  <meta property="og:description" content="From question to defensible evidence. Blueprint approval, data preview, sandboxed compute, and an Overleaf-ready export." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Web font — normalises rendering across Mac/Windows -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
   <style>
+    /* ── DESIGN TOKENS ───────────────────────────────────────── */
     :root {
       --bg: #f6f8fb;
-      --surface: rgba(255,255,255,.86);
+      --surface: rgba(255,255,255,.88);
       --surface-soft: #f7f9fc;
-      --ink: #111827;
-      --muted: #687385;
-      --line: rgba(17,24,39,.10);
-      --brand: #145f52;
+      --ink: #0d1117;
+      --muted: #4a5568;          /* was #687385 — darkened to pass WCAG AA */
+      --muted-light: #64748b;    /* labels only at 14px+ */
+      --line: rgba(17,24,39,.09);
+      --brand: #0d4f44;          /* slightly darkened for contrast */
       --brand-2: #d88645;
       --brand-3: #17242c;
-      --shadow: 0 28px 90px rgba(15,23,42,.10);
-      --shadow-sm: 0 12px 34px rgba(15,23,42,.07);
-      --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      --ok: #1f8a5b;
+      --bad: #d64f4f;
+      /* 3-level shadow system (was 5 arbitrary values) */
+      --shadow-sm: 0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
+      --shadow-md: 0 4px 16px rgba(15,23,42,.09), 0 2px 6px rgba(15,23,42,.05);
+      --shadow-lg: 0 20px 56px rgba(15,23,42,.11), 0 8px 24px rgba(15,23,42,.06);
+      /* 4-level radius system (was 9 arbitrary values) */
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 20px;
+      --r-xl: 28px;
+      --sans: "Inter", "Segoe UI", "Helvetica Neue", sans-serif;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    * { box-sizing: border-box; }
+
+    /* ── RESET ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
       color: var(--ink);
       font-family: var(--sans);
-      line-height: 1.5;
+      font-size: 14px;
+      line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       background:
-        radial-gradient(circle at 12% -8%, rgba(47,109,246,.14), transparent 28%),
-        radial-gradient(circle at 88% 0%, rgba(20,95,82,.10), transparent 26%),
+        radial-gradient(circle at 12% -8%, rgba(47,109,246,.10), transparent 28%),
+        radial-gradient(circle at 88% 0%, rgba(13,79,68,.08), transparent 26%),
         linear-gradient(180deg, #fbfcff 0%, #f5f7fb 46%, #edf2f7 100%);
       overflow-x: hidden;
     }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgba(17,24,39,.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(17,24,39,.028) 1px, transparent 1px);
-      background-size: 48px 48px;
-      mask-image: linear-gradient(180deg, rgba(0,0,0,.40), transparent 72%);
-      z-index: -1;
-    }
+    /* REMOVED: body::before grid overlay — was bleeding through all cards below fold */
     a { color: inherit; text-decoration: none; }
+    h1, h2, h3, p { margin-top: 0; }
+
+    /* ── TYPOGRAPHY — 7-stop scale, intentional weights ─────── */
+    /* Display H1 */
+    h1 {
+      font-size: clamp(3rem, 6vw, 5.6rem);
+      font-weight: 700;
+      letter-spacing: -.03em;   /* was -.07em — safe for all sizes */
+      line-height: 1.05;        /* was .95 — descenders were clipping */
+      margin: 0;
+    }
+    /* Section H2 */
+    h2 {
+      font-size: clamp(2rem, 4vw, 3.8rem);
+      font-weight: 700;
+      letter-spacing: -.025em;
+      line-height: 1.08;
+      margin: 10px 0 0;
+    }
+    /* Card H3 */
+    h3 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -.01em;
+      line-height: 1.2;
+      margin: 0 0 6px;
+    }
+
+    /* ── GLOBAL UTILITIES ────────────────────────────────────── */
     .wrap { width: min(1180px, calc(100vw - 40px)); margin: 0 auto; }
+    .mini { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .lead { max-width: 760px; color: var(--muted); font-size: clamp(16px, 1.5vw, 20px); line-height: 1.6; }
+
+    /* ── FOCUS (accessibility — was missing entirely) ────────── */
+    :focus-visible {
+      outline: 2px solid var(--brand);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* ── NAV ─────────────────────────────────────────────────── */
     .nav {
       position: sticky;
       top: 0;
       z-index: 50;
-      background: rgba(248,250,252,.78);
-      border-bottom: 1px solid rgba(17,24,39,.08);
+      background: rgba(248,250,252,.82);
+      border-bottom: 1px solid rgba(17,24,39,.07);
       backdrop-filter: blur(22px) saturate(1.15);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.80);
     }
-    .navin { height: 68px; display: flex; justify-content: space-between; align-items: center; gap: 22px; }
-    .brand { display: flex; align-items: center; gap: 12px; font-weight: 900; letter-spacing: -.03em; }
-    .mark { width: 38px; height: 38px; border-radius: 14px; display: grid; place-items: center; color: #fff; background: linear-gradient(145deg, #111827, #263241 56%, var(--brand)); box-shadow: 0 14px 28px rgba(17,24,39,.18), inset 0 1px 0 rgba(255,255,255,.18); }
-    .mini { color: var(--muted); font-size: 13px; line-height: 1.45; }
-    .links { display: flex; align-items: center; gap: 18px; color: #475569; font-size: 13px; font-weight: 800; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.72); font-weight: 900; box-shadow: inset 0 1px 0 rgba(255,255,255,.78); transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
-    .btn:hover { transform: translateY(-1px); background: #fff; box-shadow: 0 14px 28px rgba(15,23,42,.08); }
-    .btn.primary { color: #fff; border-color: transparent; background: linear-gradient(145deg, #111827, #1f2937 56%, var(--brand)); box-shadow: 0 18px 38px rgba(17,24,39,.18), inset 0 1px 0 rgba(255,255,255,.16); }
-    .eyebrow { display: inline-flex; width: fit-content; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.72); color: #64748b; text-transform: uppercase; letter-spacing: .17em; font-size: 11px; font-weight: 900; }
-    h1, h2, h3, p { margin-top: 0; }
-    h1, h2, h3 { letter-spacing: -.07em; line-height: .95; }
-    .hero { padding: 72px 0 34px; }
+    .navin {
+      height: 64px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 22px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;        /* was 900 */
+      letter-spacing: -.02em;
+      color: var(--ink);
+    }
+    .mark {
+      width: 36px; height: 36px;
+      border-radius: var(--r-md);
+      display: grid; place-items: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      background: linear-gradient(145deg, #111827, #263241 56%, var(--brand));
+      box-shadow: 0 8px 20px rgba(17,24,39,.18), inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 500;        /* was 800 */
+    }
+    .links a { transition: color .15s ease; }
+    .links a:hover { color: var(--ink); }
+
+    /* ── BUTTONS ─────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 20px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.80);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 500;        /* was 900 */
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: var(--shadow-sm);
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .btn:hover { transform: translateY(-1px); background: #fff; box-shadow: var(--shadow-md); }
+    .btn.primary {
+      color: #fff;
+      border-color: transparent;
+      background: linear-gradient(145deg, #111827, #1f2937 56%, var(--brand));
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(17,24,39,.20), inset 0 1px 0 rgba(255,255,255,.14);
+    }
+    .btn.primary:hover { box-shadow: 0 14px 32px rgba(17,24,39,.26); }
+
+    /* ── EYEBROW / LABELS ────────────────────────────────────── */
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.72);
+      color: var(--muted-light);
+      text-transform: uppercase;
+      letter-spacing: .12em;   /* was .17em — less aggressive */
+      font-size: 11px;
+      font-weight: 600;        /* was 900 */
+    }
+
+    /* ── HERO ────────────────────────────────────────────────── */
+    .hero { padding: 64px 0 32px; }
     .hero-shell {
-      min-height: 660px;
+      min-height: 620px;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 330px;
-      gap: 18px;
-      border-radius: 42px;
-      padding: clamp(28px, 5vw, 64px);
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 20px;
+      border-radius: var(--r-xl);
+      padding: clamp(28px, 5vw, 60px);
       overflow: hidden;
       position: relative;
       background:
-        radial-gradient(circle at 86% 10%, rgba(47,109,246,.16), transparent 30%),
-        radial-gradient(circle at 10% 90%, rgba(20,95,82,.12), transparent 32%),
-        linear-gradient(135deg, rgba(255,255,255,.92), rgba(247,249,252,.78));
-      border: 1px solid rgba(17,24,39,.085);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(20px) saturate(1.14);
+        radial-gradient(circle at 86% 10%, rgba(47,109,246,.12), transparent 30%),
+        radial-gradient(circle at 10% 90%, rgba(13,79,68,.09), transparent 32%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(247,249,252,.80));
+      border: 1px solid rgba(17,24,39,.08);
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(20px) saturate(1.12);
     }
-    .hero-copy { display: flex; flex-direction: column; justify-content: space-between; gap: 32px; }
-    h1 { max-width: 920px; font-size: clamp(4rem, 8vw, 7.8rem); }
-    .lead { max-width: 760px; color: var(--muted); font-size: clamp(18px, 1.6vw, 22px); line-height: 1.45; }
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 36px;
+    }
     .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-    .product-rail { display: grid; gap: 12px; }
-    .rail-card, .panel, .cockpit-preview, .story-card {
-      border-radius: 28px;
+
+    /* ── PRODUCT RAIL (sidebar) ──────────────────────────────── */
+    .product-rail { display: grid; gap: 12px; align-content: start; }
+    .rail-card {
+      border-radius: var(--r-lg);
       border: 1px solid rgba(17,24,39,.09);
-      background: rgba(255,255,255,.76);
+      background: rgba(255,255,255,.80);
       box-shadow: var(--shadow-sm);
-      backdrop-filter: blur(18px) saturate(1.12);
+      backdrop-filter: blur(18px) saturate(1.1);
+      padding: 18px;
     }
-    .rail-card { padding: 18px; }
-    .rail-card.dark { display: flex; flex-direction: column; justify-content: space-between; min-height: 230px; color: #fff; background: linear-gradient(145deg, #111827, #1f2937 58%, #123d37); }
-    .rail-card.dark .mini { color: rgba(255,255,255,.72); }
-    .big-num { font-size: 58px; font-weight: 900; letter-spacing: -.08em; line-height: .9; }
-    section { padding: 82px 0; }
-    .section-head { display: grid; grid-template-columns: minmax(0, .9fr) minmax(320px, .55fr); gap: 28px; align-items: end; margin-bottom: 24px; }
-    h2 { font-size: clamp(2.5rem, 5vw, 5.2rem); margin: 10px 0 0; }
-    .section-head p { color: var(--muted); margin: 0; font-size: 17px; }
+    .rail-card strong { font-weight: 600; font-size: 14px; display: block; margin-bottom: 6px; }
+
+    /* Dark pipeline card */
+    .rail-card.dark {
+      background: linear-gradient(145deg, #111827, #1f2937 58%, #123d37);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: var(--shadow-md);
+    }
+    .rail-card.dark .mini { color: rgba(255,255,255,.55); }
+    .rail-card-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .10em;
+      color: rgba(255,255,255,.45);
+      margin: 0 0 14px;
+    }
+    /* 4-step pipeline strip inside dark card */
+    .pipeline-steps {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .pipeline-step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pipeline-num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.20);
+      display: grid; place-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,.80);
+      flex-shrink: 0;
+    }
+    .pipeline-text {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255,255,255,.82);
+    }
+    .pipeline-arrow {
+      color: rgba(255,255,255,.28);
+      font-size: 13px;
+    }
+
+    /* ── SECTIONS ────────────────────────────────────────────── */
+    section { padding: 80px 0; }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(280px, .5fr);
+      gap: 32px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+    .section-head p { color: var(--muted); margin: 0; font-size: 16px; line-height: 1.65; }
+
+    /* ── WORKFLOW CARDS ──────────────────────────────────────── */
     .workflow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-    .story-card { padding: 22px; min-height: 230px; display: flex; flex-direction: column; justify-content: space-between; }
-    .story-card strong { display: block; font-size: 18px; letter-spacing: -.03em; }
-    .step-index { width: 38px; height: 38px; border-radius: 14px; display: grid; place-items: center; color: white; font-weight: 900; background: linear-gradient(145deg, #111827, var(--brand)); }
-    .cockpit-preview { display: grid; grid-template-columns: 240px 1fr 280px; overflow: hidden; min-height: 520px; }
+    .story-card {
+      border-radius: var(--r-lg);
+      border: 1px solid rgba(17,24,39,.09);
+      background: rgba(255,255,255,.80);
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(18px) saturate(1.1);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    /* Number badge + title on the same line */
+    .story-card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .story-card-head strong {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -.01em;
+      line-height: 1.3;
+    }
+    .step-index {
+      width: 32px; height: 32px;
+      border-radius: var(--r-sm);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      background: linear-gradient(145deg, #111827, var(--brand));
+      box-shadow: var(--shadow-sm);
+      flex-shrink: 0;
+    }
+
+    /* ── COCKPIT PREVIEW ─────────────────────────────────────── */
+    .cockpit-preview {
+      display: grid;
+      grid-template-columns: minmax(180px, 220px) 1fr minmax(200px, 260px);
+      overflow: hidden;
+      min-height: 480px;
+      border-radius: var(--r-xl);
+      border: 1px solid rgba(17,24,39,.09);
+      background: rgba(255,255,255,.80);
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(18px) saturate(1.1);
+    }
     .preview-pane { padding: 22px; border-right: 1px solid var(--line); }
-    .preview-pane:last-child { border-right: 0; background: rgba(248,250,252,.70); }
-    .phase-row, .artifact-row, .prompt-row { padding: 12px; border-radius: 16px; background: rgba(255,255,255,.72); border: 1px solid var(--line); margin-top: 10px; }
+    .preview-pane:last-child { border-right: 0; background: rgba(248,250,252,.72); }
+    .preview-pane h3 { font-size: 16px; margin: 10px 0 14px; }
+
+    .phase-row, .artifact-row, .prompt-row {
+      padding: 11px 12px;
+      border-radius: var(--r-sm);
+      background: rgba(255,255,255,.76);
+      border: 1px solid var(--line);
+      margin-top: 8px;
+      font-size: 13px;
+    }
     .phase-row { display: grid; grid-template-columns: 12px 1fr; gap: 10px; align-items: center; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px rgba(20,95,82,.10); }
-    .artifact-row { display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: center; }
-    .file-icon { width: 32px; height: 40px; border-radius: 8px; background: linear-gradient(145deg, #eef2f7, #fff); border: 1px solid var(--line); }
-    .quote-band { padding: 42px; border-radius: 34px; color: #fff; background: linear-gradient(145deg, #111827, #1f2937 58%, #123d37); box-shadow: var(--shadow); }
-    .quote-band h2 { color: #fff; max-width: 850px; }
-    .quote-band p { color: rgba(255,255,255,.76); max-width: 760px; font-size: 18px; }
-    footer { padding: 44px 0; color: var(--muted); border-top: 1px solid var(--line); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px rgba(13,79,68,.12); }
+    .artifact-row { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: center; }
+    .artifact-row strong { font-size: 13px; font-weight: 600; display: block; }
+    .file-icon {
+      width: 30px; height: 38px;
+      border-radius: 6px;
+      background: linear-gradient(145deg, #eef2f7, #fff);
+      border: 1px solid var(--line);
+    }
+    .prompt-row strong { font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; }
+
+    /* ── QUOTE BAND ──────────────────────────────────────────── */
+    .quote-band {
+      padding: 48px 52px;
+      border-radius: var(--r-xl);
+      color: #fff;
+      background: linear-gradient(145deg, #111827, #1f2937 58%, #123d37);
+      box-shadow: var(--shadow-lg);
+    }
+    .quote-band h2 { color: #fff; max-width: 800px; font-size: clamp(1.8rem, 3.5vw, 3rem); }
+    .quote-band p { color: rgba(255,255,255,.72); max-width: 720px; font-size: 17px; line-height: 1.65; }
+    .quote-band .hero-actions { margin-top: 28px; }
+
+    /* ── FOOTER ──────────────────────────────────────────────── */
+    footer { padding: 40px 0; color: var(--muted); border-top: 1px solid var(--line); }
+    footer strong { font-weight: 600; color: var(--ink); }
+
+    /* ── RESPONSIVE ──────────────────────────────────────────── */
     @media (max-width: 980px) {
       .links { display: none; }
-      .hero-shell, .section-head, .workflow, .cockpit-preview { grid-template-columns: 1fr; }
-      h1 { font-size: clamp(3.2rem, 15vw, 5rem); }
-      .hero-shell { min-height: auto; border-radius: 30px; }
+      .hero-shell,
+      .section-head,
+      .workflow,
+      .cockpit-preview { grid-template-columns: 1fr; }
+      h1 { font-size: clamp(2.4rem, 12vw, 3.8rem); }
+      h2 { font-size: clamp(1.8rem, 9vw, 2.8rem); }
+      .hero-shell { min-height: auto; border-radius: var(--r-lg); }
       .preview-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+      .cockpit-preview { min-height: auto; }
+      .quote-band { padding: 32px 28px; }
+    }
+    @media (max-width: 600px) {
+      .hero { padding: 32px 0 20px; }
+      section { padding: 52px 0; }
+      .story-card { min-height: auto; }
     }
   </style>
 </head>
 <body>
   <header class="nav">
     <div class="wrap navin">
-      <a href="/" class="brand"><span class="mark">T</span><span>Thrivarc AI<br><span class="mini">Research cockpit for empirical finance</span></span></a>
-      <nav class="links">
+      <a href="/" class="brand">
+        <span class="mark">T</span>
+        <span>Thrivarc AI<br><span class="mini">Research cockpit for empirical finance</span></span>
+      </a>
+      <nav class="links" aria-label="Primary navigation">
         <a href="#workflow">Workflow</a>
         <a href="#cockpit">Cockpit</a>
         <a href="#why">Why it matters</a>
@@ -145,7 +422,7 @@
   </header>
 
   <main>
-    <section class="hero">
+    <section class="hero" aria-label="Hero">
       <div class="wrap">
         <div class="hero-shell">
           <div class="hero-copy">
@@ -159,77 +436,164 @@
               <a class="btn" href="#cockpit">See the interface</a>
             </div>
           </div>
-          <aside class="product-rail">
-            <div class="rail-card dark"><div><span class="eyebrow" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.68);border-color:rgba(255,255,255,.16)">Control</span><div class="big-num">4</div></div><p class="mini">Question → Blueprint → Data Preview → Cockpit</p></div>
-            <div class="rail-card"><strong>Nothing computes unseen.</strong><p class="mini">Blueprint and data preview approval happen before the engine starts.</p></div>
-            <div class="rail-card"><strong>Writer is last.</strong><p class="mini">The paper is built from verified outputs, logs, figures, and tables.</p></div>
+
+          <aside class="product-rail" aria-label="Product highlights">
+            <!-- Pipeline strip — replaces the useless giant "4" number card -->
+            <div class="rail-card dark">
+              <p class="rail-card-label">How it works</p>
+              <div class="pipeline-steps">
+                <div class="pipeline-step">
+                  <span class="pipeline-num">1</span>
+                  <span class="pipeline-text">Question</span>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                  <span class="pipeline-num">2</span>
+                  <span class="pipeline-text">Blueprint</span>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                  <span class="pipeline-num">3</span>
+                  <span class="pipeline-text">Data preview</span>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                  <span class="pipeline-num">4</span>
+                  <span class="pipeline-text">Cockpit</span>
+                </div>
+              </div>
+              <p class="mini">Compute cannot start before evidence is approved.</p>
+            </div>
+            <div class="rail-card">
+              <strong>Nothing computes unseen.</strong>
+              <p class="mini">Blueprint and data preview approval happen before the engine starts.</p>
+            </div>
+            <div class="rail-card">
+              <strong>Writer is last.</strong>
+              <p class="mini">The paper is built from verified outputs, logs, figures, and tables.</p>
+            </div>
           </aside>
         </div>
       </div>
     </section>
 
-    <section id="workflow">
+    <section id="workflow" aria-labelledby="workflow-heading">
       <div class="wrap">
         <div class="section-head">
-          <div><span class="eyebrow">Workflow</span><h2>Designed around researcher judgment.</h2></div>
+          <div>
+            <span class="eyebrow">Workflow</span>
+            <h2 id="workflow-heading">Designed around researcher judgment.</h2>
+          </div>
           <p>The product does not pretend one prompt is research. It pauses, shows evidence, accepts follow-up instructions, executes in Modal, and records the trail.</p>
         </div>
         <div class="workflow">
-          <article class="story-card"><span class="step-index">1</span><div><strong>Enter the question</strong><p class="mini">Topic-only is enough. Optional notes help when you know the mechanism, sample, or benchmark.</p></div></article>
-          <article class="story-card"><span class="step-index">2</span><div><strong>Approve the Blueprint</strong><p class="mini">Research stance, method family, evidence route, and reviewer burden are visible before compute.</p></div></article>
-          <article class="story-card"><span class="step-index">3</span><div><strong>Inspect live outputs</strong><p class="mini">Figures, tables, logs, generated code, prompt snapshots, and sandbox jobs arrive in the cockpit.</p></div></article>
-          <article class="story-card"><span class="step-index">4</span><div><strong>Export to Overleaf</strong><p class="mini">Download a ZIP with final.tex, bibliography, figures, tables, code, manifests, and README.</p></div></article>
+          <article class="story-card">
+            <div class="story-card-head">
+              <span class="step-index" aria-hidden="true">1</span>
+              <strong>Enter the question</strong>
+            </div>
+            <p class="mini">Topic-only is enough. Optional notes help when you know the mechanism, sample, or benchmark.</p>
+          </article>
+          <article class="story-card">
+            <div class="story-card-head">
+              <span class="step-index" aria-hidden="true">2</span>
+              <strong>Approve the Blueprint</strong>
+            </div>
+            <p class="mini">Research stance, method family, evidence route, and reviewer burden are visible before compute.</p>
+          </article>
+          <article class="story-card">
+            <div class="story-card-head">
+              <span class="step-index" aria-hidden="true">3</span>
+              <strong>Inspect live outputs</strong>
+            </div>
+            <p class="mini">Figures, tables, logs, generated code, prompt snapshots, and sandbox jobs arrive in the cockpit.</p>
+          </article>
+          <article class="story-card">
+            <div class="story-card-head">
+              <span class="step-index" aria-hidden="true">4</span>
+              <strong>Export to Overleaf</strong>
+            </div>
+            <p class="mini">Download a ZIP with final.tex, bibliography, figures, tables, code, manifests, and README.</p>
+          </article>
         </div>
       </div>
     </section>
 
-    <section id="cockpit">
+    <section id="cockpit" aria-labelledby="cockpit-heading">
       <div class="wrap">
         <div class="section-head">
-          <div><span class="eyebrow">Cockpit</span><h2>Not a chat. A research operating room.</h2></div>
+          <div>
+            <span class="eyebrow">Cockpit</span>
+            <h2 id="cockpit-heading">Not a chat. A research operating room.</h2>
+          </div>
           <p>Approvals, outputs, cells, prompts, logs, and export readiness are separated into surfaces that match how researchers actually work.</p>
         </div>
         <div class="cockpit-preview">
           <div class="preview-pane">
             <span class="eyebrow">Left rail</span>
             <h3>Phase control</h3>
-            <div class="phase-row"><span class="dot"></span><span>Blueprint approval</span></div>
-            <div class="phase-row"><span class="dot"></span><span>Data preview</span></div>
-            <div class="phase-row"><span class="dot"></span><span>Compute gate</span></div>
-            <div class="phase-row"><span class="dot"></span><span>Writer unlock</span></div>
+            <div class="phase-row"><span class="dot" aria-hidden="true"></span><span>Blueprint approval</span></div>
+            <div class="phase-row"><span class="dot" aria-hidden="true"></span><span>Data preview</span></div>
+            <div class="phase-row"><span class="dot" aria-hidden="true"></span><span>Compute gate</span></div>
+            <div class="phase-row"><span class="dot" aria-hidden="true"></span><span>Writer unlock</span></div>
           </div>
           <div class="preview-pane">
             <span class="eyebrow">Center</span>
             <h3>Live workspace</h3>
-            <div class="artifact-row"><span class="file-icon"></span><span><strong>analysis.ipynb</strong><br><span class="mini">Modal execution artifact</span></span></div>
-            <div class="artifact-row"><span class="file-icon"></span><span><strong>results_table.csv</strong><br><span class="mini">Verified statistical output</span></span></div>
-            <div class="artifact-row"><span class="file-icon"></span><span><strong>figure_01.png</strong><br><span class="mini">Generated from compute phase</span></span></div>
+            <div class="artifact-row">
+              <span class="file-icon" aria-hidden="true"></span>
+              <span><strong>analysis.ipynb</strong><span class="mini">Modal execution artifact</span></span>
+            </div>
+            <div class="artifact-row">
+              <span class="file-icon" aria-hidden="true"></span>
+              <span><strong>results_table.csv</strong><span class="mini">Verified statistical output</span></span>
+            </div>
+            <div class="artifact-row">
+              <span class="file-icon" aria-hidden="true"></span>
+              <span><strong>figure_01.png</strong><span class="mini">Generated from compute phase</span></span>
+            </div>
           </div>
           <div class="preview-pane">
             <span class="eyebrow">Inspector</span>
             <h3>Prompt and model control</h3>
-            <div class="prompt-row"><strong>Writer amplifier</strong><p class="mini">Task-specific instructions layered after locked safety contracts.</p></div>
-            <div class="prompt-row"><strong>Compute cells</strong><p class="mini">Edit and rerun notebook-style cells through Modal.</p></div>
-            <div class="prompt-row"><strong>Export readiness</strong><p class="mini">Quality report before Overleaf ZIP.</p></div>
+            <div class="prompt-row">
+              <strong>Writer amplifier</strong>
+              <p class="mini">Task-specific instructions layered after locked safety contracts.</p>
+            </div>
+            <div class="prompt-row">
+              <strong>Compute cells</strong>
+              <p class="mini">Edit and rerun notebook-style cells through Modal.</p>
+            </div>
+            <div class="prompt-row">
+              <strong>Export readiness</strong>
+              <p class="mini">Quality report before Overleaf ZIP.</p>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="why">
+    <section id="why" aria-labelledby="why-heading">
       <div class="wrap">
         <div class="quote-band">
-          <span class="eyebrow" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.68);border-color:rgba(255,255,255,.16)">Why it matters</span>
-          <h2>Research tools should protect the researcher from their own shortcuts.</h2>
+          <span class="eyebrow" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.62);border-color:rgba(255,255,255,.14)">Why it matters</span>
+          <h2 id="why-heading">Research tools should protect the researcher from their own shortcuts.</h2>
           <p>Thrivarc exists to make the disciplined path easier than the sloppy path: lock intent, inspect evidence, execute transparently, review harshly, and write only from verified outputs.</p>
-          <div class="hero-actions"><a class="btn primary" href="app.html#new">Start a study</a><a class="btn" href="#workflow" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#fff">Review workflow</a></div>
+          <div class="hero-actions">
+            <a class="btn primary" href="app.html#new">Start a study</a>
+            <a class="btn" href="#workflow" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:#fff">Review workflow</a>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <div class="wrap"><strong>Thrivarc AI</strong><br><span class="mini">Start with a question. End with a defensible research package.</span></div>
+    <div class="wrap">
+      <strong>Thrivarc AI</strong>
+      <br>
+      <span class="mini">Start with a question. End with a defensible research package.</span>
+    </div>
   </footer>
 </body>
 </html>
