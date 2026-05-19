@@ -933,6 +933,121 @@ function renderComparison(runs){
   panel.innerHTML = `<div class="card" style="margin-top:10px"><h3>Compare research projects</h3>${subset.map(r=>`<p><strong>${esc((r.hypothesis||r.topic||'').slice(0,70))}</strong><br>Finding: ${r.finding_valid===true?'significant':r.finding_valid===false?'null':'pending'} · Cost: ${money(r.cost_usd)}</p>`).join('')}</div>`;
 }
 
+const STARTER_GUIDE_EXAMPLES = {
+  topic: {
+    label: 'I only have a topic',
+    question: 'Does a rising VIX predict next-week negative SPY returns?',
+    context: 'I want to know whether a market fear signal has practical predictive value for short-horizon equity risk.',
+    data: '',
+    design: 'Use public market data if possible. The outcome should be next-week SPY returns and the signal should come from VIX behavior before the return week.',
+    validation: 'I care about whether the result survives basic out-of-sample and robustness checks, not just an in-sample correlation.',
+    instruments: 'VIX, SPY',
+    window: '2010-present',
+    mode: 'builtin',
+  },
+  abstract: {
+    label: 'I have a rough abstract',
+    question: 'Do changes in implied volatility predict sector-level downside risk during macro stress periods?',
+    context: 'This study asks whether option-implied uncertainty contains information about subsequent sector ETF losses during periods when macro risk is elevated. The motivation is that investors may reprice sectors unevenly as uncertainty rises.',
+    data: 'Public ETF and volatility-index data should be enough for a first version, but Thrivarc should tell me if a better macro control or benchmark is needed.',
+    design: 'Compare sector ETF returns after volatility shocks, account for market returns, and distinguish normal periods from stress periods.',
+    validation: 'Use robustness checks that would satisfy a skeptical empirical finance reader: alternative horizons, benchmark controls, and stability across regimes.',
+    instruments: 'XLK, XLE, XLF, XLP, SPY, VIX',
+    window: '2008-present',
+    mode: 'builtin',
+  },
+  hypothesis: {
+    label: 'I have a hypothesis',
+    question: 'I want to test whether Treasury yield curve inversions predict lower future bank ETF returns.',
+    context: 'The economic idea is that inverted yield curves compress bank profitability expectations and may be priced into bank-sector returns with a lag.',
+    data: 'Use public market and macro data: bank ETFs, Treasury rates, and a broad equity benchmark.',
+    design: 'The main predictor is yield-curve inversion or term spread. The outcome is future bank ETF returns over a monthly horizon with market controls.',
+    validation: 'Treat this as confirmatory if the hypothesis is specific enough. Include pre/post regime checks and avoid look-ahead timing.',
+    hypothesis: 'Yield curve inversions predict lower subsequent bank ETF returns after controlling for broad market returns.',
+    instruments: 'KBE, KRE, SPY, 10Y Treasury, 2Y Treasury',
+    window: '2006-present',
+    mode: 'builtin',
+  },
+  upload: {
+    label: 'I have my own dataset',
+    question: 'Does customer concentration predict next-quarter revenue growth surprises in my firm panel?',
+    context: 'I have a panel dataset with firm identifiers, dates, customer concentration, realized revenue growth, and surprise measures. I want Thrivarc to inspect the schema before deciding the model.',
+    data: 'I will upload the dataset. Thrivarc should map firm IDs, dates, predictors, outcomes, and missingness before compute.',
+    design: 'Likely panel regression with firm and time controls, but the final method should follow the uploaded schema and the Blueprint.',
+    validation: 'Flag missingness, timing problems, and whether the predictor is known before the outcome quarter.',
+    instruments: 'Uploaded firm panel',
+    window: 'Use the uploaded file coverage',
+    mode: 'upload',
+  },
+};
+
+function renderStarterGuide(){
+  const cards = Object.entries(STARTER_GUIDE_EXAMPLES).map(([key, example]) => `
+    <button class="choice-card" type="button" data-starter-example="${esc(key)}" style="text-align:left">
+      <h3 style="margin:0 0 6px 0">${esc(example.label)}</h3>
+      <p class="muted" style="margin:0">${esc(example.question)}</p>
+    </button>
+  `).join('');
+  return `
+    <div class="card note-card" style="margin:14px 0;background:var(--brand-light)">
+      <div class="row" style="align-items:flex-start;justify-content:space-between;gap:12px">
+        <div>
+          <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Research Starter Guide</p>
+          <h3 style="margin:0 0 8px 0">If you only have a topic, start there</h3>
+          <p class="muted" style="margin:0">You can paste a topic, a rough abstract, a specific hypothesis, or a note about your dataset. Thrivarc will infer the stance, method family, likely data route, missing clarifications, and a first Blueprint before any compute starts.</p>
+        </div>
+      </div>
+      <div class="choice-grid" style="margin-top:12px">${cards}</div>
+      <div class="grid g2" style="margin-top:12px">
+        <div class="card" style="padding:12px;background:var(--surface)">
+          <strong>What Thrivarc will do with this</strong>
+          <div class="signal-list" style="margin-top:8px">
+            <div class="signal-item"><div class="signal-icon">1</div><div><strong>Infer the research stance</strong><div class="mini">Exploratory, confirmatory, or confirmatory with pre-registration if the claim is specific enough.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">2</div><div><strong>Infer method and evidence route</strong><div class="mini">The Blueprint proposes the method family and whether public data, upload, or staged evidence is needed.</div></div></div>
+            <div class="signal-item"><div class="signal-icon">3</div><div><strong>Ask only necessary clarifications</strong><div class="mini">If the benchmark, window, identifiers, or data reality is ambiguous, Thrivarc blocks politely and asks for the next useful answer.</div></div></div>
+          </div>
+        </div>
+        <div class="card" style="padding:12px;background:var(--surface)">
+          <strong>What happens next</strong>
+          <ol class="mini" style="margin:8px 0 0 18px;line-height:1.7">
+            <li>Enter topic or abstract.</li>
+            <li>Build Blueprint.</li>
+            <li>Review or answer clarifications.</li>
+            <li>Approve Blueprint.</li>
+            <li>Preview fetched or uploaded data.</li>
+            <li>Approve data.</li>
+            <li>Enter the cockpit for prompts, cells, outputs, logs, and Overleaf export.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card" style="padding:12px;margin-top:12px;background:#fcfaf4">
+        <strong>Important checkpoint rule</strong>
+        <p class="mini" style="margin:8px 0 0 0">Blueprint approval does not start compute. Data preview approval is the final checkpoint before launch. If public data is enough, Thrivarc fetches and previews it; if uploaded or staged data is needed, you will see file and schema guidance first.</p>
+      </div>
+    </div>
+  `;
+}
+
+function applyStarterGuideExample(key){
+  const example = STARTER_GUIDE_EXAMPLES[key];
+  if(!example) return;
+  const setValue = (selector, value) => {
+    const node = qs(selector);
+    if(node) node.value = value || '';
+  };
+  setValue('#rq-question', example.question);
+  setValue('#rq-context', example.context);
+  setValue('#rq-data-notes', example.data);
+  setValue('#rq-design-notes', example.design);
+  setValue('#rq-validation-notes', example.validation);
+  setValue('#rq-hypothesis', example.hypothesis || '');
+  setValue('#rq-instruments', example.instruments);
+  setValue('#rq-window', example.window);
+  setDataAccessMode(example.mode || 'builtin');
+  updateDraftReadout();
+  toast(`Loaded example: ${example.label}. Edit anything before building the Blueprint.`);
+}
+
 async function renderNew(){
   const app=qs('#app');
   app.innerHTML = `
@@ -987,6 +1102,7 @@ async function renderNew(){
         <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Question</p>
         <h3 style="margin:0 0 8px 0">What do you want to find out?</h3>
         <p class="muted">You do not need a hypothesis, dataset, or method yet. Start with the research question in plain English. Thrivarc will infer whether this should stay exploratory, become confirmatory, or split into staged validation.</p>
+        ${renderStarterGuide()}
         <label>Question<textarea id="rq-question" placeholder="Example: I want to test whether shifts in earnings-call sentiment predict overnight sector ETF returns once analyst surprise and implied volatility are controlled for."></textarea></label>
         <div id="rq-question-error" class="mini" style="color:var(--warn);margin-top:8px;display:none"></div>
 
@@ -1080,13 +1196,16 @@ async function renderNew(){
   document.querySelectorAll('[data-access-mode]').forEach(btn=>btn.addEventListener('click', ()=>{
     setDataAccessMode(btn.getAttribute('data-access-mode') || 'builtin');
   }));
+  document.querySelectorAll('[data-starter-example]').forEach(btn=>btn.addEventListener('click', ()=>{
+    applyStarterGuideExample(btn.getAttribute('data-starter-example') || '');
+  }));
   setDataAccessMode(latestDataAccessMode || 'builtin');
   qs('#rq-stage-file')?.addEventListener('change', (event)=>{
     latestStagedEvidenceFile = event.target?.files?.[0] || null;
     refreshIntakeFilePanel();
     updateDraftReadout();
   });
-  ['#rq-question','#rq-context','#rq-hypothesis','#rq-data-notes','#rq-design-notes','#rq-validation-notes','#rq-window'].forEach(selector => {
+  ['#rq-question','#rq-context','#rq-hypothesis','#rq-data-notes','#rq-design-notes','#rq-validation-notes','#rq-instruments','#rq-window'].forEach(selector => {
     qs(selector)?.addEventListener('input', updateDraftReadout);
   });
   qs('#build-blueprint')?.addEventListener('click', submitResearchIntake);
@@ -1213,7 +1332,8 @@ function currentDraftReadout(){
   const windowNotes = qs('#rq-window')?.value || '';
   const hypothesis = qs('#rq-hypothesis')?.value || '';
   const designNotes = qs('#rq-design-notes')?.value || '';
-  const rawText = [question, context, dataNotes, validationNotes, windowNotes, hypothesis, designNotes].join(' ').trim();
+  const instruments = qs('#rq-instruments')?.value || '';
+  const rawText = [question, context, dataNotes, validationNotes, instruments, windowNotes, hypothesis, designNotes].join(' ').trim();
   const lowered = rawText.toLowerCase();
   const stance = hypothesis.trim() || /test whether|causal|effect of|outperform|predict|abnormal returns|significant/i.test(rawText)
     ? 'Leaning confirmatory'
@@ -1460,6 +1580,10 @@ function renderDataIntakeStage(){
       <h3>Choose the data Thrivarc should use</h3>
       <p class="muted">Study focus: <strong>${esc(researchSpec.topic || 'Research topic')}</strong></p>
       <p class="muted">Nothing starts yet. The RunSpec is now shaped, but the research still cannot launch until you preview and approve the exact dataset that will power it.</p>
+      <div class="card" style="margin:12px 0;background:#fcfaf4">
+        <strong>Next action: preview the evidence</strong>
+        <p class="mini" style="margin:8px 0 0 0">${latestDataAccessMode === 'builtin' ? 'Public data route selected: Thrivarc will fetch the proposed identifiers and date range, then show rows, columns, coverage, warnings, and a fingerprint before you can launch.' : latestDataAccessMode === 'upload' ? 'Upload route selected: stage the file, then Thrivarc will inspect schema, dates, identifiers, missingness, and sample rows before compute is allowed.' : 'Staged external route selected: provide the exported source file, then Thrivarc will inspect the schema and show exactly what it can use before compute is allowed.'}</p>
+      </div>
       <div class="card" style="margin:12px 0;background:var(--brand-soft)">
         <strong>Data preview</strong>
         <p class="mini" style="margin:8px 0 0 0">State: ${esc(researchSpec.research_state || 'exploratory')} · Method: ${esc(computeSpec.type || 'none')} · Output: ${esc(researchSpec.output_format || 'research_report')}</p>
@@ -1492,6 +1616,10 @@ function renderDataIntakeStage(){
       ${clarificationItems.length ? `<div class="card" style="margin-top:10px;background:#fcfaf4"><h4>Questions Thrivarc still wants answered well</h4>${clarificationItems.map(item=>`<p><strong>${esc(item.question)}</strong><br><span class="mini">${esc(item.reason)}</span></p>`).join('')}</div>` : ''}
       <div class="row" style="margin-top:10px"><button class="btn primary" id="preview-data" ${blockingClarifications.length ? 'disabled' : ''}>Preview the data first →</button></div>
       <div id="data-preview-card" style="margin-top:10px"></div>
+      <div class="card" style="margin-top:10px;background:var(--brand-soft)">
+        <strong>After preview</strong>
+        <p class="mini" style="margin:8px 0 0 0">Check identifiers, date range, row count, columns, warnings, and the DataPassport preview. Approve only if this is the evidence you want analyzed. This approval is the last checkpoint before launch.</p>
+      </div>
       <div class="row" style="margin-top:10px"><button class="btn primary" id="btn-confirm-run" disabled>Confirm data and start research →</button></div>
     </div>
   `;
@@ -1552,7 +1680,7 @@ function renderDataIntakeStage(){
       });
       created.push(resp.run_id);
     }
-    toast(`Started ${created.length} research project(s)`);
+    toast(`Started ${created.length} research project(s). Opening the cockpit so you can inspect phase outputs, approve gates, edit prompts, add compute cells, and download the Overleaf ZIP when ready.`);
     location.hash = `#research/${created[0]}`;
   });
   qs('#preview-data')?.addEventListener('click', async()=>{
@@ -1598,6 +1726,10 @@ function renderDataIntakeStage(){
       <div class="card">
         <h4>Data preview ready</h4>
         <p class="muted">This is the dataset Thrivarc will use if you continue. Review it before you approve the study.</p>
+        <div class="card" style="padding:12px;margin:10px 0;background:var(--brand-soft)">
+          <strong>Approve only after this check</strong>
+          <p class="mini" style="margin:8px 0 0 0">Confirm that the identifiers, date coverage, row count, columns, warnings, and sample rows match the evidence you want analyzed. If anything is wrong, change the evidence route or upload a better file before launching.</p>
+        </div>
         <div class="kpi">
           <div class="card"><div class="mini">Rows</div><strong>${esc(String(p.rows || 0))}</strong></div>
           <div class="card"><div class="mini">Columns</div><strong>${esc(String((p.columns || []).length))}</strong></div>
@@ -2055,6 +2187,10 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
     ${plainSummary}
     ${showJson ? `<div class="card" style="margin-top:8px" data-technical="json-preview"><h4>RunSpec preview (editable)</h4><textarea id="runspec-json" style="min-height:220px">${esc(JSON.stringify(runspecs, null, 2))}</textarea></div>` : ''}
     <div class="card" style="margin-top:8px">
+      <div class="card" style="padding:12px;margin-bottom:10px;background:var(--brand-soft)">
+        <strong>Next action: review this Blueprint</strong>
+        <p class="mini" style="margin:8px 0 0 0">If this plan matches your intent, approve it to open the evidence stage. If it does not, refine the question or answer the architect notes above. Approval here still does not start compute.</p>
+      </div>
       <div class="row">
         <button class="btn" id="back-build">← Refine the question</button>
         <button class="btn primary" id="approve-blueprint" data-truth-source="blueprints.status" data-state-rule="disabled when blueprints.status != draft" ${firstClarification && firstClarification.blocking ? 'disabled' : ''}>Approve blueprint and move to evidence →</button>
