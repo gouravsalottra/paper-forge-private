@@ -2990,8 +2990,94 @@ def create_session(payload: dict[str, Any], request: Request):
 def list_sessions():
     try:
         with _with_conn() as conn:
-            rows = _fetchall(conn, "SELECT * FROM sessions ORDER BY updated_at DESC")
-            return [_session_summary(conn, row, include_artifact_count=False) for row in rows]
+            rows = _fetchall(conn, "SELECT * FROM sessions ORDER BY updated_at DESC LIMIT 50")
+            if not rows:
+                return []
+            session_ids = [_row_get(row, "id") for row in rows]
+            placeholders = ",".join("?" * len(session_ids))
+            phase_rows = _fetchall(
+                conn,
+                f"SELECT session_id, agent_name, status FROM phases WHERE session_id IN ({placeholders}) ORDER BY started_at DESC",
+                tuple(session_ids),
+            )
+            latest_phase_by_session: dict[str, Any] = {}
+            for phase in phase_rows:
+                sid = _row_get(phase, "session_id")
+                if sid not in latest_phase_by_session:
+                    latest_phase_by_session[sid] = phase
+            score_rows = _fetchall(
+                conn,
+                f"SELECT session_id, average_score FROM reviewer_scores WHERE session_id IN ({placeholders}) ORDER BY cycle DESC, created_at DESC",
+                tuple(session_ids),
+            )
+            score_by_session: dict[str, Any] = {}
+            for score in score_rows:
+                sid = _row_get(score, "session_id")
+                if sid not in score_by_session:
+                    score_by_session[sid] = score
+            blueprint_rows = _fetchall(
+                conn,
+                f"SELECT session_id, status FROM blueprints WHERE session_id IN ({placeholders})",
+                tuple(session_ids),
+            )
+            blueprint_status_by_session = {_row_get(row, "session_id"): _row_get(row, "status") for row in blueprint_rows}
+            summaries: list[dict[str, Any]] = []
+            for row in rows:
+                session_id = _row_get(row, "id")
+                status = _row_get(row, "status")
+                phase = latest_phase_by_session.get(session_id)
+                if status == "running":
+                    backend_activity = _session_runtime_truth(conn, session_id)
+                elif status == "stale_needs_attention":
+                    backend_activity = {
+                        "state": "stale",
+                        "label": "Stale / needs cleanup",
+                        "last_event_at": _row_get(row, "updated_at"),
+                        "stale": True,
+                        "details": {"reason": "Session was marked running, but no live backend activity was found."},
+                    }
+                else:
+                    terminal = status in {"done", "paper_unlocked", "paper_locked"}
+                    backend_activity = {
+                        "state": "complete" if terminal else "idle",
+                        "label": "Complete" if terminal else "SSE idle",
+                        "last_event_at": _row_get(row, "updated_at"),
+                        "stale": False,
+                        "details": {},
+                    }
+                next_action = {
+                    "draft": "Resume draft",
+                    "initializing": "Resume draft",
+                    "needs_clarification": "Answer clarification",
+                    "evidence_blocked": "Review data preview",
+                    "scope_confirmed": "Approve Blueprint",
+                    "blueprint_locked": "Review data preview",
+                    "running": f"Running: {_row_get(phase, 'agent_name', 'Pipeline')}",
+                    "stale_needs_attention": "Clean stale running state",
+                    "failed_resumable": "Review failure",
+                    "failed_terminal": "Download or fork package",
+                    "paper_unlocked": "Download paper",
+                }.get(status, "Review results")
+                summaries.append({
+                    "id": session_id,
+                    "topic": _row_get(row, "topic"),
+                    "research_type": _row_get(row, "research_type") or "unknown",
+                    "status": status,
+                    "last_phase": _row_get(phase, "agent_name"),
+                    "next_action": next_action,
+                    "resume_route": f"/sessions/{session_id}/results",
+                    "created_at": _row_get(row, "created_at"),
+                    "last_activity_at": _row_get(row, "updated_at"),
+                    "backend_activity": backend_activity,
+                    "is_stale": bool(backend_activity.get("stale")),
+                    "credits_spent": _row_get(row, "credits_spent", 0),
+                    "artifact_count": None,
+                    "coauthor_status": "active" if _row_get(row, "coauthor_id") else "none",
+                    "parent_run_id": _row_get(row, "parent_run_id"),
+                    "reviewer_average_score": _row_get(score_by_session.get(session_id), "average_score"),
+                    "blueprint_status": blueprint_status_by_session.get(session_id),
+                })
+            return summaries
     except DatabaseUnavailableError as exc:
         return _error(503, exc.error_code, str(exc), exc.system_state, exc.available_actions)
 
