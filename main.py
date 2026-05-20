@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 
-from api import artifacts, data, guide, runs, sessions
+from api import artifacts, data, guide, runs, sessions, model_registry
 from db.connection import DatabaseUnavailableError, get_db_connection
 
 logger = logging.getLogger(__name__)
@@ -80,6 +80,7 @@ app.include_router(data.router)
 app.include_router(runs.router)
 app.include_router(artifacts.router)
 app.include_router(sessions.router)
+app.include_router(model_registry.router)
 
 
 def _db_connected() -> bool:

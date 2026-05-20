@@ -115,3 +115,28 @@ def test_workspace_uses_canonical_api_session_routes_and_refreshes_per_session()
     assert "/api/sessions/${currentResearchId}/agent-chat" in html
     assert "prompt_amplifier" not in html
     assert "if(!workspaceTopic)" not in html
+
+
+def test_research_route_is_study_first_cockpit_and_not_agent_shell() -> None:
+    html = _html()
+    assert "if(h.startsWith('research/')) return renderResearch(h.split('/')[1]);" in html
+    assert "Specialist conversations" in html
+    assert "Open JupyterLab" in html
+    assert "/api/sessions/${id}/specialists/" in html
+    assert "/api/sessions/${id}/notebook" in html
+
+
+def test_dashboard_supports_bulk_cleanup_actions() -> None:
+    html = _html()
+    assert "Delete completed" in html
+    assert "Delete selected" in html
+    assert "/api/sessions/bulk/delete-completed" in html
+    assert "/api/sessions/bulk/delete" in html
+
+
+def test_frontend_uses_real_model_registry_and_prompt_layers() -> None:
+    html = _html()
+    assert "/api/models" in html
+    assert "Locked Safety Contract" in html
+    assert "Editable Working Prompt" in html
+    assert "Session-specific notes" in html

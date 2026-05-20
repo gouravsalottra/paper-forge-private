@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -16,13 +17,14 @@ from typing import Any
 
 from openai import AzureOpenAI
 
+from api.model_registry import active_model_name, default_model
 from api.stats_executor import _csv_text, load_yfinance_context
 from storage.blob import write_artifact
 
 logger = logging.getLogger(__name__)
 
 AZURE_ENDPOINT = "https://thrivarc.openai.azure.com/"
-AZURE_DEPLOYMENT = "gpt-4o"
+AZURE_DEPLOYMENT = default_model()
 AZURE_API_VERSION = "2024-12-01-preview"
 EXECUTION_TIMEOUT_SECONDS = 120
 MAX_CODE_FIX_ATTEMPTS = int(os.getenv("THRIVARC_CODE_FIX_ATTEMPTS", "5"))
@@ -139,8 +141,9 @@ def _call_llm(prompt: str, *, max_tokens: int = 4000, expect_json: bool = False)
     client = _client()
     for attempt in range(1, LLM_CALL_RETRIES + 1):
         try:
+            model_name = active_model_name(AZURE_DEPLOYMENT)
             response = client.chat.completions.create(
-                model=AZURE_DEPLOYMENT,
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
                 temperature=0.1,
@@ -336,7 +339,7 @@ def _run_local_analysis_attempt(
         code_path = handle.name
     try:
         result = subprocess.run(
-            ["python3", code_path],
+            [sys.executable, code_path],
             capture_output=True,
             text=True,
             timeout=EXECUTION_TIMEOUT_SECONDS,

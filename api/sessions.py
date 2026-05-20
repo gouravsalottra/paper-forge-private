@@ -4,6 +4,7 @@ import base64
 import csv
 import hashlib
 import asyncio
+import inspect
 import io
 import json
 import logging
@@ -25,11 +26,13 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from api import guide
+from api import notebook_runtime
 from api import prompts as prompt_catalog
 from api.code_audit_agent import _audit_fallback, run_code_audit
 from api.llm_caller import call_agent_llm
 from api.method_agent import _method_fallback, get_method_spec
 from api.method_registry import method_definition
+from api.model_registry import active_model_name, allowed_chat_models, default_model, fallback_model, model_catalog, model_override
 from api.literature_agent import run_literature_agent
 from api.prompts import HAWK_PROMPT, REPAIR_AGENT_PROMPT
 from api.stats_agent import _stats_fallback, get_stats_spec
@@ -392,6 +395,18 @@ def _ensure_schema(conn: Any) -> None:
           editor TEXT,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS prompt_templates (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          layer_type TEXT NOT NULL,
+          content_text TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          editor TEXT,
+          phase_name TEXT,
+          scope TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         CREATE TABLE IF NOT EXISTS composed_prompt_snapshots (
           id TEXT PRIMARY KEY,
           session_id TEXT NOT NULL,
@@ -419,6 +434,27 @@ def _ensure_schema(conn: Any) -> None:
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS specialist_threads (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          selected_model TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS specialist_messages (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          role TEXT NOT NULL,
+          mode TEXT,
+          message_text TEXT NOT NULL,
+          model_name TEXT,
+          action_payload TEXT,
+          artifact_paths TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         CREATE TABLE IF NOT EXISTS cell_execution_records (
           id TEXT PRIMARY KEY,
           session_id TEXT NOT NULL,
@@ -438,6 +474,24 @@ def _ensure_schema(conn: Any) -> None:
           phase_name TEXT NOT NULL,
           model_name TEXT NOT NULL,
           updated_by TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS notebook_workspaces (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL UNIQUE,
+          backend TEXT,
+          modal_account_alias TEXT,
+          sandbox_id TEXT,
+          status TEXT NOT NULL DEFAULT 'not_started',
+          access_url TEXT,
+          can_embed INTEGER DEFAULT 0,
+          notebook_artifact_path TEXT,
+          analysis_script_path TEXT,
+          artifact_paths TEXT,
+          sync_status TEXT DEFAULT 'not_synced',
+          last_synced_at TEXT,
+          last_error TEXT,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
@@ -545,6 +599,20 @@ def _ensure_cockpit_schema(conn: Any) -> None:
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS prompt_templates (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          layer_type TEXT NOT NULL,
+          content_text TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          editor TEXT,
+          phase_name TEXT,
+          scope TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS composed_prompt_snapshots (
           id UUID PRIMARY KEY,
           session_id TEXT NOT NULL,
@@ -576,6 +644,31 @@ def _ensure_cockpit_schema(conn: Any) -> None:
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS specialist_threads (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          selected_model TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS specialist_messages (
+          id UUID PRIMARY KEY,
+          thread_id UUID NOT NULL,
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          role TEXT NOT NULL,
+          mode TEXT,
+          message_text TEXT NOT NULL,
+          model_name TEXT,
+          action_payload JSONB,
+          artifact_paths JSONB,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS cell_execution_records (
           id UUID PRIMARY KEY,
           session_id TEXT NOT NULL,
@@ -597,6 +690,26 @@ def _ensure_cockpit_schema(conn: Any) -> None:
           phase_name TEXT NOT NULL,
           model_name TEXT NOT NULL,
           updated_by TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS notebook_workspaces (
+          id UUID PRIMARY KEY,
+          session_id TEXT NOT NULL UNIQUE,
+          backend TEXT,
+          modal_account_alias TEXT,
+          sandbox_id TEXT,
+          status TEXT NOT NULL DEFAULT 'not_started',
+          access_url TEXT,
+          can_embed BOOLEAN DEFAULT FALSE,
+          notebook_artifact_path TEXT,
+          analysis_script_path TEXT,
+          artifact_paths JSONB,
+          sync_status TEXT DEFAULT 'not_synced',
+          last_synced_at TIMESTAMPTZ,
+          last_error TEXT,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         )
@@ -780,6 +893,20 @@ def _prompt_amplifier_dict(row: Any) -> dict[str, Any]:
     }
 
 
+def _prompt_template_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "agent_name": _row_get(row, "agent_name"),
+        "layer_type": _row_get(row, "layer_type"),
+        "content_text": _row_get(row, "content_text", ""),
+        "version": int(_row_get(row, "version", 1) or 1),
+        "editor": _row_get(row, "editor"),
+        "phase_name": _row_get(row, "phase_name"),
+        "scope": _row_get(row, "scope"),
+        "created_at": _row_get(row, "created_at"),
+    }
+
+
 def _compute_cell_dict(row: Any) -> dict[str, Any]:
     return {
         "id": _row_get(row, "id"),
@@ -802,8 +929,57 @@ def _model_setting_dict(row: Any) -> dict[str, Any]:
     return {
         "id": _row_get(row, "id"),
         "phase_name": _row_get(row, "phase_name"),
-        "model_name": _row_get(row, "model_name", "gpt-4o"),
+        "model_name": _row_get(row, "model_name", default_model()),
         "updated_by": _row_get(row, "updated_by"),
+        "created_at": _row_get(row, "created_at"),
+        "updated_at": _row_get(row, "updated_at"),
+    }
+
+
+def _specialist_message_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "thread_id": _row_get(row, "thread_id"),
+        "session_id": _row_get(row, "session_id"),
+        "agent_name": _row_get(row, "agent_name"),
+        "role": _row_get(row, "role"),
+        "mode": _row_get(row, "mode"),
+        "message_text": _row_get(row, "message_text", ""),
+        "model_name": _row_get(row, "model_name"),
+        "actions": _json_loads(_row_get(row, "action_payload"), []),
+        "artifact_paths": _json_loads(_row_get(row, "artifact_paths"), []),
+        "created_at": _row_get(row, "created_at"),
+    }
+
+
+def _specialist_thread_dict(row: Any, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "session_id": _row_get(row, "session_id"),
+        "agent_name": _row_get(row, "agent_name"),
+        "selected_model": _row_get(row, "selected_model") or default_model(),
+        "created_at": _row_get(row, "created_at"),
+        "updated_at": _row_get(row, "updated_at"),
+        "messages": messages or [],
+    }
+
+
+def _notebook_workspace_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": _row_get(row, "id"),
+        "session_id": _row_get(row, "session_id"),
+        "backend": _row_get(row, "backend"),
+        "modal_account_alias": _row_get(row, "modal_account_alias"),
+        "sandbox_id": _row_get(row, "sandbox_id"),
+        "status": _row_get(row, "status", "not_started"),
+        "access_url": _row_get(row, "access_url"),
+        "can_embed": _boolish(_row_get(row, "can_embed")),
+        "notebook_artifact_path": _row_get(row, "notebook_artifact_path"),
+        "analysis_script_path": _row_get(row, "analysis_script_path"),
+        "artifact_paths": _json_loads(_row_get(row, "artifact_paths"), []),
+        "sync_status": _row_get(row, "sync_status", "not_synced"),
+        "last_synced_at": _row_get(row, "last_synced_at"),
+        "last_error": _row_get(row, "last_error"),
         "created_at": _row_get(row, "created_at"),
         "updated_at": _row_get(row, "updated_at"),
     }
@@ -897,11 +1073,7 @@ def _ensure_approval_gates(conn: Any, session_id: str) -> None:
 
 
 def _allowed_models() -> list[str]:
-    """Return the allowlisted models for cockpit phase selection."""
-    configured = [item.strip() for item in os.getenv("THRIVARC_ALLOWED_MODELS", "").split(",") if item.strip()]
-    if configured:
-        return configured
-    return ["gpt-4o"]
+    return allowed_chat_models()
 
 
 def _canonical_prompt_agent(agent_name: Any) -> str:
@@ -942,10 +1114,67 @@ def _latest_prompt_amplifier(conn: Any, session_id: str, agent_name: str):
     )
 
 
+def _latest_prompt_template(conn: Any, session_id: str, agent_name: str, layer_type: str):
+    return _fetchone(
+        conn,
+        "SELECT * FROM prompt_templates WHERE session_id=? AND agent_name=? AND layer_type=? ORDER BY version DESC, created_at DESC LIMIT 1",
+        (session_id, agent_name, layer_type),
+    )
+
+
+def _template_content(conn: Any, session_id: str, agent_name: str, layer_type: str, fallback: str = "") -> str:
+    row = _latest_prompt_template(conn, session_id, agent_name, layer_type)
+    return str(_row_get(row, "content_text", fallback) or fallback)
+
+
+def _latest_template_version(conn: Any, session_id: str, agent_name: str, layer_type: str) -> int:
+    row = _latest_prompt_template(conn, session_id, agent_name, layer_type)
+    return int(_row_get(row, "version", 0) or 0)
+
+
+def _upsert_prompt_template(
+    conn: Any,
+    session_id: str,
+    agent_name: str,
+    layer_type: str,
+    content_text: str,
+    editor: str,
+    *,
+    phase_name: str | None = None,
+    scope: str | None = None,
+):
+    version = _latest_template_version(conn, session_id, agent_name, layer_type) + 1
+    template_id = str(uuid.uuid4())
+    _execute(
+        conn,
+        "INSERT INTO prompt_templates (id, session_id, agent_name, layer_type, content_text, version, editor, phase_name, scope, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (template_id, session_id, agent_name, layer_type, content_text, version, editor, phase_name, scope, _now()),
+    )
+    return _fetchone(conn, "SELECT * FROM prompt_templates WHERE id=?", (template_id,))
+
+
 def _base_prompt_for_agent(agent_name: str) -> tuple[str, str]:
     key = PROMPT_AGENT_KEYS.get(agent_name) or PROMPT_AGENT_KEYS.get(agent_name.replace(" Agent", ""), "")
     prompt = getattr(prompt_catalog, key, "") if key else ""
     return key or "UNKNOWN_PROMPT", str(prompt or "")
+
+
+def _prompt_template_summary(conn: Any, session_id: str, agent_name: str) -> dict[str, Any]:
+    base_key, base_prompt = _base_prompt_for_agent(agent_name)
+    working_prompt = _template_content(conn, session_id, agent_name, "working_prompt", base_prompt)
+    session_notes = _template_content(conn, session_id, agent_name, "session_notes", "")
+    return {
+        "agent_name": agent_name,
+        "base_prompt_key": base_key,
+        "working_prompt": working_prompt,
+        "working_prompt_version": _latest_template_version(conn, session_id, agent_name, "working_prompt"),
+        "session_notes": session_notes,
+        "notes_version": _latest_template_version(conn, session_id, agent_name, "session_notes"),
+    }
+
+
+def _prompt_template_summaries(conn: Any, session_id: str) -> list[dict[str, Any]]:
+    return [_prompt_template_summary(conn, session_id, agent_name) for agent_name in sorted(PROMPT_AGENT_KEYS.keys())]
 
 
 def _compose_prompt(conn: Any, session_id: str, agent_name: str, phase_name: str | None = None, *, persist: bool = True) -> dict[str, Any]:
@@ -955,11 +1184,16 @@ def _compose_prompt(conn: Any, session_id: str, agent_name: str, phase_name: str
     artifact_names = [_artifact_relative_path(session_id, str(item.get("path") or "")) for item in list_artifacts(session_id)[-20:]]
     amplifier_text = _row_get(amplifier, "amplifier_text", "")
     amplifier_version = int(_row_get(amplifier, "version", 0) or 0)
+    working_prompt = _template_content(conn, session_id, agent_name, "working_prompt", base_prompt)
+    working_prompt_version = _latest_template_version(conn, session_id, agent_name, "working_prompt")
+    session_notes = _template_content(conn, session_id, agent_name, "session_notes", "")
+    session_notes_version = _latest_template_version(conn, session_id, agent_name, "session_notes")
     composed = "\n\n".join(
         [
             LOCKED_PROMPT_SAFETY_CONTRACT,
-            f"BASE AGENT PROMPT ({base_key})\n{base_prompt}",
-            f"RESEARCHER TASK-SPECIFIC AMPLIFIER (version {amplifier_version})\n{amplifier_text or '[none supplied]'}",
+            f"EDITABLE WORKING PROMPT ({base_key}, version {working_prompt_version or 0})\n{working_prompt}",
+            f"SESSION-SPECIFIC NOTES (version {session_notes_version or 0})\n{session_notes or '[none supplied]'}",
+            f"LEGACY TASK AMPLIFIER (version {amplifier_version})\n{amplifier_text or '[none supplied]'}",
             f"LOCKED BLUEPRINT CONTEXT\n{json.dumps(blueprint, indent=2, sort_keys=True, default=str)}",
             f"RECENT VERIFIED ARTIFACTS\n{json.dumps(artifact_names, indent=2)}",
         ]
@@ -982,6 +1216,10 @@ def _compose_prompt(conn: Any, session_id: str, agent_name: str, phase_name: str
         "prompt_sha256": prompt_hash,
         "locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT,
         "base_prompt": base_prompt,
+        "working_prompt": working_prompt,
+        "working_prompt_version": working_prompt_version,
+        "session_notes": session_notes,
+        "notes_version": session_notes_version,
         "amplifier_text": amplifier_text,
         "composed_prompt": composed,
     }
@@ -990,6 +1228,67 @@ def _compose_prompt(conn: Any, session_id: str, agent_name: str, phase_name: str
 def _snapshot_all_agent_prompts(conn: Any, session_id: str) -> None:
     for agent_name in AGENT_SEQUENCE:
         _compose_prompt(conn, session_id, agent_name, agent_name, persist=True)
+
+
+def _phase_model_aliases(name: str) -> list[str]:
+    raw = str(name or "").strip()
+    canonical = _canonical_prompt_agent(raw)
+    aliases = {
+        "Research Architect": ["Blueprint", "Research Architect"],
+        "Literature Agent": ["Literature", "Literature Agent"],
+        "Data Agent": ["Data", "Data Agent"],
+        "Method / Compute Agent": ["Method Plan", "Compute", "Method / Compute Agent", "Method Agent", "Compute Agent"],
+        "Statistics Agent": ["Stats / Audit", "Statistics Agent"],
+        "Code Audit Agent": ["Stats / Audit", "Code Audit Agent"],
+        "Reviewer Agent": ["Review", "Reviewer Agent", "HAWK"],
+        "Writer Agent": ["Writer", "Writer Agent"],
+        "Repair Agent": ["Review", "Repair Agent"],
+    }
+    values = aliases.get(canonical, []) + [raw, canonical]
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.lower()
+        if value and key not in seen:
+            seen.add(key)
+            out.append(value)
+    return out
+
+
+def _selected_model_for_phase(conn: Any, session_id: str, phase_name: str, *, fallback: str | None = None) -> str:
+    aliases = _phase_model_aliases(phase_name)
+    for alias in aliases:
+        row = _fetchone(conn, "SELECT * FROM phase_model_settings WHERE session_id=? AND phase_name=? ORDER BY updated_at DESC, created_at DESC LIMIT 1", (session_id, alias))
+        model_name = str(_row_get(row, "model_name") or "").strip()
+        if model_name and model_name in _allowed_models():
+            return model_name
+    return active_model_name(fallback or default_model())
+
+
+def _specialist_thread(conn: Any, session_id: str, agent_name: str):
+    canonical = _canonical_prompt_agent(agent_name)
+    thread = _fetchone(conn, "SELECT * FROM specialist_threads WHERE session_id=? AND agent_name=? ORDER BY updated_at DESC, created_at DESC LIMIT 1", (session_id, canonical))
+    if thread:
+        return thread
+    thread_id = str(uuid.uuid4())
+    selected_model = _selected_model_for_phase(conn, session_id, canonical)
+    _execute(
+        conn,
+        "INSERT INTO specialist_threads (id, session_id, agent_name, selected_model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (thread_id, session_id, canonical, selected_model, _now(), _now()),
+    )
+    return _fetchone(conn, "SELECT * FROM specialist_threads WHERE id=?", (thread_id,))
+
+
+def _specialist_messages(conn: Any, thread_id: str) -> list[dict[str, Any]]:
+    return [
+        _specialist_message_dict(row)
+        for row in _fetchall(conn, "SELECT * FROM specialist_messages WHERE thread_id=? ORDER BY created_at ASC", (thread_id,))
+    ]
+
+
+def _notebook_workspace_row(conn: Any, session_id: str):
+    return _fetchone(conn, "SELECT * FROM notebook_workspaces WHERE session_id=? LIMIT 1", (session_id,))
 
 
 def _ensure_default_compute_cells(conn: Any, session_id: str, created_by: str = "system") -> None:
@@ -1309,6 +1608,7 @@ def _clean_float(value: Any, digits: int = 6) -> float | None:
 
 
 def _execution_profile(blueprint: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
+    compute_model = default_model()
     if session_id:
         with _with_conn() as conn:
             amplifiers = {
@@ -1326,6 +1626,7 @@ def _execution_profile(blueprint: dict[str, Any], session_id: str | None = None)
                     (session_id,),
                 )
             }
+            compute_model = _selected_model_for_phase(conn, session_id, "Compute")
         if amplifiers:
             blueprint = {**blueprint, "researcher_prompt_amplifiers": amplifiers}
     topic = _topic_text(blueprint)
@@ -1333,7 +1634,8 @@ def _execution_profile(blueprint: dict[str, Any], session_id: str | None = None)
     evidence = _evidence_source(blueprint)
     flavor = _topic_flavor(topic, method, evidence)
     title = topic.split("\n", 1)[0].strip() or "Thrivarc Research Run"
-    executed = execute_research_plan(blueprint, session_id=session_id)
+    with model_override(compute_model):
+        executed = execute_research_plan(blueprint, session_id=session_id)
     primary_numbers = executed["primary_numbers"]
     spec = method_definition(method)
     compute_path = spec.get("compute_path", f"06_compute/method_outputs/{method}_results.json")
@@ -1696,6 +1998,10 @@ def _build_agent_contracts(session_id: str, blueprint: dict[str, Any], profile: 
     agent_blueprint = _agent_blueprint(blueprint, profile)
     client = _agent_client()
     analysis_code = _analysis_code_contract(agent_blueprint, profile)
+    with _with_conn() as conn:
+        method_model = _selected_model_for_phase(conn, session_id, "Method / Compute Agent")
+        stats_model = _selected_model_for_phase(conn, session_id, "Statistics Agent")
+        audit_model = _selected_model_for_phase(conn, session_id, "Code Audit Agent")
 
     if client is None:
         method_spec = _method_fallback(agent_blueprint.get("method_family", "descriptive"))
@@ -1703,19 +2009,22 @@ def _build_agent_contracts(session_id: str, blueprint: dict[str, Any], profile: 
         code_audit = _audit_fallback()
     else:
         try:
-            method_spec = _run_async_agent(get_method_spec(blueprint=agent_blueprint, client=client))
+            with model_override(method_model):
+                method_spec = _run_async_agent(get_method_spec(blueprint=agent_blueprint, client=client))
         except Exception as exc:
             logger.warning("METHOD_AGENT timed out or failed; using fallback: %s", exc)
             method_spec = _method_fallback(agent_blueprint.get("method_family", "descriptive"))
             method_spec["fallback_reason"] = str(exc)
         try:
-            stats_spec = _run_async_agent(get_stats_spec(blueprint=agent_blueprint, method_spec=method_spec, client=client))
+            with model_override(stats_model):
+                stats_spec = _run_async_agent(get_stats_spec(blueprint=agent_blueprint, method_spec=method_spec, client=client))
         except Exception as exc:
             logger.warning("STATS_AGENT timed out or failed; using fallback: %s", exc)
             stats_spec = _stats_fallback(agent_blueprint.get("method_family", "descriptive"))
             stats_spec["fallback_reason"] = str(exc)
         try:
-            code_audit = _run_async_agent(run_code_audit(blueprint=agent_blueprint, analysis_code=analysis_code, client=client))
+            with model_override(audit_model):
+                code_audit = _run_async_agent(run_code_audit(blueprint=agent_blueprint, analysis_code=analysis_code, client=client))
         except Exception as exc:
             logger.warning("CODE_AUDIT timed out or failed; using fallback: %s", exc)
             code_audit = _audit_fallback()
@@ -1827,6 +2136,8 @@ def _run_hawk_review(session_id: str, blueprint: dict[str, Any], profile: dict[s
     client = _agent_client()
     if client is None:
         return _reviewer_scorecard(session_id, profile)
+    with _with_conn() as conn:
+        review_model = _selected_model_for_phase(conn, session_id, "Reviewer Agent")
     review_package = {
         "findings": profile["findings"],
         "statistics": profile["statistics"],
@@ -1843,15 +2154,17 @@ def _run_hawk_review(session_id: str, blueprint: dict[str, Any], profile: dict[s
         results_json=json.dumps(review_package, indent=2, sort_keys=True),
     )
     try:
-        hawk_result = _run_async_agent(
-            call_agent_llm(
-                agent_name="HAWK",
-                prompt=prompt,
-                client=client,
-                fallback_fn=lambda: _reviewer_scorecard(session_id, profile),
-                max_tokens=4000,
+        with model_override(review_model):
+            hawk_result = _run_async_agent(
+                call_agent_llm(
+                    agent_name="HAWK",
+                    prompt=prompt,
+                    client=client,
+                    fallback_fn=lambda: _reviewer_scorecard(session_id, profile),
+                    max_tokens=4000,
+                    model_name=review_model,
+                )
             )
-        )
     except Exception as exc:
         logger.warning("HAWK timed out or failed; using deterministic reviewer fallback: %s", exc)
         hawk_result = _reviewer_scorecard(session_id, profile)
@@ -2116,17 +2429,19 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
     with _with_conn() as conn:
         _phase_status(conn, session_id, "Literature Agent", "running", "Retrieving and ranking external literature for the locked topic.")
         _event(conn, session_id, "phase_update", {"summary": "Retrieving and ranking external literature for the locked topic."}, "Literature Agent", "running")
+        literature_model = _selected_model_for_phase(conn, session_id, "Literature Agent")
         _commit(conn)
 
     try:
-        literature = _run_async_agent(
-            run_literature_agent(
-                topic=profile["topic"],
-                method_style=profile["method_family"],
-                blueprint=agent_blueprint,
-                client=_agent_client(),
+        with model_override(literature_model):
+            literature = _run_async_agent(
+                run_literature_agent(
+                    topic=profile["topic"],
+                    method_style=profile["method_family"],
+                    blueprint=agent_blueprint,
+                    client=_agent_client(),
+                )
             )
-        )
     except Exception as exc:
         logger.warning("LITERATURE_AGENT timed out or failed; using minimal fallback: %s", exc)
         literature = {
@@ -2312,7 +2627,9 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
             "all_csv_artifacts": profile.get("csv_outputs", {}),
             "figure_artifacts": profile.get("figure_artifacts", {}),
         }
-        writer_result = _run_async_agent(write_paper_latex(writer_context, client=_agent_client()), timeout_seconds=240)
+        writer_model = _selected_model_for_phase(conn, session_id, "Writer Agent")
+        with model_override(writer_model):
+            writer_result = _run_async_agent(write_paper_latex(writer_context, client=_agent_client()), timeout_seconds=240)
         paper = writer_result.get("latex", "")
         paper = clean_latex_escaping(paper)
         pdf = _render_latex_source_pdf(
@@ -2417,11 +2734,25 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
             (session_id,),
         )
     ]
+    prompt_templates = _prompt_template_summaries(conn, session_id)
     compute_cells = _compute_cells(conn, session_id)
     model_settings = [
         _model_setting_dict(row)
         for row in _fetchall(conn, "SELECT * FROM phase_model_settings WHERE session_id=? ORDER BY phase_name ASC", (session_id,))
     ]
+    specialist_threads = [
+        _specialist_thread_dict(row)
+        for row in _fetchall(conn, "SELECT * FROM specialist_threads WHERE session_id=? ORDER BY updated_at DESC, created_at DESC", (session_id,))
+    ]
+    notebook_workspace = _notebook_workspace_dict(_notebook_workspace_row(conn, session_id)) if _notebook_workspace_row(conn, session_id) else {
+        "session_id": session_id,
+        "status": "not_started",
+        "sync_status": "not_synced",
+        "artifact_paths": [],
+        "backend": "modal" if os.getenv("ENVIRONMENT") == "production" else _sandbox_backend_defaults()["backend"],
+        "modal_account_alias": _sandbox_backend_defaults()["modal_account_alias"],
+        "can_embed": False,
+    }
     settings = _fetchone(conn, "SELECT * FROM cockpit_settings WHERE session_id=?", (session_id,))
     artifacts_list = list_artifacts(session_id)
     artifact_preview = [
@@ -2448,13 +2779,18 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
         "sandbox_jobs": sandbox_jobs,
         "prompt_studio": {
             "agents": sorted(PROMPT_AGENT_KEYS.keys()),
-            "locked_contract_summary": "Safety, JSON contracts, verified-number-only writing, Modal sandboxing, and secret protection are locked.",
+            "locked_contract_summary": "Safety, verified-number-only writing, Modal sandboxing, and secret protection are locked.",
             "amplifiers": prompt_amplifiers,
+            "templates": prompt_templates,
         },
         "compute_cells": compute_cells,
+        "specialists": specialist_threads,
+        "notebook_workspace": notebook_workspace,
         "model_settings": {
             "allowed_models": _allowed_models(),
-            "default_model": "gpt-4o",
+            "default_model": default_model(),
+            "fallback_model": fallback_model(),
+            "catalog": model_catalog(),
             "phase_settings": model_settings,
         },
         "quality_report": _quality_report_for_session(session_id),
@@ -2473,7 +2809,7 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
             "mode": "single_admin",
             "admin_secret_configured": bool(os.getenv("THRIVARC_ADMIN_PASSWORD")),
             "secret_storage": "azure_containerapp_secrets_or_env",
-            "llm_provider": "azure_openai_gpt-4o",
+            "llm_provider": "azure_openai",
         },
         "sse_events": COCKPIT_SSE_EVENTS,
         "export": {
@@ -2538,33 +2874,41 @@ def get_session(session_id: str):
         return summary
 
 
+def _delete_session_state(conn: Any, session_id: str) -> None:
+    for table in [
+        "specialist_messages",
+        "specialist_threads",
+        "notebook_workspaces",
+        "cell_execution_records",
+        "compute_cells",
+        "phase_model_settings",
+        "prompt_templates",
+        "prompt_amplifiers",
+        "composed_prompt_snapshots",
+        "paper_quality_reports",
+        "sandbox_jobs",
+        "followup_instructions",
+        "approval_gates",
+        "coauthor_invitations",
+        "session_events",
+        "repair_log",
+        "reviewer_scores",
+        "deviation_register",
+        "pap" + "_locks",
+        "phases",
+        "blueprints",
+        "cockpit_settings",
+    ]:
+        _execute(conn, f"DELETE FROM {table} WHERE session_id=?", (session_id,))
+    _execute(conn, "DELETE FROM sessions WHERE id=?", (session_id,))
+
+
 @router.delete("/{session_id}")
 def delete_session(session_id: str):
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
-        for table in [
-            "cell_execution_records",
-            "compute_cells",
-            "phase_model_settings",
-            "prompt_amplifiers",
-            "composed_prompt_snapshots",
-            "paper_quality_reports",
-            "sandbox_jobs",
-            "followup_instructions",
-            "approval_gates",
-            "coauthor_invitations",
-            "session_events",
-            "repair_log",
-            "reviewer_scores",
-            "deviation_register",
-            "pap" + "_locks",
-            "phases",
-            "blueprints",
-            "cockpit_settings",
-        ]:
-            _execute(conn, f"DELETE FROM {table} WHERE session_id=?", (session_id,))
-        _execute(conn, "DELETE FROM sessions WHERE id=?", (session_id,))
+        _delete_session_state(conn, session_id)
         _commit(conn)
     try:
         deleted_artifacts = delete_session_artifacts(session_id)
@@ -2572,6 +2916,46 @@ def delete_session(session_id: str):
         logger.warning("Session %s deleted from state but artifact cleanup failed: %s", session_id, exc)
         deleted_artifacts = 0
     return {"deleted": True, "session_id": session_id, "artifacts_deleted": deleted_artifacts}
+
+
+@router.post("/bulk/delete")
+def bulk_delete_sessions(payload: dict[str, Any]):
+    session_ids = [str(item).strip() for item in (payload.get("session_ids") or []) if str(item).strip()]
+    deleted: list[str] = []
+    with _with_conn() as conn:
+        for session_id in session_ids:
+            if not _session_row(conn, session_id):
+                continue
+            _delete_session_state(conn, session_id)
+            deleted.append(session_id)
+        _commit(conn)
+    for session_id in deleted:
+        try:
+            delete_session_artifacts(session_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Bulk delete artifact cleanup failed for %s: %s", session_id, exc)
+    return {"deleted_session_ids": deleted}
+
+
+@router.post("/bulk/delete-completed")
+def bulk_delete_completed_sessions():
+    deleted: list[str] = []
+    with _with_conn() as conn:
+        rows = _fetchall(conn, "SELECT id, status FROM sessions")
+        for row in rows:
+            session_id = _row_get(row, "id")
+            status = str(_row_get(row, "status") or "").lower()
+            if status not in {"done", "paper_unlocked", "paper_locked", "failed_terminal", "stopped"}:
+                continue
+            _delete_session_state(conn, session_id)
+            deleted.append(session_id)
+        _commit(conn)
+    for session_id in deleted:
+        try:
+            delete_session_artifacts(session_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Bulk completed cleanup failed for %s: %s", session_id, exc)
+    return {"deleted_session_ids": deleted}
 
 
 @router.get("/{session_id}/cockpit")
@@ -2676,7 +3060,15 @@ def get_prompt_amplifiers(session_id: str):
         if not _session_row(conn, session_id):
             return _not_found()
         rows = [_prompt_amplifier_dict(row) for row in _fetchall(conn, "SELECT * FROM prompt_amplifiers WHERE session_id=? ORDER BY agent_name ASC, version DESC", (session_id,))]
-        return {"agents": sorted(PROMPT_AGENT_KEYS.keys()), "locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT, "amplifiers": rows}
+        templates = _prompt_template_summaries(conn, session_id)
+        versions = [_prompt_template_dict(row) for row in _fetchall(conn, "SELECT * FROM prompt_templates WHERE session_id=? ORDER BY agent_name ASC, layer_type ASC, version DESC, created_at DESC", (session_id,))]
+        return {
+            "agents": sorted(PROMPT_AGENT_KEYS.keys()),
+            "locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT,
+            "amplifiers": rows,
+            "templates": templates,
+            "versions": versions,
+        }
 
 
 @router.put("/{session_id}/prompt-amplifiers")
@@ -2685,24 +3077,33 @@ def put_prompt_amplifier(session_id: str, payload: dict[str, Any]):
     if agent_name not in PROMPT_AGENT_KEYS:
         return _error(400, "INVALID_AGENT_NAME", "Prompt amplifier target must be a known agent.", "needs_valid_agent", sorted(PROMPT_AGENT_KEYS.keys()))
     text = str(payload.get("amplifier_text") or payload.get("amplifier") or "").strip()
+    working_prompt = payload.get("working_prompt")
+    session_notes = payload.get("session_notes")
     phase_name = str(payload.get("phase_name") or "").strip() or None
+    scope = str(payload.get("scope") or "session").strip() or None
     editor = str(payload.get("editor") or "admin")
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
-        latest = _latest_prompt_amplifier(conn, session_id, agent_name)
-        version = int(_row_get(latest, "version", 0) or 0) + 1
-        amp_id = str(uuid.uuid4())
-        _execute(
-            conn,
-            "INSERT INTO prompt_amplifiers (id, session_id, agent_name, phase_name, amplifier_text, version, editor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (amp_id, session_id, agent_name, phase_name, text, version, editor, _now()),
-        )
+        if "amplifier_text" in payload or "amplifier" in payload:
+            latest = _latest_prompt_amplifier(conn, session_id, agent_name)
+            version = int(_row_get(latest, "version", 0) or 0) + 1
+            amp_id = str(uuid.uuid4())
+            _execute(
+                conn,
+                "INSERT INTO prompt_amplifiers (id, session_id, agent_name, phase_name, amplifier_text, version, editor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (amp_id, session_id, agent_name, phase_name, text, version, editor, _now()),
+            )
+        if working_prompt is not None:
+            _upsert_prompt_template(conn, session_id, agent_name, "working_prompt", str(working_prompt).strip(), editor, phase_name=phase_name, scope=scope)
+        if session_notes is not None:
+            _upsert_prompt_template(conn, session_id, agent_name, "session_notes", str(session_notes).strip(), editor, phase_name=phase_name, scope=scope)
         composed = _compose_prompt(conn, session_id, agent_name, phase_name, persist=True)
-        _event(conn, session_id, "prompt_updated", {"agent_name": agent_name, "version": version, "prompt_sha256": composed["prompt_sha256"]}, "Prompt Studio", "complete")
-        row = _fetchone(conn, "SELECT * FROM prompt_amplifiers WHERE id=?", (amp_id,))
+        template = _prompt_template_summary(conn, session_id, agent_name)
+        _event(conn, session_id, "prompt_updated", {"agent_name": agent_name, "working_prompt_version": template["working_prompt_version"], "notes_version": template["notes_version"], "prompt_sha256": composed["prompt_sha256"]}, "Prompt Studio", "complete")
         _commit(conn)
-        return {"amplifier": _prompt_amplifier_dict(row), "composed_prompt": composed}
+        amp_row = _latest_prompt_amplifier(conn, session_id, agent_name)
+        return {"amplifier": _prompt_amplifier_dict(amp_row) if amp_row else None, "template": template, "composed_prompt": composed}
 
 
 @router.get("/{session_id}/prompts/composed")
@@ -2716,6 +3117,191 @@ def get_composed_prompt(session_id: str, agent: str, phase_name: str | None = No
         composed = _compose_prompt(conn, session_id, agent, phase_name, persist=True)
         _commit(conn)
         return composed
+
+
+def _specialist_fallback_reply(agent_name: str, topic: str, message: str, mode: str) -> str:
+    return (
+        f"{agent_name} is responding in {mode or 'explain'} mode for the study '{topic}'. "
+        f"Working from the current blueprint and verified artifacts, the next concrete move is: {message[:220]}"
+    )
+
+
+def _clean_specialist_code(reply: str) -> str:
+    text = str(reply or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
+def _specialist_prompt(
+    conn: Any,
+    session_id: str,
+    agent_name: str,
+    mode: str,
+    message: str,
+    history: list[dict[str, Any]],
+) -> tuple[dict[str, Any], str]:
+    composed = _compose_prompt(conn, session_id, agent_name, agent_name, persist=True)
+    blueprint = _blueprint_content(_blueprint_row(conn, session_id))
+    artifact_names = [_artifact_relative_path(session_id, str(item.get("path") or "")) for item in list_artifacts(session_id)[-20:]]
+    history_text = "\n\n".join(
+        f"{item.get('role', 'user').upper()} [{item.get('mode') or 'general'}]\n{item.get('message_text') or ''}"
+        for item in history[-12:]
+    )
+    prompt = "\n\n".join(
+        [
+            LOCKED_PROMPT_SAFETY_CONTRACT,
+            f"SPECIALIST ROLE\n{agent_name}",
+            f"EDITABLE WORKING PROMPT\n{composed.get('working_prompt') or composed.get('base_prompt') or ''}",
+            f"SESSION-SPECIFIC NOTES\n{composed.get('session_notes') or '[none supplied]'}",
+            f"LOCKED BLUEPRINT CONTEXT\n{json.dumps(blueprint, indent=2, sort_keys=True, default=str)}",
+            f"RECENT VERIFIED ARTIFACTS\n{json.dumps(artifact_names, indent=2)}",
+            f"SPECIALIST THREAD HISTORY\n{history_text or '[no prior messages]'}",
+            f"REQUEST MODE\n{mode or 'explain'}",
+            f"RESEARCHER MESSAGE\n{message}",
+            "Respond directly, specifically, and in a way that helps the researcher move the study forward.",
+        ]
+    )
+    return composed, prompt
+
+
+def _persist_specialist_message(
+    conn: Any,
+    thread_id: str,
+    session_id: str,
+    agent_name: str,
+    role: str,
+    message_text: str,
+    *,
+    mode: str | None = None,
+    model_name: str | None = None,
+    actions: list[dict[str, Any]] | None = None,
+    artifact_paths: list[str] | None = None,
+):
+    message_id = str(uuid.uuid4())
+    _execute(
+        conn,
+        "INSERT INTO specialist_messages (id, thread_id, session_id, agent_name, role, mode, message_text, model_name, action_payload, artifact_paths, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            message_id,
+            thread_id,
+            session_id,
+            agent_name,
+            role,
+            mode,
+            message_text,
+            model_name,
+            _json_dumps(actions or []),
+            _json_dumps(artifact_paths or []),
+            _now(),
+        ),
+    )
+    _execute(conn, "UPDATE specialist_threads SET selected_model=?, updated_at=? WHERE id=?", (model_name or default_model(), _now(), thread_id))
+    return _fetchone(conn, "SELECT * FROM specialist_messages WHERE id=?", (message_id,))
+
+
+def _create_draft_compute_cell(conn: Any, session_id: str, title: str, code: str, created_by: str = "specialist") -> dict[str, Any]:
+    max_order = _row_get(_fetchone(conn, "SELECT MAX(cell_order) AS max_order FROM compute_cells WHERE session_id=?", (session_id,)), "max_order", 0) or 0
+    cell_id = str(uuid.uuid4())
+    _execute(
+        conn,
+        "INSERT INTO compute_cells (id, session_id, cell_order, title, code, status, artifact_paths, created_by, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (cell_id, session_id, int(max_order) + 1, title, code, "draft", _json_dumps([]), created_by, 1, _now(), _now()),
+    )
+    row = _fetchone(conn, "SELECT * FROM compute_cells WHERE id=?", (cell_id,))
+    return _compute_cell_dict(row)
+
+
+@router.get("/{session_id}/specialists")
+def list_specialists(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        threads = []
+        for row in _fetchall(conn, "SELECT * FROM specialist_threads WHERE session_id=? ORDER BY updated_at DESC, created_at DESC", (session_id,)):
+            messages = _specialist_messages(conn, _row_get(row, "id"))
+            threads.append(_specialist_thread_dict(row, messages))
+        return {"threads": threads, "agents": sorted(PROMPT_AGENT_KEYS.keys())}
+
+
+@router.get("/{session_id}/specialists/{agent_name:path}")
+def get_specialist_thread(session_id: str, agent_name: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        thread = _specialist_thread(conn, session_id, agent_name)
+        messages = _specialist_messages(conn, _row_get(thread, "id"))
+        _commit(conn)
+        return {"thread": _specialist_thread_dict(thread, messages)}
+
+
+@router.post("/{session_id}/specialists/{agent_name:path}/messages")
+def post_specialist_message(session_id: str, agent_name: str, payload: dict[str, Any]):
+    message = str(payload.get("message") or "").strip()
+    mode = str(payload.get("mode") or "explain").strip().lower()
+    if not message:
+        return _error(400, "MESSAGE_REQUIRED", "Message cannot be empty.", "needs_message", ["POST specialist message with text"])
+    canonical_agent = _canonical_prompt_agent(agent_name)
+    if canonical_agent not in PROMPT_AGENT_KEYS:
+        return _error(400, "INVALID_AGENT", f"Unknown agent '{agent_name}'.", "needs_valid_agent", sorted(PROMPT_AGENT_KEYS.keys()))
+
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        thread = _specialist_thread(conn, session_id, canonical_agent)
+        thread_id = _row_get(thread, "id")
+        history = _specialist_messages(conn, thread_id)
+        selected_model = _selected_model_for_phase(conn, session_id, canonical_agent)
+        topic = _row_get(_session_row(conn, session_id), "topic", "Thrivarc study")
+        _persist_specialist_message(conn, thread_id, session_id, canonical_agent, "user", message, mode=mode, model_name=selected_model)
+        composed, chat_prompt = _specialist_prompt(conn, session_id, canonical_agent, mode, message, history)
+        _commit(conn)
+
+    client = _agent_client()
+    if client is None:
+        reply = _specialist_fallback_reply(canonical_agent, topic, message, mode)
+        used_model = "fallback"
+    else:
+        try:
+            with model_override(selected_model):
+                coro = client.chat.completions.create(
+                    model=active_model_name(selected_model),
+                    messages=[{"role": "user", "content": chat_prompt}],
+                    max_tokens=2200,
+                    temperature=0.3,
+                )
+                response = asyncio.get_event_loop().run_until_complete(coro) if inspect.isawaitable(coro) else coro
+            reply = response.choices[0].message.content or "[No specialist response]"
+            used_model = active_model_name(selected_model)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("specialist thread failed for %s: %s", canonical_agent, exc)
+            reply = f"[{canonical_agent} unavailable: {exc}]"
+            used_model = selected_model
+
+    actions: list[dict[str, Any]] = []
+    with _with_conn() as conn:
+        if mode == "generate_notebook_cell":
+            code = _clean_specialist_code(reply)
+            if code:
+                requested_title = message[:72].strip().rstrip(".") or f"Draft cell from {canonical_agent}"
+                cell = _create_draft_compute_cell(conn, session_id, requested_title, code)
+                actions.append({"type": "draft_compute_cell", "cell_id": cell["id"], "title": cell["title"]})
+        elif mode == "revise_prompt":
+            actions.append({"type": "prompt_revision_suggestion", "agent_name": canonical_agent})
+        assistant_row = _persist_specialist_message(conn, thread_id, session_id, canonical_agent, "assistant", reply, mode=mode, model_name=used_model, actions=actions)
+        messages = _specialist_messages(conn, thread_id)
+        _event(conn, session_id, "phase_log", {"summary": f"{canonical_agent} replied in {mode} mode.", "agent_name": canonical_agent, "mode": mode}, canonical_agent, "complete")
+        _commit(conn)
+        return {
+            "thread": _specialist_thread_dict(_specialist_thread(conn, session_id, canonical_agent), messages),
+            "assistant_message": _specialist_message_dict(assistant_row),
+            "composed_prompt": composed,
+        }
 
 
 
@@ -2802,6 +3388,9 @@ def agent_chat(session_id: str, payload: dict[str, Any]):
             return _not_found()
         blueprint = _blueprint_content(_blueprint_row(conn, session_id))
         amplifier = _latest_prompt_amplifier(conn, session_id, agent_name)
+        working_prompt = _template_content(conn, session_id, agent_name, "working_prompt", _base_prompt_for_agent(agent_name)[1])
+        session_notes = _template_content(conn, session_id, agent_name, "session_notes", "")
+        selected_model = _selected_model_for_phase(conn, session_id, agent_name)
         amplifier_text = _row_get(amplifier, "amplifier_text", "") or ""
 
     _, base_prompt = _base_prompt_for_agent(agent_name)
@@ -2809,7 +3398,8 @@ def agent_chat(session_id: str, payload: dict[str, Any]):
     # Build the conversational prompt
     chat_prompt = "\n\n".join([
         LOCKED_PROMPT_SAFETY_CONTRACT,
-        f"AGENT ROLE: {agent_name}\n{base_prompt}",
+        f"AGENT ROLE: {agent_name}\n{working_prompt or base_prompt}",
+        f"SESSION-SPECIFIC NOTES\n{session_notes or '[none]'}",
         f"RESEARCHER AMPLIFIER\n{amplifier_text or '[none]'}",
         f"STUDY BLUEPRINT\n{json.dumps(blueprint, indent=2, default=str)}",
         f"RESEARCHER MESSAGE\n{message}",
@@ -2843,19 +3433,20 @@ def agent_chat(session_id: str, payload: dict[str, Any]):
     import inspect as _inspect
     import time as _time
     try:
-        coro = client.chat.completions.create(
-            model=_allowed_models()[0],  # use first allowed model (default gpt-4o)
-            messages=[{"role": "user", "content": chat_prompt}],
-            max_tokens=2000,
-            temperature=0.3,
-        )
+        with model_override(selected_model):
+            coro = client.chat.completions.create(
+                model=active_model_name(selected_model),
+                messages=[{"role": "user", "content": chat_prompt}],
+                max_tokens=2000,
+                temperature=0.3,
+            )
         response = asyncio.get_event_loop().run_until_complete(coro) if _inspect.isawaitable(coro) else coro
         reply = response.choices[0].message.content or "[Agent returned an empty response]"
     except Exception as exc:
         logger.warning("agent-chat LLM call failed for %s: %s", agent_name, exc)
         reply = f"[{agent_name} encountered an error: {exc}. Please retry or check your API configuration.]"
 
-    return {"agent": agent_name, "reply": reply, "model": _allowed_models()[0], "session_id": session_id}
+    return {"agent": agent_name, "reply": reply, "model": selected_model, "session_id": session_id}
 
 
 
@@ -2866,7 +3457,14 @@ def get_model_settings(session_id: str):
         if not _session_row(conn, session_id):
             return _not_found()
         rows = [_model_setting_dict(row) for row in _fetchall(conn, "SELECT * FROM phase_model_settings WHERE session_id=? ORDER BY phase_name ASC", (session_id,))]
-        return {"allowed_models": _allowed_models(), "default_model": "gpt-4o", "phase_settings": rows}
+        return {
+            "allowed_models": _allowed_models(),
+            "default_model": default_model(),
+            "fallback_model": fallback_model(),
+            "catalog": model_catalog(),
+            "phase_settings": rows,
+            "settings": rows,
+        }
 
 
 @router.put("/{session_id}/model-settings")
@@ -2998,6 +3596,59 @@ def _run_cells_and_record(session_id: str, cell_id: str | None = None) -> dict[s
         return {"status": status, "execution_id": exec_id, "artifact_paths": artifact_paths, "execution_metadata": metadata, "cells": cells_after}
 
 
+def _bootstrap_notebook_artifacts(session_id: str, cells: list[dict[str, Any]]) -> tuple[str, str]:
+    analysis_py = _concat_cell_code(cells)
+    notebook_json = json.dumps(_notebook_from_cells(cells), indent=2)
+    write_artifact(session_id, "06_compute/notebook/analysis.py", analysis_py)
+    write_artifact(session_id, "06_compute/notebook/analysis.ipynb", notebook_json)
+    return notebook_json, analysis_py
+
+
+def _workspace_seed_files(session_id: str) -> dict[str, bytes]:
+    seed_files: dict[str, bytes] = {}
+    for item in list_artifacts(session_id):
+        relative = _artifact_relative_path(session_id, str(item.get("path") or ""))
+        if relative.startswith("03_data/") and relative.endswith((".csv", ".json")):
+            data = _safe_artifact_bytes(session_id, relative)
+            if data:
+                seed_files[os.path.basename(relative)] = data
+    return seed_files
+
+
+def _ensure_notebook_workspace(conn: Any, session_id: str) -> dict[str, Any]:
+    row = _notebook_workspace_row(conn, session_id)
+    if row:
+        return _notebook_workspace_dict(row)
+    workspace_id = str(uuid.uuid4())
+    _execute(
+        conn,
+        "INSERT INTO notebook_workspaces (id, session_id, backend, modal_account_alias, status, notebook_artifact_path, analysis_script_path, artifact_paths, sync_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            workspace_id,
+            session_id,
+            "modal" if os.getenv("ENVIRONMENT") == "production" else _sandbox_backend_defaults()["backend"],
+            _sandbox_backend_defaults()["modal_account_alias"],
+            "ready",
+            f"sessions/{session_id}/06_compute/notebook/analysis.ipynb",
+            f"sessions/{session_id}/06_compute/notebook/analysis.py",
+            _json_dumps([]),
+            "not_synced",
+            _now(),
+            _now(),
+        ),
+    )
+    return _notebook_workspace_dict(_fetchone(conn, "SELECT * FROM notebook_workspaces WHERE id=?", (workspace_id,)))
+
+
+def _notebook_bootstrap_payload(conn: Any, session_id: str) -> tuple[dict[str, Any], str]:
+    workspace = _ensure_notebook_workspace(conn, session_id)
+    cells = _compute_cells(conn, session_id)
+    notebook_text = _safe_artifact_text(session_id, "06_compute/notebook/analysis.ipynb")
+    if not notebook_text:
+        notebook_text, _ = _bootstrap_notebook_artifacts(session_id, cells)
+    return workspace, notebook_text
+
+
 @router.post("/{session_id}/compute-cells/{cell_id}/run")
 def run_compute_cell(session_id: str, cell_id: str):
     try:
@@ -3012,6 +3663,74 @@ def run_all_compute_cells(session_id: str):
         return _run_cells_and_record(session_id, None)
     except KeyError:
         return _not_found()
+
+
+@router.get("/{session_id}/notebook")
+def get_notebook_workspace(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        workspace, _ = _notebook_bootstrap_payload(conn, session_id)
+        _commit(conn)
+        return {"workspace": workspace}
+
+
+@router.post("/{session_id}/notebook/launch")
+def launch_notebook_workspace(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        workspace, notebook_text = _notebook_bootstrap_payload(conn, session_id)
+        seed_files = _workspace_seed_files(session_id)
+        launched = notebook_runtime.launch_or_resume_workspace(session_id, notebook_text, seed_files=seed_files, existing_workspace=workspace)
+        artifact_paths = list(dict.fromkeys((workspace.get("artifact_paths") or []) + [
+            f"sessions/{session_id}/06_compute/notebook/analysis.ipynb",
+            f"sessions/{session_id}/06_compute/notebook/analysis.py",
+        ]))
+        _execute(
+            conn,
+            "UPDATE notebook_workspaces SET backend=?, modal_account_alias=?, sandbox_id=?, status=?, access_url=?, can_embed=?, artifact_paths=?, sync_status=?, last_error=?, updated_at=? WHERE session_id=?",
+            (
+                launched.get("backend"),
+                launched.get("modal_account_alias"),
+                launched.get("sandbox_id"),
+                launched.get("status") or "running",
+                launched.get("access_url"),
+                bool(launched.get("can_embed")),
+                _json_dumps(artifact_paths),
+                launched.get("sync_status") or workspace.get("sync_status") or "not_synced",
+                None,
+                _now(),
+                session_id,
+            ),
+        )
+        row = _fetchone(conn, "SELECT * FROM notebook_workspaces WHERE session_id=?", (session_id,))
+        _event(conn, session_id, "sandbox_job_update", {"phase_name": "Notebook", "job_status": _row_get(row, "status"), "backend": _row_get(row, "backend"), "modal_account_alias": _row_get(row, "modal_account_alias")}, "Notebook Workspace", _row_get(row, "status"))
+        _commit(conn)
+        return {"workspace": _notebook_workspace_dict(row)}
+
+
+@router.post("/{session_id}/notebook/sync")
+def sync_notebook_workspace(session_id: str):
+    with _with_conn() as conn:
+        if not _session_row(conn, session_id):
+            return _not_found()
+        row = _notebook_workspace_row(conn, session_id)
+        if not row:
+            return _error(409, "NOTEBOOK_NOT_STARTED", "Launch the notebook workspace before syncing artifacts.", "needs_notebook_launch", [f"POST /api/sessions/{session_id}/notebook/launch"])
+        workspace = _notebook_workspace_dict(row)
+    sync_result = notebook_runtime.sync_workspace_artifacts(session_id, workspace)
+    with _with_conn() as conn:
+        artifact_paths = list(dict.fromkeys((workspace.get("artifact_paths") or []) + list(sync_result.get("synced_paths") or [])))
+        _execute(
+            conn,
+            "UPDATE notebook_workspaces SET artifact_paths=?, sync_status=?, last_synced_at=?, updated_at=? WHERE session_id=?",
+            (_json_dumps(artifact_paths), sync_result.get("status") or "synced", _now(), _now(), session_id),
+        )
+        row = _fetchone(conn, "SELECT * FROM notebook_workspaces WHERE session_id=?", (session_id,))
+        _event(conn, session_id, "cell_artifact_ready", {"artifact_paths": artifact_paths, "workspace": "notebook"}, "Notebook Workspace", sync_result.get("status") or "synced")
+        _commit(conn)
+        return {"workspace": _notebook_workspace_dict(row)}
 
 
 @router.get("/{session_id}/quality-report")
@@ -3554,6 +4273,10 @@ def _build_overleaf_zip(session_id: str) -> bytes:
                 _prompt_amplifier_dict(row)
                 for row in _fetchall(conn, "SELECT * FROM prompt_amplifiers WHERE session_id=? ORDER BY agent_name ASC, version ASC", (session_id,))
             ]
+            template_rows = [
+                _prompt_template_dict(row)
+                for row in _fetchall(conn, "SELECT * FROM prompt_templates WHERE session_id=? ORDER BY agent_name ASC, layer_type ASC, version ASC", (session_id,))
+            ]
             snapshot_rows = [
                 {
                     "agent_name": _row_get(row, "agent_name"),
@@ -3566,7 +4289,24 @@ def _build_overleaf_zip(session_id: str) -> bytes:
                 }
                 for row in _fetchall(conn, "SELECT * FROM composed_prompt_snapshots WHERE session_id=? ORDER BY created_at ASC", (session_id,))
             ]
-        prompt_manifest = {"locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT, "amplifiers": prompt_rows, "composed_prompt_snapshots": snapshot_rows}
+            specialist_threads = [
+                _specialist_thread_dict(row)
+                for row in _fetchall(conn, "SELECT * FROM specialist_threads WHERE session_id=? ORDER BY updated_at ASC", (session_id,))
+            ]
+            specialist_messages = [
+                _specialist_message_dict(row)
+                for row in _fetchall(conn, "SELECT * FROM specialist_messages WHERE session_id=? ORDER BY created_at ASC", (session_id,))
+            ]
+            notebook_workspace = _notebook_workspace_dict(_notebook_workspace_row(conn, session_id)) if _notebook_workspace_row(conn, session_id) else None
+        prompt_manifest = {
+            "locked_safety_contract": LOCKED_PROMPT_SAFETY_CONTRACT,
+            "amplifiers": prompt_rows,
+            "templates": template_rows,
+            "composed_prompt_snapshots": snapshot_rows,
+            "specialist_threads": specialist_threads,
+            "specialist_messages": specialist_messages,
+            "notebook_workspace": notebook_workspace,
+        }
         prompt_bytes = json.dumps(prompt_manifest, indent=2, sort_keys=True, default=str).encode("utf-8")
         zf.writestr("12_prompts/prompt_manifest.json", prompt_bytes)
         manifest["contents"].append({"path": "12_prompts/prompt_manifest.json", "bytes": len(prompt_bytes), "sha256": hashlib.sha256(prompt_bytes).hexdigest()})
@@ -3894,8 +4634,12 @@ async def rerender_paper(session_id: str) -> JSONResponse:
         logger.exception("Could not build rerender context for %s", session_id)
         return _error(500, "RERENDER_CONTEXT_FAILED", f"Could not build Writer context: {exc}", "rerender_failed", [f"GET /api/sessions/{session_id}/artifacts"])
 
+    with _with_conn() as conn:
+        writer_model = _selected_model_for_phase(conn, session_id, "Writer Agent")
+
     try:
-        writer_result = await write_paper_latex(writer_context, client=_agent_client())
+        with model_override(writer_model):
+            writer_result = await write_paper_latex(writer_context, client=_agent_client())
         paper = clean_latex_escaping(writer_result.get("latex", ""))
         pdf = await asyncio.to_thread(
             _render_latex_source_pdf,

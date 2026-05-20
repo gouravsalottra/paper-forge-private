@@ -1268,6 +1268,16 @@ const STATUS_HUMAN = {
 };
 
 let _dashboardBuilt = false;
+let dashboardSelection = new Set();
+let dashboardFilter = 'all';
+const SPECIALIST_AGENT_ORDER = ['Research Architect','Literature Agent','Method / Compute Agent','Statistics Agent','Code Audit Agent','Reviewer Agent','Writer Agent'];
+const SPECIALIST_MODES = [
+  { value: 'explain', label: 'Explain' },
+  { value: 'critique', label: 'Critique' },
+  { value: 'propose_code', label: 'Propose Code' },
+  { value: 'revise_prompt', label: 'Revise Prompt' },
+  { value: 'generate_notebook_cell', label: 'Generate Notebook Cell' },
+];
 
 async function renderDashboard(){
   resetWorkspaceCache();
@@ -1283,7 +1293,18 @@ async function renderDashboard(){
     const needsBlueprint = runs.filter(r=>['initializing','blueprint_locked'].includes((r.status||'').toLowerCase())).length;
     const needsReview = runs.filter(r=>String(r.phase||'').toUpperCase()==='REVIEWER').length;
 
-    const rows = runs.map(r=>{
+    const filteredRuns = runs.filter(r=>{
+      const statusRaw = (r.status || '').toLowerCase();
+      if(dashboardFilter === 'all') return true;
+      if(dashboardFilter === 'running') return ['running','queued'].includes(statusRaw);
+      if(dashboardFilter === 'paused') return ['failed_resumable','repair_required'].includes(statusRaw);
+      if(dashboardFilter === 'failed') return ['failed_terminal','stopped'].includes(statusRaw);
+      if(dashboardFilter === 'ready') return ['blueprint_locked','scope_confirmed','initializing'].includes(statusRaw);
+      if(dashboardFilter === 'complete') return ['done','paper_unlocked','paper_locked'].includes(statusRaw);
+      return true;
+    });
+
+    const rows = filteredRuns.map(r=>{
       const topic = esc((r.hypothesis || r.topic || 'Untitled research').slice(0,80));
       const statusRaw = (r.status||'initializing').toLowerCase();
       const statusLabel = STATUS_HUMAN[statusRaw] || esc(statusRaw);
@@ -1303,7 +1324,15 @@ async function renderDashboard(){
         stepLabel = 'In queue';
       }
       const runMeta = getConfig('showRunId') ? `<div class="mini" data-technical="run-id">Study ID: ${esc(r.run_id)}</div>` : '';
-      return `<tr><td>${statusLabel}</td><td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td><td>${esc(r.research_type||'exploratory')}</td><td>${stepLabel}</td><td>${fmtDate(r.created_at)}</td></tr>`;
+      const checked = dashboardSelection.has(r.run_id) ? 'checked' : '';
+      return `<tr>
+        <td><input type="checkbox" data-dashboard-select="${esc(r.run_id)}" ${checked}></td>
+        <td>${statusLabel}</td>
+        <td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td>
+        <td>${esc(r.research_type||'exploratory')}</td>
+        <td>${stepLabel}</td>
+        <td>${fmtDate(r.created_at)}</td>
+      </tr>`;
     }).join('');
 
     const emptyState = `<div class="card hero" style="text-align:center;padding:48px 24px">
@@ -1314,7 +1343,7 @@ async function renderDashboard(){
 
     const tableOrEmpty = total
       ? `<table>
-          <thead><tr><th>Status</th><th>Study</th><th>Type</th><th>Current step</th><th>Started</th></tr></thead>
+          <thead><tr><th><input type="checkbox" id="dashboard-select-all"></th><th>Status</th><th>Study</th><th>Type</th><th>Current step</th><th>Started</th></tr></thead>
           <tbody>${rows}</tbody>
          </table>`
       : emptyState;
@@ -1327,9 +1356,56 @@ async function renderDashboard(){
         </div>
         <a class="btn primary" href="#new">+ Start New Study</a>
       </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <button class="btn ${dashboardFilter==='all'?'primary':''}" data-dashboard-filter="all">All</button>
+            <button class="btn ${dashboardFilter==='running'?'primary':''}" data-dashboard-filter="running">Running</button>
+            <button class="btn ${dashboardFilter==='paused'?'primary':''}" data-dashboard-filter="paused">Paused</button>
+            <button class="btn ${dashboardFilter==='failed'?'primary':''}" data-dashboard-filter="failed">Failed</button>
+            <button class="btn ${dashboardFilter==='ready'?'primary':''}" data-dashboard-filter="ready">Ready</button>
+            <button class="btn ${dashboardFilter==='complete'?'primary':''}" data-dashboard-filter="complete">Complete</button>
+          </div>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <button class="btn" id="dashboard-delete-selected">Delete selected</button>
+            <button class="btn" id="dashboard-delete-completed">Delete completed</button>
+          </div>
+        </div>
+      </div>
       <div class="card">${tableOrEmpty}</div>`;
 
     _dashboardBuilt = true;
+    qs('#dashboard-select-all')?.addEventListener('change', (event)=>{
+      const checked = !!event.target?.checked;
+      filteredRuns.forEach(run => checked ? dashboardSelection.add(run.run_id) : dashboardSelection.delete(run.run_id));
+      renderDashboard();
+    });
+    document.querySelectorAll('[data-dashboard-select]').forEach(box=>box.addEventListener('change', ()=>{
+      const runId = box.getAttribute('data-dashboard-select');
+      if(!runId) return;
+      if(box.checked) dashboardSelection.add(runId);
+      else dashboardSelection.delete(runId);
+    }));
+    document.querySelectorAll('[data-dashboard-filter]').forEach(btn=>btn.addEventListener('click', ()=>{
+      dashboardFilter = btn.getAttribute('data-dashboard-filter') || 'all';
+      renderDashboard();
+    }));
+    qs('#dashboard-delete-selected')?.addEventListener('click', async()=>{
+      const ids = [...dashboardSelection];
+      if(!ids.length){ toast('Select at least one study first.'); return; }
+      if(!confirm(`Delete ${ids.length} selected study${ids.length===1?'':'ies'}?`)) return;
+      await api('/api/sessions/bulk/delete', {method:'POST', body:JSON.stringify({session_ids: ids})});
+      ids.forEach(id => dashboardSelection.delete(id));
+      toast('Selected studies deleted.');
+      renderDashboard();
+    });
+    qs('#dashboard-delete-completed')?.addEventListener('click', async()=>{
+      if(!confirm('Delete all completed studies? This cannot be undone.')) return;
+      await api('/api/sessions/bulk/delete-completed', {method:'POST'});
+      dashboardSelection.clear();
+      toast('Completed studies deleted.');
+      renderDashboard();
+    });
     if(running>0){ stopAllPolling(); poller=setInterval(renderDashboard,15000); }
   }catch(e){
     if(!_dashboardBuilt) app.innerHTML = `<div class="card">Could not load studies. <button class="btn" id="retry">Retry</button></div>`;
@@ -2965,6 +3041,69 @@ function phaseState(st, phase){
   return 'waiting';
 }
 
+function renderSpecialistPreview(thread){
+  const messages = thread.messages || [];
+  const recent = messages.slice(-2).map(msg => `<div class="mini" style="margin-top:6px"><strong>${esc((msg.role || '').toUpperCase())}</strong> · ${esc((msg.message_text || '').slice(0,140))}</div>`).join('');
+  return `
+    <div class="artifact-tile" style="display:block">
+      <strong>${esc(thread.agent_name || 'Specialist')}</strong>
+      <span class="mini">${esc(thread.selected_model || 'Default model')}</span>
+      ${recent || '<div class="mini" style="margin-top:6px">No messages yet.</div>'}
+    </div>
+  `;
+}
+
+function renderPromptTemplatePanel(template){
+  return `
+    <details class="prompt-panel">
+      <summary><strong>${esc(template.agent_name)}</strong> <span class="mini">full prompt control</span></summary>
+      <div class="mini" style="margin-top:10px;font-weight:600">Locked Safety Contract</div>
+      <pre style="white-space:pre-wrap;margin-top:6px">${esc('Safety, verified-number-only writing, Modal sandboxing, and secret protection remain locked.')}</pre>
+      <div class="mini" style="margin-top:10px;font-weight:600">Editable Working Prompt</div>
+      <textarea data-working-prompt-agent="${esc(template.agent_name)}" style="min-height:140px;margin-top:8px">${esc(template.working_prompt || '')}</textarea>
+      <div class="mini" style="margin-top:6px">Version ${esc(String(template.working_prompt_version || 0))}</div>
+      <div class="mini" style="margin-top:10px;font-weight:600">Session-specific notes</div>
+      <textarea data-session-notes-agent="${esc(template.agent_name)}" style="min-height:96px;margin-top:8px" placeholder="Researcher notes for this study only.">${esc(template.session_notes || '')}</textarea>
+      <div class="mini" style="margin-top:6px">Version ${esc(String(template.notes_version || 0))}</div>
+      <div class="approval-actions">
+        <button class="btn" data-save-prompt="${esc(template.agent_name)}">Save prompt</button>
+        <button class="btn" data-view-prompt="${esc(template.agent_name)}">View composed</button>
+      </div>
+    </details>
+  `;
+}
+
+function renderNotebookWorkspace(workspace, sessionId){
+  const status = workspace?.status || 'not_started';
+  const artifactPaths = workspace?.artifact_paths || [];
+  const iframe = workspace?.access_url && workspace?.can_embed
+    ? `<iframe src="${esc(workspace.access_url)}" title="JupyterLab workspace" style="width:100%;min-height:620px;border:1px solid var(--line);border-radius:18px;background:#fff;margin-top:14px"></iframe>`
+    : '';
+  return `
+    <section class="workspace-panel">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
+        <div>
+          <h4 style="margin:0 0 8px">Notebook workspace</h4>
+          <p class="mini" style="margin:0">Real JupyterLab runs in Modal. Launch it for freeform analysis, then sync notebook artifacts back into the study.</p>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn primary" id="cockpit-launch-notebook">Open JupyterLab</button>
+          <button class="btn" id="cockpit-sync-notebook">Sync notebook artifacts</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+        <span class="pill ${status==='running'?'ok':'muted'}">${esc(status)}</span>
+        <span class="tag">${esc(workspace?.backend || 'modal')}</span>
+        <span class="tag">${esc(workspace?.modal_account_alias || 'router')}</span>
+        <span class="tag">${esc(workspace?.sync_status || 'not_synced')}</span>
+      </div>
+      ${workspace?.access_url ? `<div style="margin-top:12px"><a class="btn" href="${esc(workspace.access_url)}" target="_blank" rel="noopener">Open JupyterLab in a new tab</a></div>` : ''}
+      ${iframe}
+      ${artifactPaths.length ? `<div class="artifact-grid" style="margin-top:14px">${artifactPaths.slice(-6).map(path => `<div class="artifact-tile"><strong>${esc(String(path).split('/').pop())}</strong><span class="mini">${esc(path)}</span></div>`).join('')}</div>` : ''}
+    </section>
+  `;
+}
+
 function renderCockpitPanel(cockpit, sessionId){
   if(!cockpit) return '';
   const gates = cockpit.approval_gates || [];
@@ -2975,10 +3114,12 @@ function renderCockpitPanel(cockpit, sessionId){
   const autopilot = cockpit.autopilot || {};
   const phaseModel = cockpit.phase_model || [];
   const promptStudio = cockpit.prompt_studio || {};
-  const amplifiers = promptStudio.amplifiers || [];
+  const promptTemplates = promptStudio.templates || [];
   const cells = cockpit.compute_cells || [];
   const modelSettings = cockpit.model_settings || {};
   const allowedModels = modelSettings.allowed_models || ['gpt-4o'];
+  const specialists = cockpit.specialists || [];
+  const notebookWorkspace = cockpit.notebook_workspace || {};
   const quality = cockpit.quality_report || {};
   const gateRows = gates.map(g=>`
     <article class="approval-card">
@@ -3000,16 +3141,7 @@ function renderCockpitPanel(cockpit, sessionId){
       <strong>${esc(a.name || (a.path || 'artifact').split('/').pop() || 'artifact')}</strong>
       <span class="mini">${esc(a.status || 'complete')}</span>
     </a>`).join('');
-  const latestAmp = agent => amplifiers.find(a=>a.agent_name===agent)?.amplifier_text || '';
-  const promptRows = (promptStudio.agents || []).filter(a=>['Research Architect','Literature Agent','Method / Compute Agent','Statistics Agent','Code Audit Agent','Reviewer Agent','Writer Agent'].includes(a)).map(agent=>`
-    <details class="prompt-panel">
-      <summary><strong>${esc(agent)}</strong> <span class="mini">amplifier</span></summary>
-      <textarea data-prompt-agent="${esc(agent)}" style="min-height:110px;margin-top:10px" placeholder="Add task-specific instruction for ${esc(agent)}">${esc(latestAmp(agent))}</textarea>
-      <div class="approval-actions">
-        <button class="btn" data-save-prompt="${esc(agent)}">Save</button>
-        <button class="btn" data-view-prompt="${esc(agent)}">View composed</button>
-      </div>
-    </details>`).join('');
+  const promptRows = promptTemplates.filter(t=>SPECIALIST_AGENT_ORDER.includes(t.agent_name)).map(renderPromptTemplatePanel).join('');
   const cellRows = cells.map(c=>`
     <article class="notebook-cell">
       <details ${c.status==='failed'?'open':''}>
@@ -3027,6 +3159,10 @@ function renderCockpitPanel(cockpit, sessionId){
   const phaseModelRows = phaseModel.map(phase=>{
     const selected = (modelSettings.phase_settings || []).find(s=>s.phase_name===phase)?.model_name || modelSettings.default_model || 'gpt-4o';
     return `<label class="mini">${esc(phase)}<select data-model-phase="${esc(phase)}">${allowedModels.map(m=>`<option value="${esc(m)}" ${m===selected?'selected':''}>${esc(m)}</option>`).join('')}</select></label>`;
+  }).join('');
+  const specialistRows = SPECIALIST_AGENT_ORDER.map(agentName => {
+    const thread = specialists.find(item => item.agent_name === agentName) || {agent_name: agentName, selected_model: (modelSettings.default_model || 'gpt-4o'), messages: []};
+    return renderSpecialistPreview(thread);
   }).join('');
   return `
     <section class="cockpit-shell" data-truth-source="api.sessions.cockpit">
@@ -3064,6 +3200,7 @@ function renderCockpitPanel(cockpit, sessionId){
           <h4 style="margin:0 0 12px">Artifacts</h4>
           <div class="artifact-grid">${artifactRows || '<div class="artifact-tile"><strong>No artifacts yet</strong><span class="mini">Files, figures, tables, logs, and exports will appear here.</span></div>'}</div>
         </section>
+        ${renderNotebookWorkspace(notebookWorkspace, sessionId)}
         <section class="workspace-panel">
           <h4 style="margin:0 0 12px">Cockpit Cells</h4>
           <p class="mini">Notebook-style cells are stored with the session and executed in the sandbox backend.</p>
@@ -3087,8 +3224,17 @@ function renderCockpitPanel(cockpit, sessionId){
         </section>
         <section class="inspector-panel">
           <h4>Prompt Studio</h4>
-          <p class="mini">${esc(promptStudio.locked_contract_summary || 'Locked safety contract remains enforced; edit task-specific amplifiers only.')}</p>
+          <p class="mini">${esc(promptStudio.locked_contract_summary || 'Locked safety contract remains enforced; edit the working prompt and study notes under it.')}</p>
           <div class="grid" style="gap:10px">${promptRows || '<p class="mini">Prompt amplifiers will appear here.</p>'}</div>
+        </section>
+        <section class="inspector-panel">
+          <h4>Specialist conversations</h4>
+          <div class="grid" style="gap:10px">${specialistRows}</div>
+          <div class="mini" style="font-weight:600;margin-top:12px">Ask a specialist</div>
+          <select id="cockpit-specialist-agent" style="margin-top:8px">${SPECIALIST_AGENT_ORDER.map(agent => `<option value="${esc(agent)}">${esc(agent)}</option>`).join('')}</select>
+          <select id="cockpit-specialist-mode" style="margin-top:8px">${SPECIALIST_MODES.map(mode => `<option value="${esc(mode.value)}">${esc(mode.label)}</option>`).join('')}</select>
+          <textarea id="cockpit-specialist-text" placeholder="Challenge the design, rewrite a section, interpret a result, or generate a notebook cell." style="min-height:104px;margin-top:10px"></textarea>
+          <button class="btn primary" id="cockpit-specialist-send">Send to specialist</button>
         </section>
         <section class="inspector-panel">
           <h4>Models and quality</h4>
@@ -3107,6 +3253,13 @@ async function renderResearch(id){
     const st = await api(`/runs/${id}/status`);
     const arts = await api(`/runs/${id}/artifacts`);
     const cockpitPayload = await api(`/api/sessions/${id}/cockpit`).catch(()=>null);
+    const modelRegistry = await api('/api/models').catch(()=>null);
+    if(cockpitPayload?.model_settings && modelRegistry){
+      cockpitPayload.model_settings.allowed_models = modelRegistry.models?.map(item => item.name) || cockpitPayload.model_settings.allowed_models || [];
+      cockpitPayload.model_settings.default_model = modelRegistry.default_model || cockpitPayload.model_settings.default_model;
+      cockpitPayload.model_settings.fallback_model = modelRegistry.fallback_model || cockpitPayload.model_settings.fallback_model;
+      cockpitPayload.model_settings.catalog = modelRegistry.models || cockpitPayload.model_settings.catalog || [];
+    }
     const log = await api(`/runs/${id}/log`).catch(()=>({log_lines:[]}));
     const runList = await api('/runs').catch(()=>({runs:[]}));
     const researchDone = st.status==='done' || st.status==='paper_unlocked';
@@ -3334,9 +3487,19 @@ async function renderResearch(id){
     }));
     document.querySelectorAll('[data-save-prompt]').forEach(btn=>btn.addEventListener('click', async()=>{
       const agent = btn.getAttribute('data-save-prompt');
-      const box = document.querySelector(`[data-prompt-agent="${CSS.escape(agent)}"]`);
-      await api(`/api/sessions/${id}/prompt-amplifiers`, {method:'PUT', body:JSON.stringify({agent_name:agent, amplifier_text:box?.value || '', editor:'admin'})});
-      toast('Prompt amplifier saved');
+      const working = document.querySelector(`[data-working-prompt-agent="${CSS.escape(agent)}"]`);
+      const notes = document.querySelector(`[data-session-notes-agent="${CSS.escape(agent)}"]`);
+      await api(`/api/sessions/${id}/prompt-amplifiers`, {
+        method:'PUT',
+        body:JSON.stringify({
+          agent_name:agent,
+          working_prompt:working?.value || '',
+          session_notes:notes?.value || '',
+          editor:'admin',
+          scope:'session'
+        })
+      });
+      toast('Prompt Studio updated');
       renderResearch(id);
     }));
     document.querySelectorAll('[data-view-prompt]').forEach(btn=>btn.addEventListener('click', async()=>{
@@ -3377,6 +3540,31 @@ async function renderResearch(id){
     qs('#cockpit-quality-refresh')?.addEventListener('click', async()=>{
       await api(`/api/sessions/${id}/quality-report`);
       toast('Quality report refreshed');
+      renderResearch(id);
+    });
+    qs('#cockpit-launch-notebook')?.addEventListener('click', async()=>{
+      toast('Launching JupyterLab in Modal…');
+      const res = await api(`/api/sessions/${id}/notebook/launch`, {method:'POST'});
+      if(res?.workspace?.access_url) window.open(res.workspace.access_url, '_blank', 'noopener');
+      renderResearch(id);
+    });
+    qs('#cockpit-sync-notebook')?.addEventListener('click', async()=>{
+      toast('Syncing notebook artifacts…');
+      await api(`/api/sessions/${id}/notebook/sync`, {method:'POST'});
+      renderResearch(id);
+    });
+    qs('#cockpit-specialist-send')?.addEventListener('click', async()=>{
+      const agent = qs('#cockpit-specialist-agent')?.value || 'Research Architect';
+      const mode = qs('#cockpit-specialist-mode')?.value || 'explain';
+      const box = qs('#cockpit-specialist-text');
+      const message = (box?.value || '').trim();
+      if(!message){ toast('Write a specialist instruction first.'); return; }
+      await api(`/api/sessions/${id}/specialists/${encodeURIComponent(agent)}/messages`, {
+        method:'POST',
+        body:JSON.stringify({message, mode})
+      });
+      if(box) box.value = '';
+      toast(`${agent} responded.`);
       renderResearch(id);
     });
 
@@ -4295,7 +4483,7 @@ async function sendWriterChat() {
   _refreshChat();
 }
 
-function route(){ stopAllPolling(); const h=(location.hash||'').slice(1); if(h.startsWith('research/')) return renderWorkspace(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }
+function route(){ stopAllPolling(); const h=(location.hash||'').slice(1); if(h.startsWith('research/')) return renderResearch(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }
 window.addEventListener('hashchange', route);
 document.addEventListener('DOMContentLoaded', () => {
   setPersona(localStorage.getItem('thrivarc_persona') || 'auto');

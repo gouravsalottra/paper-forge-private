@@ -12,13 +12,13 @@ from fastapi import APIRouter
 from openai import AzureOpenAI
 
 from api.method_registry import infer_evidence_route, infer_method_family, method_definition, method_families
+from api.model_registry import active_model_name, default_model
 from api.prompts import RESEARCH_ARCHITECT_PROMPT
 
 router = APIRouter()
 
 AZURE_ENDPOINT = "https://thrivarc.openai.azure.com/"
-# MODEL: standardized to gpt-4o per STEP 0 audit
-AZURE_DEPLOYMENT = "gpt-4o"
+AZURE_DEPLOYMENT = default_model()
 AZURE_API_VERSION = "2024-12-01-preview"
 
 VALID_METHOD_FAMILIES = method_families()
@@ -45,8 +45,9 @@ def _client() -> AzureOpenAI:
 
 
 def _json_call(system: str, payload: dict[str, Any]) -> dict[str, Any]:
+    model_name = active_model_name(default_model())
     response = _client().chat.completions.create(
-        model=AZURE_DEPLOYMENT,
+        model=model_name,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},

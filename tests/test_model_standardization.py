@@ -3,45 +3,31 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_step0_model_strings_are_standardized_to_gpt_4o() -> None:
-    forbidden = [
-        "gpt" + "-5",
-        "gpt" + "-4o-mini",
-        "gpt" + "-4-",
-        "gpt" + "-3",
-        "cla" + "ude",
-    ]
-    suffixes = {".py", ".json", ".env", ".yaml", ".toml", ".md"}
-    ignored_parts = {".git", "__pycache__", ".pytest_cache", "paper" + "_memory", "runs", "outputs"}
+def test_model_selection_is_registry_driven_not_single_model_locked() -> None:
+    registry = Path("api/model_registry.py").read_text(encoding="utf-8")
+    assert "THRIVARC_ALLOWED_MODELS" in registry
+    assert "THRIVARC_MODEL_REGISTRY_JSON" in registry
+    assert "fallback_model" in registry
 
+    sessions = Path("api/sessions.py").read_text(encoding="utf-8")
+    assert "/api/models" in Path("frontend/app.html").read_text(encoding="utf-8")
+    assert "_allowed_models()" in sessions
+
+
+def test_repo_does_not_hardcode_non_azure_model_providers() -> None:
+    forbidden = ["cla" + "ude", "gem" + "ini"]
+    suffixes = {".py", ".json", ".env", ".yaml", ".toml", ".md"}
     offenders: list[str] = []
     for path in Path(".").rglob("*"):
-        if any(part in {
-            ".venv", "venv", "env",
-            "node_modules", "__pycache__", ".git"
-        } for part in path.parts):
+        if any(part in {".venv", "venv", "env", "node_modules", "__pycache__", ".git"} for part in path.parts):
             continue
         if not path.is_file() or path.suffix not in suffixes:
             continue
-        if any(part in ignored_parts for part in path.parts):
-            continue
         try:
-            if path.suffix == ".py":
-                lines = path.read_text(
-                    encoding="utf-8", errors="ignore"
-                ).splitlines()
-                text = "\n".join(
-                    l for l in lines 
-                    if not l.strip().startswith("#")
-                )
-            else:
-                text = path.read_text(
-                    encoding="utf-8", errors="ignore"
-                )
+            text = path.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
         for token in forbidden:
-            if token in text:
+            if token in text.lower():
                 offenders.append(f"{path}: {token}")
-
     assert offenders == []

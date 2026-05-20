@@ -10,10 +10,10 @@ import re
 import time
 from typing import Optional
 
+from api.model_registry import active_model_name
+
 logger = logging.getLogger(__name__)
 
-# Canonical deployment name. Keep model selection centralized here and in api/guide.py.
-AZURE_DEPLOYMENT = "gpt-4o"
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 2
 REQUEST_TIMEOUT_SECONDS = 45
@@ -47,17 +47,17 @@ def _extract_json(text: str) -> Optional[dict]:
     return None
 
 
-def _sanitize_engine_fields(obj):
+def _sanitize_engine_fields(obj, model_name: str | None = None):
+    selected_model = active_model_name(model_name)
     """
-    Recursively enforce gpt-4o on any engine field.
-    Mirrors the sanitizer already in api/guide.py.
+    Recursively enforce the active registry-selected model on any engine field.
     """
     if isinstance(obj, dict):
         if "engine" in obj:
-            obj["engine"] = AZURE_DEPLOYMENT
-        return {k: _sanitize_engine_fields(v) for k, v in obj.items()}
+            obj["engine"] = selected_model
+        return {k: _sanitize_engine_fields(v, selected_model) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [_sanitize_engine_fields(item) for item in obj]
+        return [_sanitize_engine_fields(item, selected_model) for item in obj]
     return obj
 
 
@@ -68,6 +68,7 @@ async def call_agent_llm(
     fallback_fn=None,
     fallback_args=None,
     max_tokens: int = 4000,
+    model_name: str | None = None,
 ) -> dict:
     """
     Call the LLM for a specific agent.
@@ -87,11 +88,12 @@ async def call_agent_llm(
         RuntimeError if LLM fails and no fallback provided
     """
     last_error = None
+    selected_model = active_model_name(model_name)
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             response_or_coro = client.chat.completions.create(
-                model=AZURE_DEPLOYMENT,
+                model=selected_model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
                 temperature=0.1,
@@ -113,7 +115,7 @@ async def call_agent_llm(
                 time.sleep(RETRY_DELAY_SECONDS)
                 continue
 
-            parsed = _sanitize_engine_fields(parsed)
+            parsed = _sanitize_engine_fields(parsed, selected_model)
 
             logger.info("%s: LLM call succeeded on attempt %s", agent_name, attempt)
             return parsed
