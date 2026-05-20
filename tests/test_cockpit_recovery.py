@@ -222,6 +222,32 @@ def test_notebook_workspace_launch_and_sync_round_trip(tmp_path: Path, monkeypat
     assert len(sync.json()["workspace"]["artifact_paths"]) == 2
 
 
+def test_notebook_bootstrap_uses_blob_payload_instead_of_large_command(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
+    from storage import blob
+
+    blob.reset_mock_storage()
+
+    import api.notebook_runtime as notebook_runtime
+
+    notebook_text = json.dumps(
+        {
+            "cells": [{"cell_type": "code", "source": ["print('x')\n" * 10000], "metadata": {}, "outputs": []}],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+    )
+    payload_url = notebook_runtime._bootstrap_payload_url("session-1", notebook_text, {"seed.csv": "a,b\n1,2\n"})
+    script = notebook_runtime._workspace_seed_script(payload_url, "token-123")
+
+    assert "print('x')" not in script
+    assert len(script) < 65536
+    assert "urllib.request.urlopen" in script
+    assert "token-123" in script
+
+
 def test_bulk_delete_completed_sessions(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     first = client.post("/api/sessions", json={"topic": "Completed study"})

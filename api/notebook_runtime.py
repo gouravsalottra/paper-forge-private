@@ -8,26 +8,26 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from storage.blob import write_artifact
+from storage.blob import get_artifact_url, write_artifact
 
 
 def _is_test_mode() -> bool:
     return bool(os.getenv("PYTEST_CURRENT_TEST") or os.getenv("THRIVARC_STORAGE_BACKEND") == "mock")
 
 
-def _workspace_seed_script(notebook_text: str, seed_files: list[dict[str, str]], token: str) -> str:
-    payload = base64.b64encode(notebook_text.encode("utf-8")).decode("ascii")
-    seed_json = json.dumps(seed_files)
+def _workspace_seed_script(payload_url: str, token: str) -> str:
     return textwrap.dedent(
         f"""
         set -euo pipefail
         mkdir -p /workspace
         python - <<'PY'
-        import base64, json, os
-        notebook = base64.b64decode({payload!r}).decode("utf-8")
+        import base64, json, os, urllib.request
+        with urllib.request.urlopen({payload_url!r}) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        notebook = payload.get("notebook", "")
         with open("/workspace/analysis.ipynb", "w", encoding="utf-8") as handle:
             handle.write(notebook)
-        for item in json.loads({seed_json!r}):
+        for item in payload.get("seed_files", []):
             name = os.path.basename(item.get("filename") or "seed.txt")
             content = base64.b64decode(item.get("content_b64") or "")
             with open(os.path.join("/workspace", name), "wb") as handle:
@@ -58,6 +58,20 @@ def _seed_entries(seed_files: dict[str, bytes | str] | None) -> list[dict[str, s
             raw = bytes(content)
         entries.append({"filename": str(filename), "content_b64": base64.b64encode(raw).decode("ascii")})
     return entries
+
+
+def _bootstrap_payload_path(session_id: str) -> str:
+    return f"06_compute/notebook/bootstrap/{uuid.uuid4().hex}.json"
+
+
+def _bootstrap_payload_url(session_id: str, notebook_text: str, seed_files: dict[str, bytes | str] | None) -> str:
+    payload_path = _bootstrap_payload_path(session_id)
+    payload = {
+        "notebook": notebook_text,
+        "seed_files": _seed_entries(seed_files),
+    }
+    write_artifact(session_id, payload_path, payload)
+    return get_artifact_url(session_id, payload_path, expires_in_seconds=3600)
 
 
 def launch_or_resume_workspace(
@@ -103,10 +117,11 @@ def launch_or_resume_workspace(
         )
     )
     access_token = uuid.uuid4().hex
+    payload_url = _bootstrap_payload_url(session_id, notebook_text, seed_files)
     sandbox = modal.Sandbox.create(
         "bash",
         "-lc",
-        _workspace_seed_script(notebook_text, _seed_entries(seed_files), access_token),
+        _workspace_seed_script(payload_url, access_token),
         image=image,
         timeout=int(os.getenv("THRIVARC_NOTEBOOK_TIMEOUT_SECONDS", "14400")),
         idle_timeout=int(os.getenv("THRIVARC_NOTEBOOK_IDLE_TIMEOUT_SECONDS", "3600")),
