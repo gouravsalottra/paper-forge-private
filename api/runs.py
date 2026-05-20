@@ -121,6 +121,34 @@ def _dashboard_runtime_fields(sessions, conn, row: Any, current_phase: str | Non
     }
 
 
+def _dashboard_runtime_fields_from_activity(
+    sessions,
+    row: Any,
+    backend_activity: dict[str, Any],
+    current_phase: str | None = None,
+) -> dict[str, Any]:
+    status = str(sessions._row_get(row, "status") or "")
+    next_action = {
+        "draft": "Resume draft",
+        "initializing": "Resume draft",
+        "needs_clarification": "Answer clarification",
+        "evidence_blocked": "Review data preview",
+        "scope_confirmed": "Approve Blueprint",
+        "blueprint_locked": "Review data preview",
+        "running": f"Running: {current_phase or 'Pipeline'}",
+        "stale_needs_attention": "Clean stale running state",
+        "failed_resumable": "Review failure",
+        "failed_terminal": "Download or fork package",
+        "paper_unlocked": "Download paper",
+    }.get(status, "Review results")
+    return {
+        "backend_activity": backend_activity,
+        "is_stale": bool(backend_activity.get("stale")),
+        "last_activity_at": sessions._row_get(row, "updated_at"),
+        "next_action": next_action,
+    }
+
+
 def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[str, Any] | None:
     from api import sessions
 
@@ -167,7 +195,7 @@ def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[st
                 if sessions._row_get(phase, "status") in {"failed_resumable", "failed_terminal", "repair_required", "paper_locked"}
             ),
             None,
-        )
+    )
     status = sessions._row_get(row, "status")
     with sessions._with_conn() as runtime_conn:
         runtime_fields = _dashboard_runtime_fields(sessions, runtime_conn, row, current)
@@ -228,6 +256,8 @@ def _canonical_runs() -> list[dict[str, Any]]:
             sid = sessions._row_get(s, "session_id")
             if sid not in scores_by_session:
                 scores_by_session[sid] = s
+        running_ids = [str(sessions._row_get(row, "id")) for row in rows if sessions._row_get(row, "status") == "running"]
+        runtime_truth_by_session = sessions._runtime_truth_for_sessions(conn, running_ids) if running_ids else {}
 
     runs: list[dict[str, Any]] = []
     for row in rows:
@@ -262,8 +292,32 @@ def _canonical_runs() -> list[dict[str, Any]]:
             )
             
         status = sessions._row_get(row, "status")
-        with sessions._with_conn() as runtime_conn:
-            runtime_fields = _dashboard_runtime_fields(sessions, runtime_conn, row, current)
+        if status == "running":
+            backend_activity = runtime_truth_by_session.get(str(run_id)) or {
+                "state": "stale",
+                "label": "Stale / needs cleanup",
+                "last_event_at": sessions._row_get(row, "updated_at"),
+                "stale": True,
+                "details": {"reason": "No live backend activity was found."},
+            }
+        elif status == "stale_needs_attention":
+            backend_activity = {
+                "state": "stale",
+                "label": "Stale / needs cleanup",
+                "last_event_at": sessions._row_get(row, "updated_at"),
+                "stale": True,
+                "details": {"reason": "Session was marked running, but no live backend activity was found."},
+            }
+        else:
+            terminal = status in {"done", "paper_unlocked", "paper_locked"}
+            backend_activity = {
+                "state": "complete" if terminal else "idle",
+                "label": "Complete" if terminal else "SSE idle",
+                "last_event_at": sessions._row_get(row, "updated_at"),
+                "stale": False,
+                "details": {},
+            }
+        runtime_fields = _dashboard_runtime_fields_from_activity(sessions, row, backend_activity, current)
         gate_passed = bool(sessions._row_get(score, "gate_passed")) if score else False
         data_sha = (
             blueprint.get("uploaded_event_sha256")

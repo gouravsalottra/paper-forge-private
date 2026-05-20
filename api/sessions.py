@@ -894,6 +894,101 @@ def _session_runtime_truth(conn: Any, session_id: str, *, stale_after_seconds: i
     }
 
 
+def _runtime_truth_for_sessions(
+    conn: Any,
+    session_ids: list[str],
+    *,
+    stale_after_seconds: int | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Batch runtime truth for dashboard/list views without per-row DB roundtrips."""
+    ids = [str(session_id) for session_id in session_ids if session_id]
+    if not ids:
+        return {}
+    stale_after = stale_after_seconds if stale_after_seconds is not None else int(os.getenv("THRIVARC_STALE_RUNNING_SECONDS", "1800"))
+    placeholders = ",".join("?" * len(ids))
+    now = datetime.now(timezone.utc)
+
+    latest_events: dict[str, Any] = {}
+    for event in _fetchall(
+        conn,
+        f"SELECT session_id, MAX(created_at) AS created_at FROM session_events WHERE session_id IN ({placeholders}) GROUP BY session_id",
+        tuple(ids),
+    ):
+        latest_events[str(_row_get(event, "session_id"))] = _row_get(event, "created_at")
+
+    active_jobs: dict[str, Any] = {}
+    for job in _fetchall(
+        conn,
+        f"""
+        SELECT *
+        FROM sandbox_jobs
+        WHERE session_id IN ({placeholders})
+          AND status IN ('queued','starting','running','retrying')
+        ORDER BY updated_at DESC, created_at DESC
+        """,
+        tuple(ids),
+    ):
+        sid = str(_row_get(job, "session_id"))
+        if sid not in active_jobs:
+            active_jobs[sid] = job
+
+    active_notebooks: dict[str, Any] = {}
+    for notebook in _fetchall(
+        conn,
+        f"""
+        SELECT *
+        FROM notebook_workspaces
+        WHERE session_id IN ({placeholders})
+          AND status IN ('queued','starting','running','retrying')
+          AND sandbox_id IS NOT NULL
+        ORDER BY updated_at DESC, created_at DESC
+        """,
+        tuple(ids),
+    ):
+        sid = str(_row_get(notebook, "session_id"))
+        if sid not in active_notebooks:
+            active_notebooks[sid] = notebook
+
+    truth: dict[str, dict[str, Any]] = {}
+    for session_id in ids:
+        last_event_at = latest_events.get(session_id)
+        last_event_dt = _parse_iso(last_event_at)
+        event_age = (now - last_event_dt).total_seconds() if last_event_dt else None
+        if session_id in active_jobs:
+            truth[session_id] = {
+                "state": "modal_job",
+                "label": "Modal job",
+                "last_event_at": last_event_at,
+                "stale": False,
+                "details": _sandbox_job_dict(active_jobs[session_id]),
+            }
+        elif session_id in active_notebooks:
+            truth[session_id] = {
+                "state": "notebook",
+                "label": "Notebook",
+                "last_event_at": last_event_at,
+                "stale": False,
+                "details": _notebook_workspace_dict(active_notebooks[session_id]),
+            }
+        elif event_age is not None and event_age <= stale_after:
+            truth[session_id] = {
+                "state": "sse_recent",
+                "label": "SSE recent",
+                "last_event_at": last_event_at,
+                "stale": False,
+                "details": {"event_age_seconds": event_age},
+            }
+        else:
+            truth[session_id] = {
+                "state": "stale",
+                "label": "Stale / needs cleanup",
+                "last_event_at": last_event_at,
+                "stale": True,
+                "details": {"event_age_seconds": event_age, "stale_after_seconds": stale_after},
+            }
+    return truth
+
+
 def _export_readiness_for_session(conn: Any, session_id: str) -> dict[str, Any]:
     blueprint = _blueprint_row(conn, session_id)
     blueprint_content = _blueprint_content(blueprint)
@@ -3021,13 +3116,15 @@ def list_sessions():
                 tuple(session_ids),
             )
             blueprint_status_by_session = {_row_get(row, "session_id"): _row_get(row, "status") for row in blueprint_rows}
+            running_ids = [str(_row_get(row, "id")) for row in rows if _row_get(row, "status") == "running"]
+            runtime_truth_by_session = _runtime_truth_for_sessions(conn, running_ids) if running_ids else {}
             summaries: list[dict[str, Any]] = []
             for row in rows:
                 session_id = _row_get(row, "id")
                 status = _row_get(row, "status")
                 phase = latest_phase_by_session.get(session_id)
                 if status == "running":
-                    backend_activity = _session_runtime_truth(conn, session_id)
+                    backend_activity = runtime_truth_by_session.get(str(session_id)) or _session_runtime_truth(conn, session_id)
                 elif status == "stale_needs_attention":
                     backend_activity = {
                         "state": "stale",
