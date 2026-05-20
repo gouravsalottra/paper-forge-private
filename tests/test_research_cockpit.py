@@ -20,6 +20,32 @@ def _client(tmp_path: Path, monkeypatch):
     return TestClient(app)
 
 
+def _mark_export_ready(session_id: str) -> None:
+    import api.sessions as sessions
+
+    with sessions._with_conn() as conn:
+        existing = sessions._blueprint_row(conn, session_id)
+        content = {"focus_question": "Export-ready study", "data_preview_sha256": "sha256:test-evidence"}
+        if existing:
+            merged = sessions._blueprint_content(existing)
+            merged.update(content)
+            sessions._execute(
+                conn,
+                "UPDATE blueprints SET content=?, status=? WHERE id=?",
+                (json.dumps(merged, sort_keys=True), "locked", sessions._row_get(existing, "id")),
+            )
+        else:
+            sessions._execute(
+                conn,
+                "INSERT INTO blueprints (id, session_id, content, status, created_at) VALUES (?, ?, ?, ?, ?)",
+                ("bp-export-ready", session_id, json.dumps(content, sort_keys=True), "locked", sessions._now()),
+            )
+        sessions._phase_status(conn, session_id, "Method / Compute Agent", "complete", "Compute complete.")
+        sessions._phase_status(conn, session_id, "Reviewer Agent", "complete", "Review complete.")
+        sessions._phase_status(conn, session_id, "Writer Agent", "complete", "Writer complete.")
+        sessions._commit(conn)
+
+
 def test_cockpit_creates_gates_followups_sandbox_and_events(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     created = client.post("/api/sessions", json={"topic": "Does liquidity predict ETF returns?"})
@@ -84,6 +110,7 @@ def test_overleaf_zip_export_contains_project_manifest_and_assets(tmp_path: Path
     blob.write_artifact(session_id, "figures/fig1.png", b"fakepng")
     blob.write_artifact(session_id, "07_statistics/results_tables/table1.csv", "Metric,Value\nA,1\n")
     blob.write_artifact(session_id, "06_compute/method_outputs/code.py", "print(ok)\n")
+    _mark_export_ready(session_id)
 
     response = client.get(f"/api/sessions/{session_id}/export/overleaf.zip")
     assert response.status_code == 200
@@ -182,6 +209,7 @@ def test_prompt_studio_cells_model_settings_and_quality_report(tmp_path: Path, m
     from storage import blob
 
     blob.write_artifact(session_id, "11_paper/final.tex", "\\section{Results}\nShort paper")
+    _mark_export_ready(session_id)
     quality = client.get(f"/api/sessions/{session_id}/quality-report")
     assert quality.status_code == 200
     assert quality.json()["quality_report"]["status"] == "needs_repair"

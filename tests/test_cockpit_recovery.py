@@ -353,3 +353,123 @@ def test_bulk_delete_completed_sessions(tmp_path: Path, monkeypatch) -> None:
     remaining = [item["id"] for item in listing.json()]
     assert running_id in remaining
     assert completed_id not in remaining
+
+
+def test_dashboard_delete_visible_removes_supplied_visible_sessions(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    first = client.post("/api/sessions", json={"topic": "Visible cleanup one"}).json()["session_id"]
+    second = client.post("/api/sessions", json={"topic": "Visible cleanup two"}).json()["session_id"]
+    keep = client.post("/api/sessions", json={"topic": "Keep this study"}).json()["session_id"]
+
+    deleted = client.post("/api/sessions/bulk/delete-visible", json={"session_ids": [first, second]})
+    assert deleted.status_code == 200
+    assert set(deleted.json()["deleted_session_ids"]) == {first, second}
+
+    listing = client.get("/api/sessions")
+    remaining = [item["id"] for item in listing.json()]
+    assert keep in remaining
+    assert first not in remaining
+    assert second not in remaining
+
+
+def test_stale_running_cleanup_marks_only_sessions_without_backend_activity(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    stale = client.post("/api/sessions", json={"topic": "Stale running study"}).json()["session_id"]
+    active = client.post("/api/sessions", json={"topic": "Active modal study"}).json()["session_id"]
+
+    import api.sessions as sessions
+
+    with sessions._with_conn() as conn:
+        sessions._execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("running", sessions._now(), stale))
+        sessions._execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("running", sessions._now(), active))
+        sessions._execute(
+            conn,
+            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, backend, modal_account_alias, attempt_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("job-active", active, "Compute", "running", "modal", "primary", 1, sessions._now(), sessions._now()),
+        )
+        sessions._commit(conn)
+
+    cleaned = client.post("/api/sessions/bulk/clean-stale-running", json={"stale_after_seconds": 0})
+    assert cleaned.status_code == 200
+    assert stale in cleaned.json()["stale_session_ids"]
+    assert active not in cleaned.json()["stale_session_ids"]
+
+    stale_summary = client.get(f"/api/sessions/{stale}").json()
+    active_summary = client.get(f"/api/sessions/{active}").json()
+    assert stale_summary["status"] == "stale_needs_attention"
+    assert stale_summary["backend_activity"]["state"] == "stale"
+    assert active_summary["status"] == "running"
+    assert active_summary["backend_activity"]["state"] == "modal_job"
+
+
+def test_dashboard_runs_include_backend_truth_and_next_action(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    session_id = client.post("/api/sessions", json={"topic": "Dashboard truth study"}).json()["session_id"]
+
+    import api.sessions as sessions
+
+    with sessions._with_conn() as conn:
+        sessions._execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("running", sessions._now(), session_id))
+        sessions._execute(
+            conn,
+            "INSERT INTO sandbox_jobs (id, session_id, phase_name, status, backend, modal_account_alias, attempt_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("job-dashboard-truth", session_id, "Compute", "running", "modal", "primary", 1, sessions._now(), sessions._now()),
+        )
+        sessions._commit(conn)
+
+    runs = client.get("/runs")
+    assert runs.status_code == 200
+    row = next(item for item in runs.json()["runs"] if item["run_id"] == session_id)
+    assert row["backend_activity"]["state"] == "modal_job"
+    assert row["next_action"].startswith("Running")
+
+
+def test_cockpit_exposes_compute_resource_policy_without_default_gpu(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    session_id = client.post("/api/sessions", json={"topic": "Resource policy study"}).json()["session_id"]
+
+    cockpit = client.get(f"/api/sessions/{session_id}/cockpit")
+    assert cockpit.status_code == 200
+    policy = cockpit.json()["compute_resource_policy"]
+    assert policy["backend"] == "modal"
+    assert policy["default_tier"] == "cpu-small"
+    assert "gpu-t4" in policy["allowed_tiers"]
+    assert "GPU tiers are only allowed" in policy["gpu_policy"]
+
+
+def test_export_and_quality_are_not_ready_without_writer_artifact(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    session_id = client.post("/api/sessions", json={"topic": "Premature export study"}).json()["session_id"]
+
+    quality = client.get(f"/api/sessions/{session_id}/quality-report")
+    assert quality.status_code == 200
+    assert quality.json()["quality_report"]["status"] == "not_ready"
+    assert quality.json()["quality_report"]["score"] is None
+
+    cockpit = client.get(f"/api/sessions/{session_id}/cockpit")
+    assert cockpit.status_code == 200
+    assert cockpit.json()["export"]["ready"] is False
+    assert "writer_complete" in cockpit.json()["export"]["missing"]
+
+    exported = client.get(f"/api/sessions/{session_id}/export/overleaf.zip")
+    assert exported.status_code == 409
+    assert exported.json()["error_code"] == "EXPORT_NOT_READY"
+
+
+def test_notebook_launch_failure_is_persisted_as_visible_workspace_error(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    session_id = client.post("/api/sessions", json={"topic": "Notebook failure study"}).json()["session_id"]
+
+    import api.notebook_runtime as notebook_runtime
+
+    def fail_launch(*args, **kwargs):
+        raise RuntimeError("Modal auth failed")
+
+    monkeypatch.setattr(notebook_runtime, "launch_or_resume_workspace", fail_launch)
+    launched = client.post(f"/api/sessions/{session_id}/notebook/launch")
+    assert launched.status_code == 502
+    assert launched.json()["error_code"] == "NOTEBOOK_LAUNCH_FAILED"
+
+    workspace = client.get(f"/api/sessions/{session_id}/notebook").json()["workspace"]
+    assert workspace["status"] == "failed"
+    assert "Modal auth failed" in workspace["last_error"]

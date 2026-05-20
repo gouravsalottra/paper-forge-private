@@ -832,6 +832,98 @@ def _boolish(value: Any) -> bool:
     return bool(value) if not isinstance(value, str) else value.lower() in {"1", "true", "yes", "on"}
 
 
+def _parse_iso(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _session_runtime_truth(conn: Any, session_id: str, *, stale_after_seconds: int | None = None) -> dict[str, Any]:
+    stale_after = stale_after_seconds if stale_after_seconds is not None else int(os.getenv("THRIVARC_STALE_RUNNING_SECONDS", "1800"))
+    active_statuses = {"queued", "starting", "running", "retrying"}
+    active_job = _fetchone(
+        conn,
+        "SELECT * FROM sandbox_jobs WHERE session_id=? AND status IN ('queued','starting','running','retrying') ORDER BY updated_at DESC, created_at DESC LIMIT 1",
+        (session_id,),
+    )
+    notebook = _notebook_workspace_row(conn, session_id)
+    notebook_status = str(_row_get(notebook, "status", "") or "").lower()
+    last_event = _fetchone(conn, "SELECT created_at FROM session_events WHERE session_id=? ORDER BY created_at DESC LIMIT 1", (session_id,))
+    last_event_at = _row_get(last_event, "created_at")
+    last_event_dt = _parse_iso(last_event_at)
+    now = datetime.now(timezone.utc)
+    event_age = (now - last_event_dt).total_seconds() if last_event_dt else None
+    recent_event = event_age is not None and event_age <= stale_after
+
+    if active_job:
+        return {
+            "state": "modal_job",
+            "label": "Modal job",
+            "last_event_at": last_event_at,
+            "stale": False,
+            "details": _sandbox_job_dict(active_job),
+        }
+    if notebook_status in active_statuses and _row_get(notebook, "sandbox_id"):
+        return {
+            "state": "notebook",
+            "label": "Notebook",
+            "last_event_at": last_event_at,
+            "stale": False,
+            "details": _notebook_workspace_dict(notebook),
+        }
+    if recent_event:
+        return {
+            "state": "sse_recent",
+            "label": "SSE recent",
+            "last_event_at": last_event_at,
+            "stale": False,
+            "details": {"event_age_seconds": event_age},
+        }
+    return {
+        "state": "stale",
+        "label": "Stale / needs cleanup",
+        "last_event_at": last_event_at,
+        "stale": True,
+        "details": {"event_age_seconds": event_age, "stale_after_seconds": stale_after},
+    }
+
+
+def _export_readiness_for_session(conn: Any, session_id: str) -> dict[str, Any]:
+    blueprint = _blueprint_row(conn, session_id)
+    blueprint_content = _blueprint_content(blueprint)
+    final_tex = _safe_artifact_text(session_id, "11_paper/final.tex", limit=10)
+    missing: list[str] = []
+    if _row_get(blueprint, "status") != "locked":
+        missing.append("blueprint_locked")
+    if not (blueprint_content.get("data_preview_sha256") or blueprint_content.get("uploaded_event_sha256")):
+        missing.append("evidence_approved")
+    compute_done = _fetchone(conn, "SELECT id FROM phases WHERE session_id=? AND agent_name IN ('Method / Compute Agent','Compute Agent') AND status='complete' LIMIT 1", (session_id,))
+    if not compute_done:
+        missing.append("compute_complete")
+    review_done = _fetchone(conn, "SELECT id FROM phases WHERE session_id=? AND agent_name IN ('Reviewer Agent','Paper-Code Verifier') AND status='complete' LIMIT 1", (session_id,))
+    if not review_done:
+        missing.append("review_complete")
+    writer_done = _fetchone(conn, "SELECT id FROM phases WHERE session_id=? AND agent_name='Writer Agent' AND status='complete' LIMIT 1", (session_id,))
+    if not writer_done:
+        missing.append("writer_complete")
+    if not final_tex.strip():
+        missing.append("final_tex")
+    ready = not missing
+    return {
+        "ready": ready,
+        "status": "ready" if ready else "not_ready",
+        "missing": missing,
+        "overleaf_zip_route": f"/api/sessions/{session_id}/export/overleaf.zip",
+        "standalone_tex_route": f"/api/sessions/{session_id}/artifacts/download?path=sessions/{session_id}/11_paper/final.tex",
+    }
+
+
 def _approval_gate_dict(row: Any) -> dict[str, Any]:
     return {
         "id": _row_get(row, "id"),
@@ -1339,6 +1431,26 @@ def _quality_report_for_session(session_id: str) -> dict[str, Any]:
     tex = _safe_artifact_text(session_id, "11_paper/final.tex")
     artifacts_list = list_artifacts(session_id)
     relative_paths = [_artifact_relative_path(session_id, str(item.get("path") or "")) for item in artifacts_list]
+    if not tex.strip():
+        checks = {
+            "final_tex_present": False,
+            "line_count": 0,
+            "line_count_minimum_met": False,
+            "has_literature": False,
+            "has_tables": False,
+            "has_figures": any(path.startswith("figures/") for path in relative_paths),
+            "has_empty_numeric_claims": False,
+            "generic_template_phrases": [],
+        }
+        return {
+            "status": "not_ready",
+            "score": None,
+            "checks": checks,
+            "repair_card": {
+                "summary": "Paper quality cannot be scored until Writer produces final.tex.",
+                "required_action": "Complete review and writer gates before export.",
+            },
+        }
     line_count = len([line for line in tex.splitlines() if line.strip()])
     checks = {
         "final_tex_present": bool(tex.strip()),
@@ -2662,6 +2774,21 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
     phase = _fetchone(conn, "SELECT agent_name, status FROM phases WHERE session_id=? ORDER BY started_at DESC LIMIT 1", (session_id,))
     score = _fetchone(conn, "SELECT average_score FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC, created_at DESC LIMIT 1", (session_id,))
     status = _row_get(row, "status")
+    backend_activity = _session_runtime_truth(conn, session_id) if status == "running" else {
+        "state": "complete" if status in {"done", "paper_unlocked", "paper_locked"} else "idle",
+        "label": "Complete" if status in {"done", "paper_unlocked", "paper_locked"} else "SSE idle",
+        "last_event_at": _row_get(row, "updated_at"),
+        "stale": False,
+        "details": {},
+    }
+    if status == "stale_needs_attention":
+        backend_activity = {
+            "state": "stale",
+            "label": "Stale / needs cleanup",
+            "last_event_at": _row_get(row, "updated_at"),
+            "stale": True,
+            "details": {"reason": "Session was marked running, but no live backend activity was found."},
+        }
     next_action = {
         "draft": "Resume draft",
         "initializing": "Resume draft",
@@ -2670,6 +2797,7 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
         "scope_confirmed": "Approve Blueprint",
         "blueprint_locked": "Review data preview",
         "running": f"Running: {_row_get(phase, 'agent_name', 'Pipeline')}",
+        "stale_needs_attention": "Clean stale running state",
         "failed_resumable": "Review failure",
         "failed_terminal": "Download or fork package",
         "paper_unlocked": "Download paper",
@@ -2682,6 +2810,7 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
         "scope_confirmed": f"/blueprint/{session_id}",
         "blueprint_locked": f"/data/{session_id}/preview",
         "running": f"/run/{session_id}",
+        "stale_needs_attention": f"/sessions/{session_id}/cleanup",
         "failed_resumable": f"/sessions/{session_id}/failure",
         "failed_terminal": f"/sessions/{session_id}/download",
         "paper_unlocked": f"/paper/{session_id}",
@@ -2696,6 +2825,8 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
         "resume_route": resume_route,
         "created_at": _row_get(row, "created_at"),
         "last_activity_at": _row_get(row, "updated_at"),
+        "backend_activity": backend_activity,
+        "is_stale": bool(backend_activity.get("stale")),
         "credits_spent": _row_get(row, "credits_spent", 0),
         "artifact_count": len(list_artifacts(session_id)),
         "coauthor_status": "active" if _row_get(row, "coauthor_id") else "none",
@@ -2741,7 +2872,7 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
         for row in _fetchall(conn, "SELECT * FROM phase_model_settings WHERE session_id=? ORDER BY phase_name ASC", (session_id,))
     ]
     specialist_threads = [
-        _specialist_thread_dict(row)
+        _specialist_thread_dict(row, _specialist_messages(conn, _row_get(row, "id")))
         for row in _fetchall(conn, "SELECT * FROM specialist_threads WHERE session_id=? ORDER BY updated_at DESC, created_at DESC", (session_id,))
     ]
     notebook_workspace = _notebook_workspace_dict(_notebook_workspace_row(conn, session_id)) if _notebook_workspace_row(conn, session_id) else {
@@ -2805,6 +2936,13 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
             "hard_limits": _json_loads(_row_get(settings, "hard_limits"), _default_hard_limits()),
         },
         "modal_router": _modal_router_summary(conn),
+        "compute_resource_policy": {
+            "default_tier": "cpu-small",
+            "allowed_tiers": ["cpu-small", "cpu-large", "gpu-t4", "gpu-a10"],
+            "gpu_policy": "CPU is the default for pandas/statsmodels/yfinance research. GPU tiers are only allowed when the validated analysis plan needs deep learning, embeddings, transformer inference, or GPU dataframe workloads.",
+            "backend": "modal",
+            "budget_guardrail": "Backend validates resource tier against Modal budget and allowlist before compute starts.",
+        },
         "security": {
             "mode": "single_admin",
             "admin_secret_configured": bool(os.getenv("THRIVARC_ADMIN_PASSWORD")),
@@ -2812,10 +2950,7 @@ def _cockpit_payload(conn: Any, session_id: str) -> dict[str, Any]:
             "llm_provider": "azure_openai",
         },
         "sse_events": COCKPIT_SSE_EVENTS,
-        "export": {
-            "overleaf_zip_route": f"/api/sessions/{session_id}/export/overleaf.zip",
-            "standalone_tex_route": f"/api/sessions/{session_id}/artifacts/download?path=sessions/{session_id}/11_paper/final.tex",
-        },
+        "export": _export_readiness_for_session(conn, session_id),
     }
 
 
@@ -2956,6 +3091,65 @@ def bulk_delete_completed_sessions():
         except Exception as exc:  # noqa: BLE001
             logger.warning("Bulk completed cleanup failed for %s: %s", session_id, exc)
     return {"deleted_session_ids": deleted}
+
+
+@router.post("/bulk/delete-visible")
+def bulk_delete_visible_sessions(payload: dict[str, Any]):
+    session_ids = [str(item).strip() for item in (payload.get("session_ids") or []) if str(item).strip()]
+    if not session_ids:
+        return _error(400, "VISIBLE_SESSION_IDS_REQUIRED", "Delete visible requires the visible session ids from the current dashboard filter.", "needs_visible_ids", ["Pass session_ids from the current dashboard rows."])
+    deleted: list[str] = []
+    with _with_conn() as conn:
+        for session_id in session_ids:
+            if not _session_row(conn, session_id):
+                continue
+            _delete_session_state(conn, session_id)
+            deleted.append(session_id)
+        _commit(conn)
+    for session_id in deleted:
+        try:
+            delete_session_artifacts(session_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Bulk visible cleanup failed for %s: %s", session_id, exc)
+    return {"deleted_session_ids": deleted}
+
+
+@router.post("/bulk/stop")
+def bulk_stop_sessions(payload: dict[str, Any]):
+    session_ids = [str(item).strip() for item in (payload.get("session_ids") or []) if str(item).strip()]
+    stopped: list[str] = []
+    with _with_conn() as conn:
+        for session_id in session_ids:
+            row = _session_row(conn, session_id)
+            if not row or str(_row_get(row, "status") or "").lower() not in {"running", "queued"}:
+                continue
+            _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("stopped", _now(), session_id))
+            _event(conn, session_id, "run_failed", {"summary": "Run stopped by dashboard action."}, "Dashboard", "stopped")
+            stopped.append(session_id)
+        _commit(conn)
+    return {"stopped_session_ids": stopped}
+
+
+@router.post("/bulk/clean-stale-running")
+def clean_stale_running_sessions(payload: dict[str, Any] | None = None):
+    payload = payload or {}
+    raw_stale_after = payload.get("stale_after_seconds")
+    if raw_stale_after is None:
+        raw_stale_after = os.getenv("THRIVARC_STALE_RUNNING_SECONDS", "1800")
+    stale_after_seconds = int(raw_stale_after)
+    stale_session_ids: list[str] = []
+    with _with_conn() as conn:
+        rows = _fetchall(conn, "SELECT id FROM sessions WHERE status='running'")
+        for row in rows:
+            session_id = _row_get(row, "id")
+            truth = _session_runtime_truth(conn, session_id, stale_after_seconds=stale_after_seconds)
+            if not truth.get("stale"):
+                continue
+            _execute(conn, "UPDATE sessions SET status=?, updated_at=? WHERE id=?", ("stale_needs_attention", _now(), session_id))
+            _event(conn, session_id, "run_failed", {"summary": "No live backend activity was found for this running study.", "backend_activity": truth}, "Dashboard", "stale_needs_attention")
+            stale_session_ids.append(session_id)
+        _commit(conn)
+    return {"stale_session_ids": stale_session_ids}
 
 
 @router.get("/{session_id}/cockpit")
@@ -3682,7 +3876,28 @@ def launch_notebook_workspace(session_id: str):
             return _not_found()
         workspace, notebook_text = _notebook_bootstrap_payload(conn, session_id)
         seed_files = _workspace_seed_files(session_id)
+        _execute(
+            conn,
+            "UPDATE notebook_workspaces SET status=?, last_error=?, updated_at=? WHERE session_id=?",
+            ("starting", None, _now(), session_id),
+        )
+        _event(conn, session_id, "sandbox_job_update", {"phase_name": "Notebook", "job_status": "starting", "backend": workspace.get("backend"), "modal_account_alias": workspace.get("modal_account_alias")}, "Notebook Workspace", "starting")
+        _commit(conn)
+    try:
         launched = notebook_runtime.launch_or_resume_workspace(session_id, notebook_text, seed_files=seed_files, existing_workspace=workspace)
+    except Exception as exc:  # noqa: BLE001
+        with _with_conn() as conn:
+            if _session_row(conn, session_id):
+                _execute(
+                    conn,
+                    "UPDATE notebook_workspaces SET status=?, last_error=?, updated_at=? WHERE session_id=?",
+                    ("failed", f"{type(exc).__name__}: {exc}", _now(), session_id),
+                )
+                _event(conn, session_id, "cell_failed", {"workspace": "notebook", "error": f"{type(exc).__name__}: {exc}"}, "Notebook Workspace", "failed")
+                _commit(conn)
+        return _error(502, "NOTEBOOK_LAUNCH_FAILED", "JupyterLab workspace failed to start in Modal.", "notebook_failed", [f"GET /api/sessions/{session_id}/notebook", f"POST /api/sessions/{session_id}/notebook/launch"])
+    with _with_conn() as conn:
+        workspace = _notebook_workspace_dict(_notebook_workspace_row(conn, session_id)) if _notebook_workspace_row(conn, session_id) else workspace
         artifact_paths = list(dict.fromkeys((workspace.get("artifact_paths") or []) + [
             f"sessions/{session_id}/06_compute/notebook/analysis.ipynb",
             f"sessions/{session_id}/06_compute/notebook/analysis.py",
@@ -4093,6 +4308,9 @@ def export_overleaf_zip(session_id: str):
     with _with_conn() as conn:
         if not _session_row(conn, session_id):
             return _not_found()
+        readiness = _export_readiness_for_session(conn, session_id)
+        if not readiness["ready"]:
+            return _error(409, "EXPORT_NOT_READY", "Overleaf ZIP is not ready because Writer has not produced final.tex.", "export_not_ready", ["Complete the Writer phase.", f"GET /api/sessions/{session_id}/cockpit"])
     try:
         data = _build_overleaf_zip(session_id)
         write_artifact(session_id, "11_paper/overleaf_project.zip", data)

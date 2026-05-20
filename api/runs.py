@@ -95,6 +95,7 @@ def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[st
             "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1",
             (run_id,),
         )
+        session_summary = sessions._session_summary(conn, row)
     data_passport: dict[str, Any] = {}
     if include_passport:
         try:
@@ -151,6 +152,10 @@ def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[st
         "hypothesis_id": None,
         "plan": blueprint,
         "reviewer_gate": {"passed": gate_passed, "average_score": sessions._row_get(score, "average_score")},
+        "backend_activity": session_summary.get("backend_activity"),
+        "is_stale": session_summary.get("is_stale"),
+        "last_activity_at": session_summary.get("last_activity_at"),
+        "next_action": session_summary.get("next_action"),
     }
 
 
@@ -181,6 +186,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
             sid = sessions._row_get(s, "session_id")
             if sid not in scores_by_session:
                 scores_by_session[sid] = s
+        summaries_by_session = {sessions._row_get(row, "id"): sessions._session_summary(conn, row) for row in rows}
 
     runs: list[dict[str, Any]] = []
     for row in rows:
@@ -241,6 +247,10 @@ def _canonical_runs() -> list[dict[str, Any]]:
             "hypothesis_id": None,
             "plan": {},
             "reviewer_gate": {"passed": gate_passed, "average_score": sessions._row_get(score, "average_score") if score else None},
+            "backend_activity": summaries_by_session.get(run_id, {}).get("backend_activity"),
+            "is_stale": summaries_by_session.get(run_id, {}).get("is_stale"),
+            "last_activity_at": summaries_by_session.get(run_id, {}).get("last_activity_at"),
+            "next_action": summaries_by_session.get(run_id, {}).get("next_action"),
         }
         runs.append(run_obj)
         

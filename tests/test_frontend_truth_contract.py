@@ -128,9 +128,11 @@ def test_research_route_is_study_first_cockpit_and_not_agent_shell() -> None:
 
 def test_dashboard_supports_bulk_cleanup_actions() -> None:
     html = _html()
-    assert "Delete completed" in html
+    assert "Delete visible" in html
     assert "Delete selected" in html
-    assert "/api/sessions/bulk/delete-completed" in html
+    assert "Clean stale running" in html
+    assert "/api/sessions/bulk/delete-visible" in html
+    assert "/api/sessions/bulk/clean-stale-running" in html
     assert "/api/sessions/bulk/delete" in html
 
 
@@ -140,3 +142,25 @@ def test_frontend_uses_real_model_registry_and_prompt_layers() -> None:
     assert "Locked Safety Contract" in html
     assert "Editable Working Prompt" in html
     assert "Session-specific notes" in html
+
+
+def test_cockpit_makes_jupyter_primary_and_export_readiness_explicit() -> None:
+    html = _html()
+    assert "Notebook workspace" in html
+    assert "Open full screen" in html
+    assert "window.open(res.workspace.access_url" not in html
+    assert "Notebook bootstrap cells" in html
+    assert "Cockpit Cells" not in html
+    assert "ZIP not ready" in html
+    assert "data-export-ready" in html
+
+
+def test_specialist_and_prompt_panels_explain_backend_effects() -> None:
+    html = _html()
+    assert "Used by next run of this agent" in html
+    assert "last saved" in html
+    assert "data-specialist-thread" in html
+    assert "Create notebook cell" in html
+    assert "Insert into prompt" in html
+    assert "data-specialist-action" in html
+    assert "Where this model is used" in html

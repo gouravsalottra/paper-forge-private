@@ -1308,6 +1308,10 @@ async function renderDashboard(){
       const topic = esc((r.hypothesis || r.topic || 'Untitled research').slice(0,80));
       const statusRaw = (r.status||'initializing').toLowerCase();
       const statusLabel = STATUS_HUMAN[statusRaw] || esc(statusRaw);
+      const backend = r.backend_activity || {};
+      const backendState = backend.label || backend.state || (['running','queued'].includes(statusRaw) ? 'SSE idle' : 'Idle');
+      const backendClass = backend.state === 'stale' ? 'bad' : backend.state === 'modal_job' || backend.state === 'notebook' ? 'ok' : 'muted';
+      const lastEvent = backend.last_event_at || r.last_activity_at || r.updated_at || r.created_at;
       // Current step: use the phase if it exists, else derive from status
       let stepLabel;
       if(r.phase && PHASE_HUMAN[r.phase]) {
@@ -1331,6 +1335,8 @@ async function renderDashboard(){
         <td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td>
         <td>${esc(r.research_type||'exploratory')}</td>
         <td>${stepLabel}</td>
+        <td><span class="pill ${backendClass}">${esc(backendState)}</span><div class="mini">${esc(lastEvent ? fmtDate(lastEvent) : 'No backend event')}</div></td>
+        <td>${esc(r.next_action || 'Open cockpit')}</td>
         <td>${fmtDate(r.created_at)}</td>
       </tr>`;
     }).join('');
@@ -1343,7 +1349,7 @@ async function renderDashboard(){
 
     const tableOrEmpty = total
       ? `<table>
-          <thead><tr><th><input type="checkbox" id="dashboard-select-all"></th><th>Status</th><th>Study</th><th>Type</th><th>Current step</th><th>Started</th></tr></thead>
+          <thead><tr><th><input type="checkbox" id="dashboard-select-all"></th><th>Status</th><th>Study</th><th>Type</th><th>Current step</th><th>Backend truth</th><th>Next action</th><th>Started</th></tr></thead>
           <tbody>${rows}</tbody>
          </table>`
       : emptyState;
@@ -1368,7 +1374,9 @@ async function renderDashboard(){
           </div>
           <div class="row" style="flex-wrap:wrap;gap:8px">
             <button class="btn" id="dashboard-delete-selected">Delete selected</button>
-            <button class="btn" id="dashboard-delete-completed">Delete completed</button>
+            <button class="btn" id="dashboard-stop-selected">Stop selected</button>
+            <button class="btn" id="dashboard-clean-stale">Clean stale running</button>
+            <button class="btn" id="dashboard-delete-visible">Delete visible</button>
           </div>
         </div>
       </div>
@@ -1399,11 +1407,25 @@ async function renderDashboard(){
       toast('Selected studies deleted.');
       renderDashboard();
     });
-    qs('#dashboard-delete-completed')?.addEventListener('click', async()=>{
-      if(!confirm('Delete all completed studies? This cannot be undone.')) return;
-      await api('/api/sessions/bulk/delete-completed', {method:'POST'});
+    qs('#dashboard-stop-selected')?.addEventListener('click', async()=>{
+      const ids = [...dashboardSelection];
+      if(!ids.length){ toast('Select at least one study first.'); return; }
+      await api('/api/sessions/bulk/stop', {method:'POST', body:JSON.stringify({session_ids: ids})});
+      toast('Selected running studies stopped where possible.');
+      renderDashboard();
+    });
+    qs('#dashboard-clean-stale')?.addEventListener('click', async()=>{
+      const res = await api('/api/sessions/bulk/clean-stale-running', {method:'POST', body:JSON.stringify({})});
+      toast(`${(res.stale_session_ids || []).length} stale running studies marked.`);
+      renderDashboard();
+    });
+    qs('#dashboard-delete-visible')?.addEventListener('click', async()=>{
+      const ids = filteredRuns.map(run => run.run_id).filter(Boolean);
+      if(!ids.length){ toast('No visible studies to delete.'); return; }
+      if(!confirm(`Delete all ${ids.length} visible stud${ids.length===1?'y':'ies'} in this filter? This cannot be undone.`)) return;
+      await api('/api/sessions/bulk/delete-visible', {method:'POST', body:JSON.stringify({session_ids: ids})});
       dashboardSelection.clear();
-      toast('Completed studies deleted.');
+      toast('Visible studies deleted.');
       renderDashboard();
     });
     if(running>0){ stopAllPolling(); poller=setInterval(renderDashboard,15000); }
@@ -3045,11 +3067,11 @@ function renderSpecialistPreview(thread){
   const messages = thread.messages || [];
   const recent = messages.slice(-2).map(msg => `<div class="mini" style="margin-top:6px"><strong>${esc((msg.role || '').toUpperCase())}</strong> · ${esc((msg.message_text || '').slice(0,140))}</div>`).join('');
   return `
-    <div class="artifact-tile" style="display:block">
+    <button class="artifact-tile" data-specialist-thread="${esc(thread.agent_name || 'Specialist')}" style="display:block;text-align:left;width:100%">
       <strong>${esc(thread.agent_name || 'Specialist')}</strong>
       <span class="mini">${esc(thread.selected_model || 'Default model')}</span>
       ${recent || '<div class="mini" style="margin-top:6px">No messages yet.</div>'}
-    </div>
+    </button>
   `;
 }
 
@@ -3057,6 +3079,7 @@ function renderPromptTemplatePanel(template){
   return `
     <details class="prompt-panel">
       <summary><strong>${esc(template.agent_name)}</strong> <span class="mini">full prompt control</span></summary>
+      <div class="mini" style="margin-top:8px">Used by next run of this agent. last saved: ${esc(template.updated_at || template.created_at || 'not customized yet')}.</div>
       <div class="mini" style="margin-top:10px;font-weight:600">Locked Safety Contract</div>
       <pre style="white-space:pre-wrap;margin-top:6px">${esc('Safety, verified-number-only writing, Modal sandboxing, and secret protection remain locked.')}</pre>
       <div class="mini" style="margin-top:10px;font-weight:600">Editable Working Prompt</div>
@@ -3076,18 +3099,21 @@ function renderPromptTemplatePanel(template){
 function renderNotebookWorkspace(workspace, sessionId){
   const status = workspace?.status || 'not_started';
   const artifactPaths = workspace?.artifact_paths || [];
+  const errorCard = workspace?.last_error
+    ? `<div class="repair-card" style="margin-top:12px"><strong>Notebook startup failed</strong><p class="mini">${esc(workspace.last_error)}</p></div>`
+    : '';
   const iframe = workspace?.access_url && workspace?.can_embed
-    ? `<iframe src="${esc(workspace.access_url)}" title="JupyterLab workspace" style="width:100%;min-height:620px;border:1px solid var(--line);border-radius:18px;background:#fff;margin-top:14px"></iframe>`
+    ? `<iframe src="${esc(workspace.access_url)}" title="JupyterLab workspace" style="width:100%;min-height:720px;border:1px solid var(--line);border-radius:18px;background:#fff;margin-top:14px"></iframe>`
     : '';
   return `
-    <section class="workspace-panel">
+    <section class="workspace-panel notebook-primary">
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
         <div>
           <h4 style="margin:0 0 8px">Notebook workspace</h4>
-          <p class="mini" style="margin:0">Real JupyterLab runs in Modal. Launch it for freeform analysis, then sync notebook artifacts back into the study.</p>
+          <p class="mini" style="margin:0">Open JupyterLab inside this cockpit. Real JupyterLab runs in Modal; run cells here, see outputs inline, then sync notebook artifacts back into the study.</p>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button class="btn primary" id="cockpit-launch-notebook">Open JupyterLab</button>
+          <button class="btn primary" id="cockpit-launch-notebook">${status==='running' ? 'Refresh JupyterLab' : 'Launch JupyterLab'}</button>
           <button class="btn" id="cockpit-sync-notebook">Sync notebook artifacts</button>
         </div>
       </div>
@@ -3097,11 +3123,22 @@ function renderNotebookWorkspace(workspace, sessionId){
         <span class="tag">${esc(workspace?.modal_account_alias || 'router')}</span>
         <span class="tag">${esc(workspace?.sync_status || 'not_synced')}</span>
       </div>
-      ${workspace?.access_url ? `<div style="margin-top:12px"><a class="btn" href="${esc(workspace.access_url)}" target="_blank" rel="noopener">Open JupyterLab in a new tab</a></div>` : ''}
+      ${errorCard}
+      ${workspace?.access_url ? `<div style="margin-top:12px"><a class="btn" href="${esc(workspace.access_url)}" target="_blank" rel="noopener">Open full screen</a></div>` : ''}
       ${iframe}
       ${artifactPaths.length ? `<div class="artifact-grid" style="margin-top:14px">${artifactPaths.slice(-6).map(path => `<div class="artifact-tile"><strong>${esc(String(path).split('/').pop())}</strong><span class="mini">${esc(path)}</span></div>`).join('')}</div>` : ''}
     </section>
   `;
+}
+
+function renderExportReadiness(exportState, sessionId){
+  const ready = !!exportState?.ready;
+  const missing = exportState?.missing || [];
+  const route = exportState?.overleaf_zip_route || `/api/sessions/${sessionId}/export/overleaf.zip`;
+  if(ready){
+    return `<a class="btn primary" data-export-ready="true" href="${API_BASE}${esc(route)}" download>Download ZIP</a>`;
+  }
+  return `<button class="btn" data-export-ready="false" id="cockpit-export-not-ready" disabled>ZIP not ready</button><div class="mini" style="margin-top:8px">Missing: ${esc(missing.join(', ') || 'Writer export')}</div>`;
 }
 
 function renderCockpitPanel(cockpit, sessionId){
@@ -3121,6 +3158,8 @@ function renderCockpitPanel(cockpit, sessionId){
   const specialists = cockpit.specialists || [];
   const notebookWorkspace = cockpit.notebook_workspace || {};
   const quality = cockpit.quality_report || {};
+  const exportState = cockpit.export || {};
+  const resourcePolicy = cockpit.compute_resource_policy || {};
   const gateRows = gates.map(g=>`
     <article class="approval-card">
       <div class="row" style="align-items:flex-start">
@@ -3158,7 +3197,7 @@ function renderCockpitPanel(cockpit, sessionId){
     </article>`).join('');
   const phaseModelRows = phaseModel.map(phase=>{
     const selected = (modelSettings.phase_settings || []).find(s=>s.phase_name===phase)?.model_name || modelSettings.default_model || 'gpt-4o';
-    return `<label class="mini">${esc(phase)}<select data-model-phase="${esc(phase)}">${allowedModels.map(m=>`<option value="${esc(m)}" ${m===selected?'selected':''}>${esc(m)}</option>`).join('')}</select></label>`;
+    return `<label class="mini">${esc(phase)}<span class="mini">Where this model is used: next ${esc(phase)} phase call.</span><select data-model-phase="${esc(phase)}">${allowedModels.map(m=>`<option value="${esc(m)}" ${m===selected?'selected':''}>${esc(m)}</option>`).join('')}</select></label>`;
   }).join('');
   const specialistRows = SPECIALIST_AGENT_ORDER.map(agentName => {
     const thread = specialists.find(item => item.agent_name === agentName) || {agent_name: agentName, selected_model: (modelSettings.default_model || 'gpt-4o'), messages: []};
@@ -3193,7 +3232,7 @@ function renderCockpitPanel(cockpit, sessionId){
               <h3 style="margin:0;font-size:30px">Outputs arrive here as the run works</h3>
               <p class="mini" style="margin-top:8px">Workflow: ${esc(phaseModel.join(' → ') || 'Waiting for phase model')}</p>
             </div>
-            <a class="btn primary" href="${API_BASE}/api/sessions/${esc(sessionId)}/export/overleaf.zip" download>Download ZIP</a>
+            <div>${renderExportReadiness(exportState, sessionId)}</div>
           </div>
         </section>
         <section class="workspace-panel">
@@ -3202,12 +3241,12 @@ function renderCockpitPanel(cockpit, sessionId){
         </section>
         ${renderNotebookWorkspace(notebookWorkspace, sessionId)}
         <section class="workspace-panel">
-          <h4 style="margin:0 0 12px">Cockpit Cells</h4>
-          <p class="mini">Notebook-style cells are stored with the session and executed in the sandbox backend.</p>
+          <h4 style="margin:0 0 12px">Notebook bootstrap cells</h4>
+          <p class="mini">These seed the Jupyter notebook. Use the embedded notebook above for actual code execution and visible cell output.</p>
           <div class="grid" style="gap:10px">${cellRows || '<p class="mini">No cells yet.</p>'}</div>
           <div class="approval-actions">
             <button class="btn" id="cockpit-add-cell">Add cell</button>
-            <button class="btn primary" id="cockpit-run-all-cells">Run all cells in Modal</button>
+            <button class="btn" id="cockpit-run-all-cells">Rebuild notebook from bootstrap cells</button>
           </div>
         </section>
       </main>
@@ -3235,11 +3274,19 @@ function renderCockpitPanel(cockpit, sessionId){
           <select id="cockpit-specialist-mode" style="margin-top:8px">${SPECIALIST_MODES.map(mode => `<option value="${esc(mode.value)}">${esc(mode.label)}</option>`).join('')}</select>
           <textarea id="cockpit-specialist-text" placeholder="Challenge the design, rewrite a section, interpret a result, or generate a notebook cell." style="min-height:104px;margin-top:10px"></textarea>
           <button class="btn primary" id="cockpit-specialist-send">Send to specialist</button>
+          <div class="approval-actions">
+            <button class="btn" type="button" data-specialist-action="insert_prompt">Insert into prompt</button>
+            <button class="btn" type="button" data-specialist-action="create_cell">Create notebook cell</button>
+            <button class="btn" type="button" data-specialist-action="add_followup">Add follow-up</button>
+            <button class="btn" type="button" data-specialist-action="copy">Copy</button>
+          </div>
         </section>
         <section class="inspector-panel">
           <h4>Models and quality</h4>
+          ${modelSettings.catalog && modelSettings.catalog.length <= 3 ? '<p class="mini">Admin note: only configured chat-capable deployments are shown. Add more Azure Foundry deployments to the backend registry to expose them here.</p>' : ''}
           <div class="grid" style="gap:8px">${phaseModelRows || '<p class="mini">Model settings will appear here.</p>'}</div>
-          <p style="margin-top:10px"><span class="pill ${quality.status==='pass'?'ok':'warn'}">${esc(quality.status || 'not checked')}</span> <span class="mini">Score ${esc(String(quality.score ?? '—'))}/10</span></p>
+          <div class="mini" style="margin-top:12px"><strong>Compute resources:</strong> ${esc(resourcePolicy.default_tier || 'cpu-small')} on ${esc(resourcePolicy.backend || 'modal')}. CPU is default; GPU is only selected for validated GPU-eligible analysis plans.</div>
+          <p style="margin-top:10px"><span class="pill ${quality.status==='pass'?'ok':quality.status==='not_ready'?'muted':'warn'}">${esc(quality.status || 'not checked')}</span> <span class="mini">${quality.status==='not_ready' ? 'Quality score appears after Writer produces final.tex.' : `Score ${esc(String(quality.score ?? '—'))}/10`}</span></p>
           <button class="btn" id="cockpit-quality-refresh">Run quality check</button>
         </section>
       </aside>
@@ -3533,7 +3580,7 @@ async function renderResearch(id){
       renderResearch(id);
     });
     qs('#cockpit-run-all-cells')?.addEventListener('click', async()=>{
-      toast('Running notebook cells in sandbox');
+      toast('Rebuilding notebook bootstrap artifacts');
       await api(`/api/sessions/${id}/compute-cells/run-all`, {method:'POST'});
       renderResearch(id);
     });
@@ -3544,8 +3591,7 @@ async function renderResearch(id){
     });
     qs('#cockpit-launch-notebook')?.addEventListener('click', async()=>{
       toast('Launching JupyterLab in Modal…');
-      const res = await api(`/api/sessions/${id}/notebook/launch`, {method:'POST'});
-      if(res?.workspace?.access_url) window.open(res.workspace.access_url, '_blank', 'noopener');
+      await api(`/api/sessions/${id}/notebook/launch`, {method:'POST'});
       renderResearch(id);
     });
     qs('#cockpit-sync-notebook')?.addEventListener('click', async()=>{
@@ -3567,6 +3613,49 @@ async function renderResearch(id){
       toast(`${agent} responded.`);
       renderResearch(id);
     });
+    document.querySelectorAll('[data-specialist-thread]').forEach(btn=>btn.addEventListener('click', ()=>{
+      const agent = btn.getAttribute('data-specialist-thread');
+      const selector = qs('#cockpit-specialist-agent');
+      if(selector && agent) selector.value = agent;
+      qs('#cockpit-specialist-text')?.focus();
+    }));
+    document.querySelectorAll('[data-specialist-action]').forEach(btn=>btn.addEventListener('click', async()=>{
+      const action = btn.getAttribute('data-specialist-action');
+      const agent = qs('#cockpit-specialist-agent')?.value || 'Research Architect';
+      const typed = (qs('#cockpit-specialist-text')?.value || '').trim();
+      const thread = (cockpitPayload?.specialists || []).find(item => item.agent_name === agent);
+      const latestAssistant = [...(thread?.messages || [])].reverse().find(item => item.role === 'assistant');
+      const content = typed || latestAssistant?.message_text || '';
+      if(!content){ toast('No specialist text is available yet. Ask a specialist first, or type instructions.'); return; }
+      if(action === 'copy'){
+        await navigator.clipboard.writeText(content);
+        toast('Specialist text copied');
+        return;
+      }
+      if(action === 'create_cell'){
+        const code = qs('#cockpit-specialist-mode')?.value === 'generate_notebook_cell' ? content : `# Specialist note from ${agent}\n${content.split('\n').map(line => `# ${line}`).join('\n')}\n`;
+        await api(`/api/sessions/${id}/compute-cells`, {method:'POST', body:JSON.stringify({title:`Specialist draft: ${agent}`, code})});
+        toast('Notebook bootstrap cell created');
+        renderResearch(id);
+        return;
+      }
+      if(action === 'add_followup'){
+        await api(`/api/sessions/${id}/followups`, {method:'POST', body:JSON.stringify({instruction:content, phase_name: cockpitPayload?.current_phase?.agent_name || cockpitPayload?.current_phase?.phase_name || null})});
+        toast('Specialist text queued as follow-up');
+        renderResearch(id);
+        return;
+      }
+      if(action === 'insert_prompt'){
+        const notes = document.querySelector(`[data-session-notes-agent="${CSS.escape(agent)}"]`);
+        const nextNotes = `${notes?.value || ''}\n\nSpecialist note (${new Date().toLocaleString()}):\n${content}`.trim();
+        await api(`/api/sessions/${id}/prompt-amplifiers`, {
+          method:'PUT',
+          body:JSON.stringify({agent_name:agent, session_notes:nextNotes, editor:'admin', scope:'session'})
+        });
+        toast('Specialist text inserted into prompt notes');
+        renderResearch(id);
+      }
+    }));
 
     applyPersonaConfig(PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG.auto);
     applyFrontendTruthState(st);
