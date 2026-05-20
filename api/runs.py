@@ -165,12 +165,6 @@ def _canonical_runs() -> list[dict[str, Any]]:
         session_ids = [sessions._row_get(row, "id") for row in rows]
         placeholders = ",".join("?" * len(session_ids))
         
-        # Fetch blueprints
-        blueprint_rows = sessions._fetchall(conn, f"SELECT session_id, content FROM blueprints WHERE session_id IN ({placeholders}) ORDER BY created_at ASC", tuple(session_ids))
-        blueprints = {}
-        for b in blueprint_rows:
-            blueprints[sessions._row_get(b, "session_id")] = sessions._blueprint_content(b)
-            
         # Fetch phases
         phase_rows = sessions._fetchall(conn, f"SELECT session_id, agent_name, status FROM phases WHERE session_id IN ({placeholders}) ORDER BY started_at ASC", tuple(session_ids))
         phases_by_session = {}
@@ -191,7 +185,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
     runs: list[dict[str, Any]] = []
     for row in rows:
         run_id = sessions._row_get(row, "id")
-        blueprint = blueprints.get(run_id, {})
+        blueprint = {}
         phases = phases_by_session.get(run_id, [])
         score = scores_by_session.get(run_id)
         
