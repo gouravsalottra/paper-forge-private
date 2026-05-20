@@ -424,6 +424,21 @@ def test_dashboard_runs_include_backend_truth_and_next_action(tmp_path: Path, mo
     assert row["next_action"].startswith("Running")
 
 
+def test_session_list_does_not_scan_blob_artifacts(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    client.post("/api/sessions", json={"topic": "Lean session list"})
+
+    import api.sessions as sessions
+
+    def fail_list_artifacts(session_id: str):
+        raise AssertionError("list endpoint must not scan Blob artifacts")
+
+    monkeypatch.setattr(sessions, "list_artifacts", fail_list_artifacts)
+    response = client.get("/api/sessions")
+    assert response.status_code == 200
+    assert response.json()[0]["artifact_count"] is None
+
+
 def test_cockpit_exposes_compute_resource_policy_without_default_gpu(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     session_id = client.post("/api/sessions", json={"topic": "Resource policy study"}).json()["session_id"]

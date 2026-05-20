@@ -2768,7 +2768,7 @@ def _execute_session_pipeline(session_id: str, blueprint: dict[str, Any]) -> Non
         _commit(conn)
 
 
-def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
+def _session_summary(conn: Any, row: Any, *, include_artifact_count: bool = True) -> dict[str, Any]:
     session_id = _row_get(row, "id")
     blueprint = _blueprint_row(conn, session_id)
     phase = _fetchone(conn, "SELECT agent_name, status FROM phases WHERE session_id=? ORDER BY started_at DESC LIMIT 1", (session_id,))
@@ -2828,7 +2828,7 @@ def _session_summary(conn: Any, row: Any) -> dict[str, Any]:
         "backend_activity": backend_activity,
         "is_stale": bool(backend_activity.get("stale")),
         "credits_spent": _row_get(row, "credits_spent", 0),
-        "artifact_count": len(list_artifacts(session_id)),
+        "artifact_count": len(list_artifacts(session_id)) if include_artifact_count else None,
         "coauthor_status": "active" if _row_get(row, "coauthor_id") else "none",
         "parent_run_id": _row_get(row, "parent_run_id"),
         "reviewer_average_score": _row_get(score, "average_score"),
@@ -2991,7 +2991,7 @@ def list_sessions():
     try:
         with _with_conn() as conn:
             rows = _fetchall(conn, "SELECT * FROM sessions ORDER BY updated_at DESC")
-            return [_session_summary(conn, row) for row in rows]
+            return [_session_summary(conn, row, include_artifact_count=False) for row in rows]
     except DatabaseUnavailableError as exc:
         return _error(503, exc.error_code, str(exc), exc.system_state, exc.available_actions)
 
