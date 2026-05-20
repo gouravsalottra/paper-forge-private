@@ -3108,19 +3108,52 @@ const AGENT_CONFIG = {
   writer: { name: 'LaTeX Writer', icon: '✍️', prompt: '', model: 'gpt-4o' }
 };
 
-const MODELS = ['gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-5-sonnet', 'gemini-1.5-pro', 'llama-3-70b'];
+// Models available in Azure AI Foundry — sourced from the backend env or this curated list
+const MODELS = [
+  // GPT family
+  'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
+  // o-series reasoning
+  'o1', 'o1-mini', 'o3', 'o3-mini', 'o4-mini',
+  // Claude family
+  'claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-5-haiku',
+  // Gemini
+  'gemini-2.5-pro', 'gemini-2.0-flash',
+  // Llama
+  'llama-3.3-70b-instruct', 'llama-4-scout',
+  // Mistral
+  'mistral-large-2411', 'mistral-small-2503',
+];
 
 let activeCells = [];
 let agentPrompts = {};
 let agentModels = {};
 let followupsCache = [];
+let workspaceTopic = '';
+let workspaceStatus = '';
+
+async function deleteStudy(id) {
+  if(!confirm('Delete this study? This cannot be undone.')) return;
+  try {
+    await api(`/runs/${id}`, { method: 'DELETE' }).catch(()=>{});
+  } finally {
+    agentPrompts = {};
+    agentModels = {};
+    activeCells = [];
+    followupsCache = [];
+    workspaceTopic = '';
+    workspaceStatus = '';
+    location.hash = 'dashboard';
+    _dashboardBuilt = false;
+    toast('Study deleted.');
+  }
+}
 
 async function renderWorkspace(id) {
   currentResearchId = id;
   const app = qs('#app');
   
   if(!agentPrompts[activeAgent]){
-    app.innerHTML = '<div class="card">Loading workspace...</div>';
+    app.innerHTML = '<div class="card" style="padding:32px;text-align:center">Loading workspace…</div>';
     
     // Load backend data concurrently
     const [st, cellsRes, followupsRes, ampsRes, modsRes] = await Promise.all([
@@ -3133,8 +3166,14 @@ async function renderWorkspace(id) {
     
     activeCells = cellsRes.cells || [];
     followupsCache = followupsRes.followups || [];
+    workspaceTopic = st.topic || st.hypothesis || 'Untitled Study';
+    workspaceStatus = st.status || 'initializing';
     
-    // Process backend models
+    // Process backend models — merge with backend allowed_models if returned
+    const backendModels = modsRes.allowed_models;
+    if(Array.isArray(backendModels) && backendModels.length > 0) {
+      MODELS.splice(0, MODELS.length, ...backendModels);
+    }
     (modsRes.settings || []).forEach(s => {
       const k = Object.keys(AGENT_MAP).find(key => AGENT_MAP[key] === s.agent);
       if(k) agentModels[k] = s.model_name;
@@ -3145,20 +3184,22 @@ async function renderWorkspace(id) {
       const backendAgentName = AGENT_MAP[key];
       const composed = await api(`/sessions/${id}/prompts/composed?agent=${encodeURIComponent(backendAgentName)}`).catch(()=>({prompt:''}));
       const amp = (ampsRes.amplifiers || []).find(a => a.agent === backendAgentName);
-      // We will show the composed prompt as the editable base, or the user's amplifier.
-      agentPrompts[key] = amp ? amp.prompt_amplifier : (composed.prompt || AGENT_CONFIG[key].prompt || 'You are the ' + AGENT_MAP[key]);
+      agentPrompts[key] = amp ? amp.prompt_amplifier : (composed.prompt || '');
     }
   }
 
+  const statusLabel = STATUS_HUMAN[workspaceStatus] || workspaceStatus;
+
   app.innerHTML = `
-    <div class="row" style="margin-bottom:20px; align-items:flex-end">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:16px">
       <div>
-        <h2 style="margin:0 0 8px 0">Researcher OS</h2>
-        <p class="muted" style="margin:0">Live multi-agent workspace for session <code>${esc(id)}</code></p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <button class="btn" onclick="location.hash='dashboard'" style="padding:6px 14px;font-size:13px">← All Studies</button>
+          <span class="chip">${esc(statusLabel)}</span>
+        </div>
+        <h2 style="margin:0;font-size:20px;line-height:1.3">${esc(workspaceTopic.slice(0,120))}</h2>
       </div>
-      <div>
-         <button class="btn primary" onclick="window.location.hash=''">Back to Dashboard</button>
-      </div>
+      <button class="btn" id="delete-study-btn" style="background:#fee2e2;color:#b91c1c;border-color:#fca5a5;flex-shrink:0" onclick="deleteStudy('${esc(id)}')">Delete study</button>
     </div>
     <div class="workspace-shell">
       <aside class="workspace-nav">
@@ -3305,9 +3346,11 @@ ${esc(c.output_stdout || '')}
         <h3 style="margin:0">${agent.icon} ${esc(agent.name)}</h3>
         <select class="model-select" onchange="updateAgentModel(this.value)">${modelOptions}</select>
       </div>
-      <div>
-        <div class="mini" style="margin-bottom:6px;font-weight:600;color:var(--muted)">BASE PROMPT (EDITABLE)</div>
-        <textarea class="prompt-editor" onblur="updateAgentPrompt(this.value)">${esc(currentPrompt)}</textarea>
+      <div style="margin-top:10px">
+        <div class="mini" style="margin-bottom:6px;font-weight:600;color:var(--muted)">YOUR CUSTOM INSTRUCTION FOR THIS AGENT</div>
+        <div class="mini" style="margin-bottom:8px;color:var(--muted)">Type here to give this agent specific direction — e.g. "Focus only on papers from 2018–2024" or "Use Fama-French 3-factor model". Leave blank to use the default agent behaviour.</div>
+        <textarea class="prompt-editor" onblur="updateAgentPrompt(this.value)" placeholder="e.g. Focus on peer-reviewed finance journals only. Use APA citations.">${esc(currentPrompt)}</textarea>
+        ${currentPrompt ? '<div class="mini" style="color:#16a34a;margin-top:4px">✓ Custom instruction active — this agent will follow your guidance</div>' : '<div class="mini" style="color:var(--muted);margin-top:4px">No custom instruction — running with default behaviour</div>'}
       </div>
     </div>
     <div class="agent-chat">
@@ -3320,7 +3363,7 @@ ${esc(c.output_stdout || '')}
   `;
 }
 
-function route(){ stopAllPolling(); const h=(location.hash||'#new').slice(1); if(h.startsWith('research/')) return renderWorkspace(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }
+function route(){ stopAllPolling(); const h=(location.hash||'').slice(1); if(h.startsWith('research/')) return renderWorkspace(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }
 window.addEventListener('hashchange', route);
 document.addEventListener('DOMContentLoaded', () => {
   setPersona(localStorage.getItem('thrivarc_persona') || 'auto');
