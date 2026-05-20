@@ -684,7 +684,7 @@
         <span>Thrivarc AI</span>
       </a>
       <span id="persona-badge" class="badge" role="button" tabindex="0" aria-haspopup="true">🧭 Researcher</span>
-      <span id="spend-chip" class="badge" data-truth-source="sessions.credits_spent">$0.00 spent</span>
+
       <nav class="row" aria-label="App navigation">
         <a href="#dashboard" class="muted">Dashboard</a>
         <a href="#new" class="muted">Start Research</a>
@@ -1062,15 +1062,12 @@ async function renderDashboard(){
     const total = runs.length;
     const done = runs.filter(r=>r.status==='done' || r.status==='paper_unlocked').length;
     const running = runs.filter(r=>['running','queued'].includes((r.status||'').toLowerCase())).length;
-    const spend = runs.reduce((a,b)=>a+Number(b.cost_usd||0),0);
     const needsBlueprint = runs.filter(r=>['queued','preparing'].includes((r.status||'').toLowerCase())).length;
     const needsReview = runs.filter(r=>String(r.phase||'').toUpperCase()==='REVIEWER' || (r.status||'').toLowerCase()==='done').length;
-    qs('#spend-chip').textContent = `${money(spend)} spent`;
     const rows = runs.map(r=>{
-      const checked = compareSelection.has(r.run_id) ? 'checked' : '';
       const topic = esc((r.hypothesis || r.topic || 'Untitled research').slice(0,88));
       const runMeta = getConfig('showRunId') ? `<div class="mini" data-technical="run-id">Study ID: ${esc(r.run_id)}</div>` : '';
-      return `<tr><td><input type="checkbox" data-cmp="${esc(r.run_id)}" ${checked}></td><td>${esc(r.status||'queued')}</td><td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td><td>${esc(r.research_type||'exploratory')}</td><td>${esc(PHASE_HUMAN[r.phase]||'Preparing')}</td><td>${money(r.cost_usd)}</td><td>${fmtDate(r.created_at)}</td></tr>`;
+      return `<tr><td>${esc(r.status||'queued')}</td><td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td><td>${esc(r.research_type||'exploratory')}</td><td>${esc(PHASE_HUMAN[r.phase]||'Preparing')}</td><td>${fmtDate(r.created_at)}</td></tr>`;
     }).join('');
     const workflowRail = `<div class="grid g3" style="margin-bottom:12px">
       <div class="card">
@@ -1124,28 +1121,18 @@ async function renderDashboard(){
         <div class="grid g2">
           <div class="insight-card"><div class="mini">Total studies</div><span class="stat-em">${total}</span><div class="mini">Every study here should have a blueprint, an evidence plan, and a defense path.</div></div>
           <div class="insight-card"><div class="mini">Completed</div><span class="stat-em">${done}</span><div class="mini">Finished studies have made it through analysis, reviewer pressure, and writing prep.</div></div>
-          <div class="insight-card"><div class="mini">In progress</div><span class="stat-em">${running}</span><div class="mini">Use the live feed to see which stage is currently moving and what is still blocked.</div></div>
-          <div class="insight-card"><div class="mini">Spend</div><span class="stat-em">${money(spend)}</span><div class="mini">Cost is only worth it when the blueprint, evidence, and defense all stay honest.</div></div>
+          <div class="insight-card" style="grid-column: span 2"><div class="mini">In progress</div><span class="stat-em">${running}</span><div class="mini">Use the live feed to see which stage is currently moving and what is still blocked.</div></div>
         </div>
       </div>
     </div>
       ${workflowRail}
-      <div class="card">${total?`<table><thead><tr><th>Compare</th><th>Status</th><th>Study</th><th>Research style</th><th>Current step</th><th>Cost</th><th>Started</th></tr></thead><tbody>${rows}</tbody></table><div class="row" style="margin-top:10px"><button class="btn" id="btn-compare">Compare selected</button></div><div id="cmp-panel"></div>`:emptyState}</div>`;
+      <div class="card">${total?`<table><thead><tr><th>Status</th><th>Study</th><th>Research style</th><th>Current step</th><th>Started</th></tr></thead><tbody>${rows}</tbody></table>`:emptyState}</div>`;
 
-    document.querySelectorAll('[data-cmp]').forEach(el=>el.addEventListener('change',()=>{ const id=el.getAttribute('data-cmp'); if(el.checked) compareSelection.add(id); else compareSelection.delete(id);}));
-    qs('#btn-compare')?.addEventListener('click',()=>renderComparison(runs));
     if(running>0){ stopAllPolling(); poller=setInterval(renderDashboard,8000); }
   }catch(e){ app.innerHTML = `<div class="card">Error: ${esc(e.message)} <button class="btn" id="retry">Retry</button></div>`; qs('#retry')?.addEventListener('click',renderDashboard); }
 }
 
-function renderComparison(runs){
-  const ids=[...compareSelection].slice(0,3);
-  const panel=qs('#cmp-panel');
-  if(!panel) return;
-  if(ids.length<2){ panel.innerHTML='<p class="muted" style="margin-top:10px">Select 2-3 completed studies to compare.</p>'; return; }
-  const subset=runs.filter(r=>ids.includes(r.run_id));
-  panel.innerHTML = `<div class="card" style="margin-top:10px"><h3>Compare research projects</h3>${subset.map(r=>`<p><strong>${esc((r.hypothesis||r.topic||'').slice(0,70))}</strong><br>Finding: ${r.finding_valid===true?'significant':r.finding_valid===false?'null':'pending'} · Cost: ${money(r.cost_usd)}</p>`).join('')}</div>`;
-}
+
 
 const STARTER_GUIDE_EXAMPLES = {
   topic: {
