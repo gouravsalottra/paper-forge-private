@@ -625,10 +625,15 @@ def _ensure_cockpit_schema(conn: Any) -> None:
     _commit(conn)
 
 
+_SCHEMA_ENSURED = False
+
 def _with_conn():
+    global _SCHEMA_ENSURED
     conn = _connect()
-    _ensure_schema(conn)
-    _ensure_cockpit_schema(conn)
+    if not _SCHEMA_ENSURED:
+        _ensure_schema(conn)
+        _ensure_cockpit_schema(conn)
+        _SCHEMA_ENSURED = True
     return conn
 
 
