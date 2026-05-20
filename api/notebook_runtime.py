@@ -10,6 +10,8 @@ from typing import Any
 
 from storage.blob import get_artifact_url, write_artifact
 
+WORKSPACE_DIR = os.getenv("THRIVARC_NOTEBOOK_WORKSPACE_DIR", "/tmp/workspace")
+
 
 def _is_test_mode() -> bool:
     return bool(os.getenv("PYTEST_CURRENT_TEST") or os.getenv("THRIVARC_STORAGE_BACKEND") == "mock")
@@ -19,25 +21,28 @@ def _workspace_seed_script(payload_url: str, token: str) -> str:
     return textwrap.dedent(
         f"""
         set -euo pipefail
-        mkdir -p /workspace
+        mkdir -p {WORKSPACE_DIR!r}
         python - <<'PY'
         import base64, json, os, urllib.request
         with urllib.request.urlopen({payload_url!r}) as response:
             payload = json.loads(response.read().decode("utf-8"))
         notebook = payload.get("notebook", "")
-        with open("/workspace/analysis.ipynb", "w", encoding="utf-8") as handle:
+        workspace_dir = {WORKSPACE_DIR!r}
+        os.makedirs(workspace_dir, exist_ok=True)
+        with open(os.path.join(workspace_dir, "analysis.ipynb"), "w", encoding="utf-8") as handle:
             handle.write(notebook)
         for item in payload.get("seed_files", []):
             name = os.path.basename(item.get("filename") or "seed.txt")
             content = base64.b64decode(item.get("content_b64") or "")
-            with open(os.path.join("/workspace", name), "wb") as handle:
+            with open(os.path.join(workspace_dir, name), "wb") as handle:
                 handle.write(content)
         PY
         python -m jupyterlab \
+          --allow-root \
           --ip=0.0.0.0 \
           --port=8888 \
-          --ServerApp.root_dir=/workspace \
-          --ServerApp.preferred_dir=/workspace \
+          --ServerApp.root_dir={WORKSPACE_DIR!r} \
+          --ServerApp.preferred_dir={WORKSPACE_DIR!r} \
           --ServerApp.open_browser=False \
           --ServerApp.token={token!r} \
           --ServerApp.password='' \
@@ -132,6 +137,7 @@ def launch_or_resume_workspace(
         app=app,
         timeout=int(os.getenv("THRIVARC_NOTEBOOK_TIMEOUT_SECONDS", "14400")),
         idle_timeout=int(os.getenv("THRIVARC_NOTEBOOK_IDLE_TIMEOUT_SECONDS", "3600")),
+        workdir=WORKSPACE_DIR,
         encrypted_ports=[8888],
         readiness_probe=modal.sandbox.Probe.with_tcp(8888),
         client=client,
@@ -173,7 +179,7 @@ def sync_workspace_artifacts(session_id: str, workspace: dict[str, Any]) -> dict
 
     synced_paths: list[str] = []
     try:
-        entries = sandbox.ls("/workspace")
+        entries = sandbox.ls(WORKSPACE_DIR)
     except Exception:
         entries = []
 
@@ -184,7 +190,7 @@ def sync_workspace_artifacts(session_id: str, workspace: dict[str, Any]) -> dict
         suffix = Path(name).suffix.lower()
         if suffix not in {".ipynb", ".py", ".csv", ".png", ".pdf", ".txt", ".json"}:
             continue
-        remote_path = entry if str(entry).startswith("/") else f"/workspace/{name}"
+        remote_path = entry if str(entry).startswith("/") else f"{WORKSPACE_DIR}/{name}"
         mode = "rb" if suffix in {".png", ".pdf"} else "r"
         with sandbox.open(remote_path, mode) as handle:
             content = handle.read()

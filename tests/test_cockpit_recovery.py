@@ -248,6 +248,8 @@ def test_notebook_bootstrap_uses_blob_payload_instead_of_large_command(tmp_path:
     assert len(script) < 65536
     assert "urllib.request.urlopen" in script
     assert "token-123" in script
+    assert notebook_runtime.WORKSPACE_DIR in script
+    assert "--allow-root" in script
 
 
 def test_live_notebook_launch_attaches_modal_app(tmp_path: Path, monkeypatch) -> None:
@@ -324,6 +326,7 @@ def test_live_notebook_launch_attaches_modal_app(tmp_path: Path, monkeypatch) ->
     assert workspace["backend"] == "modal"
     assert workspace["access_url"].startswith("https://sandbox.example/lab/tree/analysis.ipynb")
     assert captured["sandbox_kwargs"]["app"] == "app-obj"
+    assert captured["sandbox_kwargs"]["workdir"] == notebook_runtime.WORKSPACE_DIR
     assert captured["app_lookup"]["name"] == "thrivarc-compute"
 
 
