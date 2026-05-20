@@ -1049,87 +1049,87 @@ function openPersonaSwitcher(){
   }));
 }
 
+// Human-readable status labels for the dashboard table
+const STATUS_HUMAN = {
+  initializing: 'Setting up',
+  blueprint_locked: 'Blueprint ready',
+  running: '⚡ Running',
+  queued: 'Queued',
+  paper_unlocked: '✅ Paper ready',
+  paper_locked: 'Paper locked',
+  done: '✅ Complete',
+  failed_resumable: '⚠ Paused — needs attention',
+  failed_terminal: '✗ Stopped',
+  repair_required: '🔧 Repair needed',
+};
+
+let _dashboardBuilt = false;
+
 async function renderDashboard(){
-  // TEST: renderDashboard
-  // GIVEN empty runs THEN empty state visible
-  // GIVEN runs include running/done THEN rows and badges visible
-  // GIVEN API unreachable THEN offline message shown
   const app = qs('#app');
-  app.innerHTML = `<div class="card">Loading...</div>`;
+  // Only show the "Loading" spinner on first build — subsequent polls silently refresh
+  if(!_dashboardBuilt) app.innerHTML = `<div class="card" style="padding:32px;text-align:center;color:var(--muted)">Loading your studies…</div>`;
   try{
     const data = await api('/runs');
     const runs = data.runs || [];
     const total = runs.length;
     const done = runs.filter(r=>r.status==='done' || r.status==='paper_unlocked').length;
     const running = runs.filter(r=>['running','queued'].includes((r.status||'').toLowerCase())).length;
-    const needsBlueprint = runs.filter(r=>['queued','preparing'].includes((r.status||'').toLowerCase())).length;
-    const needsReview = runs.filter(r=>String(r.phase||'').toUpperCase()==='REVIEWER' || (r.status||'').toLowerCase()==='done').length;
+    const needsBlueprint = runs.filter(r=>['initializing','blueprint_locked'].includes((r.status||'').toLowerCase())).length;
+    const needsReview = runs.filter(r=>String(r.phase||'').toUpperCase()==='REVIEWER').length;
+
     const rows = runs.map(r=>{
-      const topic = esc((r.hypothesis || r.topic || 'Untitled research').slice(0,88));
+      const topic = esc((r.hypothesis || r.topic || 'Untitled research').slice(0,80));
+      const statusRaw = (r.status||'initializing').toLowerCase();
+      const statusLabel = STATUS_HUMAN[statusRaw] || esc(statusRaw);
+      // Current step: use the phase if it exists, else derive from status
+      let stepLabel;
+      if(r.phase && PHASE_HUMAN[r.phase]) {
+        stepLabel = PHASE_HUMAN[r.phase];
+      } else if(statusRaw === 'paper_unlocked') {
+        stepLabel = 'Paper ready to download';
+      } else if(statusRaw === 'initializing') {
+        stepLabel = 'Awaiting blueprint';
+      } else if(statusRaw === 'blueprint_locked') {
+        stepLabel = 'Blueprint approved — ready to run';
+      } else if(statusRaw === 'failed_resumable') {
+        stepLabel = 'Needs your attention';
+      } else {
+        stepLabel = 'In queue';
+      }
       const runMeta = getConfig('showRunId') ? `<div class="mini" data-technical="run-id">Study ID: ${esc(r.run_id)}</div>` : '';
-      return `<tr><td>${esc(r.status||'queued')}</td><td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td><td>${esc(r.research_type||'exploratory')}</td><td>${esc(PHASE_HUMAN[r.phase]||'Preparing')}</td><td>${fmtDate(r.created_at)}</td></tr>`;
+      return `<tr><td>${statusLabel}</td><td><a href="#research/${esc(r.run_id)}"><strong>${topic}</strong></a>${runMeta}</td><td>${esc(r.research_type||'exploratory')}</td><td>${stepLabel}</td><td>${fmtDate(r.created_at)}</td></tr>`;
     }).join('');
-    const workflowRail = `<div class="grid g3" style="margin-bottom:12px">
-      <div class="card">
-        <div class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700">Shape the blueprint</div>
-        <strong style="display:block;margin-top:6px">Move one study forward today</strong>
-        <p class="mini" style="margin-top:8px">A strong run starts with a sharper question, a coherent benchmark, and a validation burden the study can actually meet.</p>
-        <span class="chip">Needs blueprint attention: ${esc(String(needsBlueprint))}</span>
-      </div>
-      <div class="card">
-        <div class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700">Approve the evidence before compute</div>
-        <strong style="display:block;margin-top:6px">Preview the exact dataset</strong>
-        <p class="mini" style="margin-top:8px">Thrivarc should never launch on a dataset you have not inspected for identifiers, dates, coverage, and missingness.</p>
-        <span class="chip">Active studies: ${esc(String(running))}</span>
-      </div>
-      <div class="card">
-        <div class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700">Review the defense loop before writing</div>
-        <strong style="display:block;margin-top:6px">Let criticism shape the next step</strong>
-        <p class="mini" style="margin-top:8px">The reviewer layer should tell you whether the next move is more data, another robustness check, a narrower claim, or paper-ready drafting.</p>
-        <span class="chip">Studies at or beyond review: ${esc(String(needsReview))}</span>
-      </div>
-    </div>`;
-    const emptyState = `<div class="grid g2">
-      <div class="card hero">
-        <h3>Your research studio is empty right now.</h3>
-        <p class="muted">${PERSONA==='explorer'?'Start with a curiosity and let Thrivarc turn it into a defensible study.':'Start with a serious question and let Thrivarc shape the evidence path before any compute starts.'}</p>
-        <div class="row" style="margin-top:10px"><a class="btn primary" href="#new">Start with a question →</a><a class="btn" href="#guide">Open the guide</a></div>
-      </div>
-      <div class="card">
-        <h3>What happens next</h3>
-        <div class="signal-list" style="margin-top:10px">
-          <div class="signal-item"><div class="signal-icon">1</div><div><strong>Shape the blueprint</strong><div class="mini">Thrivarc decides what the study is really testing and what still needs clarification.</div></div></div>
-          <div class="signal-item"><div class="signal-icon">2</div><div><strong>Preview the evidence</strong><div class="mini">You approve the exact dataset, date range, identifiers, and fingerprint before the engine starts.</div></div></div>
-          <div class="signal-item"><div class="signal-icon">3</div><div><strong>Run the defense loop</strong><div class="mini">Analysis, reviewer pressure, and follow-up work happen before the writing layer takes over.</div></div></div>
-        </div>
-      </div>
+
+    const emptyState = `<div class="card hero" style="text-align:center;padding:48px 24px">
+      <h3 style="margin:0 0 12px 0">No studies yet</h3>
+      <p class="muted" style="max-width:480px;margin:0 auto 20px">Click <strong>Start Research →</strong> to begin your first study. Give it a topic, a research question, or paste an abstract — the system will do the rest.</p>
+      <a class="btn primary" href="#new">Start Research →</a>
     </div>`;
 
-    app.innerHTML = `<div class="editorial-hero" style="margin-bottom:12px">
-      <div class="hero-grid">
+    const tableOrEmpty = total
+      ? `<table>
+          <thead><tr><th>Status</th><th>Study</th><th>Type</th><th>Current step</th><th>Started</th></tr></thead>
+          <tbody>${rows}</tbody>
+         </table>`
+      : emptyState;
+
+    app.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div>
-          <p class="kicker">Research cockpit</p>
-          <h2 style="margin:0 0 8px 0">Research Home</h2>
-          <p class="hero-copy">From brief to blueprint to referee-ready evidence, this is the control surface for the studies you are shaping, running, and defending.</p>
-          <div class="callout-band">
-            <span class="chip">Queued for blueprint work: ${esc(String(needsBlueprint))}</span>
-            <span class="chip">Live runs: ${esc(String(running))}</span>
-            <span class="chip">Defense-stage studies: ${esc(String(needsReview))}</span>
-          </div>
-          <div class="row" style="margin-top:10px"><a class="btn" href="#guide">Open Guide</a><a class="btn primary" href="#new">Start Research →</a></div>
+          <h2 style="margin:0 0 4px 0">Your Studies</h2>
+          <p class="muted" style="margin:0">${total} total · ${running} active · ${done} complete</p>
         </div>
-        <div class="grid g2">
-          <div class="insight-card"><div class="mini">Total studies</div><span class="stat-em">${total}</span><div class="mini">Every study here should have a blueprint, an evidence plan, and a defense path.</div></div>
-          <div class="insight-card"><div class="mini">Completed</div><span class="stat-em">${done}</span><div class="mini">Finished studies have made it through analysis, reviewer pressure, and writing prep.</div></div>
-          <div class="insight-card" style="grid-column: span 2"><div class="mini">In progress</div><span class="stat-em">${running}</span><div class="mini">Use the live feed to see which stage is currently moving and what is still blocked.</div></div>
-        </div>
+        <a class="btn primary" href="#new">+ Start New Study</a>
       </div>
-    </div>
-      ${workflowRail}
-      <div class="card">${total?`<table><thead><tr><th>Status</th><th>Study</th><th>Research style</th><th>Current step</th><th>Started</th></tr></thead><tbody>${rows}</tbody></table>`:emptyState}</div>`;
+      <div class="card">${tableOrEmpty}</div>`;
 
-    if(running>0){ stopAllPolling(); poller=setInterval(renderDashboard,8000); }
-  }catch(e){ app.innerHTML = `<div class="card">Error: ${esc(e.message)} <button class="btn" id="retry">Retry</button></div>`; qs('#retry')?.addEventListener('click',renderDashboard); }
+    _dashboardBuilt = true;
+    if(running>0){ stopAllPolling(); poller=setInterval(renderDashboard,15000); }
+  }catch(e){
+    if(!_dashboardBuilt) app.innerHTML = `<div class="card">Could not load studies. <button class="btn" id="retry">Retry</button></div>`;
+    qs('#retry')?.addEventListener('click',renderDashboard);
+  }
 }
 
 
