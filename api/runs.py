@@ -62,10 +62,8 @@ SESSION_PHASE_TO_LEGACY = {
 
 
 def _legacy_runs_enabled() -> bool:
-    env = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).strip().lower()
-    if env == "production":
-        return False
-    return os.getenv("THRIVARC_ENABLE_LEGACY_RUNS", "").strip().lower() in {"1", "true", "yes"}
+    # Legacy pipeline is fully deprecated in favor of Multi-Agent OS sessions.
+    return False
 
 
 def _raise_run_not_found(run_id: str) -> None:
