@@ -13,16 +13,30 @@ def test_get_db_connection_uses_database_url_for_postgres(monkeypatch: pytest.Mo
 
     calls: list[str] = []
 
-    class _FakeConnection:
+    class _FakeConn:
         is_postgresql = True
 
-    def fake_connect(url: str, **_kwargs):
-        calls.append(url)
-        return _FakeConnection()
+    class _FakePool:
+        def __init__(self, *args, **kwargs):
+            calls.append(args[2] if len(args) >= 3 else kwargs.get("dsn", ""))
+
+        def getconn(self):
+            return _FakeConn()
+
+        def putconn(self, conn):
+            pass
+
+    fake_pool_module = SimpleNamespace(ThreadedConnectionPool=_FakePool)
+    fake_psycopg2 = SimpleNamespace(
+        pool=fake_pool_module,
+        extras=SimpleNamespace(RealDictCursor=None),
+    )
 
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:secret@example.com:5432/thrivarc")
-    monkeypatch.setattr(connection, "psycopg2", SimpleNamespace(connect=fake_connect))
+    # Reset any cached pool from prior tests
+    monkeypatch.setattr(connection, "_pg_pool", None)
+    monkeypatch.setattr(connection, "psycopg2", fake_psycopg2)
 
     conn = connection.get_db_connection()
 

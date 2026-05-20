@@ -625,15 +625,24 @@ def _ensure_cockpit_schema(conn: Any) -> None:
     _commit(conn)
 
 
+
 _SCHEMA_ENSURED = False
+_SCHEMA_ENSURED_FOR: str | None = None
+
 
 def _with_conn():
-    global _SCHEMA_ENSURED
+    global _SCHEMA_ENSURED, _SCHEMA_ENSURED_FOR
     conn = _connect()
-    if not _SCHEMA_ENSURED:
+    # Determine which DB path this connection uses so we re-create the schema
+    # whenever a test switches to a new tmp_path SQLite file.
+    current_path: str | None = None
+    if _is_sqlite(conn):
+        current_path = os.getenv("SQLITE_DB_PATH") or "pipeline.db"
+    if not _SCHEMA_ENSURED or current_path != _SCHEMA_ENSURED_FOR:
         _ensure_schema(conn)
         _ensure_cockpit_schema(conn)
         _SCHEMA_ENSURED = True
+        _SCHEMA_ENSURED_FOR = current_path
     return conn
 
 
