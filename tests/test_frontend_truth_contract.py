@@ -95,3 +95,23 @@ def test_frontend_renders_scores_and_downloads_from_api_sources() -> None:
     assert "data-truth-source=\"sessions.status\"" in html
     assert "data-truth-source=\"Blob Storage signed URL\"" in html
     assert "reviewer_scores table" in html
+
+
+def test_new_study_flow_uses_inferred_mode_and_draft_autosave_language() -> None:
+    html = _html()
+    assert "What are you studying?" in html
+    assert "Research Stance (Required)" not in html
+    assert "How your study looks so far" in html
+    assert "Your draft is saved automatically" in html
+    assert "Analyzing your brief" in html
+    assert "thrivarc_intake_draft" in html
+
+
+def test_workspace_uses_canonical_api_session_routes_and_refreshes_per_session() -> None:
+    html = _html()
+    assert "/api/sessions/${id}/compute-cells" in html
+    assert "/api/sessions/${currentResearchId}/compute-cells" in html
+    assert "/api/sessions/${currentResearchId}/prompt-amplifiers" in html
+    assert "/api/sessions/${currentResearchId}/agent-chat" in html
+    assert "prompt_amplifier" not in html
+    assert "if(!workspaceTopic)" not in html

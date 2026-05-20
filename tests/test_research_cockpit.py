@@ -194,3 +194,72 @@ def test_prompt_studio_cells_model_settings_and_quality_report(tmp_path: Path, m
         assert "12_quality/paper_quality_report.json" in names
         assert "06_compute/notebook/analysis.py" in names
         assert "06_compute/notebook/analysis.ipynb" in names
+
+
+def test_run_launch_requires_locked_blueprint_and_data_preview(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+
+    created = client.post("/api/sessions", json={"topic": "Does VIX predict SPY returns?"})
+    assert created.status_code == 200
+    session_id = created.json()["session_id"]
+
+    import api.sessions as sessions
+
+    monkeypatch.setattr(sessions, "_run_pipeline_background", lambda *args, **kwargs: None)
+
+    missing_blueprint = client.post(f"/api/sessions/{session_id}/run", json={"approved": True})
+    assert missing_blueprint.status_code == 409
+    assert missing_blueprint.json()["error_code"] == "BLUEPRINT_MISSING"
+
+    scoped = client.post(
+        f"/api/sessions/{session_id}/scope",
+        json={
+            "research_type": "exploratory",
+            "focus_question": "Does VIX predict SPY returns?",
+            "hypothesis": "Rising VIX predicts weaker forward SPY returns.",
+            "constraints": {"connector": "yfinance", "method_style": "time_series"},
+            "target_outcome": "research_report",
+        },
+    )
+    assert scoped.status_code == 200
+
+    unlocked = client.post(f"/api/sessions/{session_id}/run", json={"approved": True})
+    assert unlocked.status_code == 409
+    assert unlocked.json()["error_code"] == "BLUEPRINT_NOT_LOCKED"
+
+    locked = client.post(f"/api/sessions/{session_id}/blueprint/lock", json={"confirmation": "CONFIRM"})
+    assert locked.status_code == 200
+
+    no_preview = client.post(f"/api/sessions/{session_id}/run", json={"approved": True})
+    assert no_preview.status_code == 409
+    assert no_preview.json()["error_code"] == "DATA_PREVIEW_REQUIRED"
+
+    patched = client.patch(
+        f"/api/sessions/{session_id}/blueprint",
+        json={"data_preview_sha256": "abc123", "preview_run_id": "preview-123"},
+    )
+    assert patched.status_code == 200
+
+    launched = client.post(f"/api/sessions/{session_id}/run", json={"approved": True})
+    assert launched.status_code == 200
+    assert launched.json()["run_started"] is True
+
+
+def test_delete_session_removes_state_and_artifacts(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    created = client.post("/api/sessions", json={"topic": "Delete me"})
+    assert created.status_code == 200
+    session_id = created.json()["session_id"]
+
+    from storage import blob
+
+    blob.write_artifact(session_id, "11_paper/final.tex", "\\section{Hi}")
+
+    deleted = client.delete(f"/api/sessions/{session_id}")
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+
+    missing = client.get(f"/api/sessions/{session_id}")
+    assert missing.status_code == 404
+    artifacts = client.get(f"/api/sessions/{session_id}/artifacts")
+    assert artifacts.status_code == 404

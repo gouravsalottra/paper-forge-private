@@ -251,6 +251,9 @@ def _create_canonical_run(payload: dict[str, Any]) -> dict[str, str]:
     from api import sessions
     import threading
 
+    if payload.get("data_confirmed") is not True or not payload.get("data_preview_sha256"):
+        raise HTTPException(status_code=400, detail="Evidence preview approval with fingerprint is required before launch.")
+
     session_id = str(uuid.uuid4())
     topic = str(payload.get("topic") or payload.get("hypothesis") or "Thrivarc research run").strip()
     research_state = str(payload.get("research_type") or payload.get("approach") or payload.get("research_state") or "unknown").lower()
@@ -274,12 +277,27 @@ def _create_canonical_run(payload: dict[str, Any]) -> dict[str, str]:
             "data_source": payload.get("data_source") or payload.get("connector"),
             "compute_type": payload.get("compute_type"),
             "data_preview_sha256": payload.get("data_preview_sha256"),
+            "preview_run_id": payload.get("preview_run_id"),
+            "symbols": payload.get("symbols") or [],
+            "date_range": payload.get("date_range") or {},
+            "frequency": payload.get("frequency"),
             "runspec": payload.get("runspec"),
         },
         "target_outcome": payload.get("output_format") or "paper",
     }
     sessions.update_scope(session_id, scope_payload)
     sessions.lock_blueprint(session_id, {"confirmation": "CONFIRM"})
+    sessions.patch_blueprint(
+        session_id,
+        {
+            "data_preview_sha256": payload.get("data_preview_sha256"),
+            "preview_run_id": payload.get("preview_run_id"),
+            "connector": payload.get("connector"),
+            "symbols": payload.get("symbols") or [],
+            "date_range": payload.get("date_range") or {},
+            "frequency": payload.get("frequency"),
+        },
+    )
 
     # Run the pipeline in a background thread so the HTTP response returns
     # immediately. The session, blueprint, and PAP lock are fully committed
@@ -551,6 +569,43 @@ def list_runs() -> dict[str, list[dict[str, Any]]]:
             "SELECT run_id, started_at, finished_at, status, seed_query, meta_json FROM pipeline_runs ORDER BY started_at DESC"
         ).fetchall()
         return {"runs": [_run_object(conn, row) for row in rows]}
+
+
+@router.get("/runs/{run_id}")
+def get_run(run_id: str) -> dict[str, Any]:
+    """Plain run detail endpoint — alias for /runs/{run_id}/status."""
+    canonical = _canonical_run_object(run_id)
+    if canonical:
+        return canonical
+    if not _legacy_runs_enabled():
+        _raise_run_not_found(run_id)
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT run_id, started_at, finished_at, status, seed_query, meta_json FROM pipeline_runs WHERE run_id=? LIMIT 1",
+            (run_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return _run_object(conn, row)
+
+
+@router.get("/sessions")
+def list_sessions() -> list[dict[str, Any]]:
+    """Return all sessions as a list (used by PATCH blueprint and test scripts)."""
+    from api import sessions
+    with sessions._with_conn() as conn:
+        rows = sessions._fetchall(conn, "SELECT id, topic, status, research_type, created_at, updated_at FROM sessions ORDER BY updated_at DESC LIMIT 50")
+        return [
+            {
+                "id": sessions._row_get(row, "id"),
+                "topic": sessions._row_get(row, "topic"),
+                "status": sessions._row_get(row, "status"),
+                "research_type": sessions._row_get(row, "research_type"),
+                "created_at": sessions._row_get(row, "created_at"),
+                "updated_at": sessions._row_get(row, "updated_at"),
+            }
+            for row in rows
+        ]
 
 
 @router.get("/runs/{run_id}/status")

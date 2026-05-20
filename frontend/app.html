@@ -557,25 +557,55 @@
     .gate-card, .blueprint-doc { border-radius: var(--rad-md); overflow: hidden; border: 1px solid var(--line); background: var(--surface); margin-bottom: 16px; }
     .gate-header, .blueprint-header { padding: 20px 24px; background: linear-gradient(135deg, rgba(13,79,68,.06), rgba(255,255,255,.84)); border-bottom: 1px solid var(--line); }
     .gate-body, .blueprint-body { padding: 20px 24px; }
-    .gate-dims, .blueprint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-    .gate-dim, .blueprint-field { padding: 13px; border-radius: var(--rad-sm); background: rgba(248,250,252,.76); border: 1px solid var(--line); }
+    .gate-dims, .blueprint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .gate-dim, .blueprint-field {
+      padding: 14px 16px; border-radius: var(--rad-sm);
+      background: #fff; border: 1px solid var(--line);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .blueprint-field-label {
+      color: var(--muted-light); text-transform: uppercase;
+      letter-spacing: .09em; font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .blueprint-field-label .bpf-edit-btn {
+      font-size: 10px; color: var(--brand); cursor: pointer; text-transform: none;
+      letter-spacing: 0; font-weight: 500; opacity: 0; transition: opacity .15s;
+    }
+    .blueprint-field:hover .bpf-edit-btn { opacity: 1; }
+    .bpf-value {
+      font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.3;
+      word-break: break-word;
+    }
+    .blueprint-field-note {
+      font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 2px;
+    }
+    .bpf-textarea-wrap { display: none; margin-top: 6px; }
+    .bpf-textarea-wrap.open { display: block; }
     .editable-blueprint-field {
-      width: 100%; border: 1px solid transparent; background: transparent; padding: 4px;
-      font-family: inherit; font-size: 14px; color: var(--ink); border-radius: 4px; margin-top: 4px;
-      resize: vertical; min-height: 32px;
+      width: 100%; border: 1px solid var(--brand); background: #fff; padding: 8px;
+      font-family: inherit; font-size: 13px; color: var(--ink); border-radius: 4px;
+      resize: vertical; min-height: 38px; outline: none;
     }
-    .editable-blueprint-field:hover { background: rgba(0,0,0,0.03); }
-    .editable-blueprint-field:focus { outline: none; border-color: var(--brand); background: var(--surface-strong); }
-    .blueprint-section-title, .blueprint-field-label {
-      color: var(--muted-light);
-      text-transform: uppercase;
-      letter-spacing: .08em;   /* was .10em */
-      font-size: 11px;
-      font-weight: 600;        /* was 900 */
-      display: flex;
-      align-items: center;
-      gap: 5px;
+    .blueprint-section-title {
+      color: var(--muted); text-transform: uppercase;
+      letter-spacing: .08em; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; gap: 5px;
+      margin-bottom: 8px; margin-top: 4px;
     }
+    .blueprint-auto-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px;
+      background: var(--ok-bg); color: var(--ok); margin-left: 6px; text-transform: none; letter-spacing: 0;
+    }
+
+    .stance-btn {
+      padding: 10px 18px; border-radius: var(--rad-sm); font-size: 13.5px; font-weight: 600;
+      border: 2px solid var(--line); background: #fff; color: var(--muted); cursor: pointer;
+      transition: all .15s;
+    }
+    .stance-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+    .stance-btn.active { border-color: var(--brand); background: var(--brand); color: #fff; }
 
     /* ── TOAST ───────────────────────────────────────────────────────────────── */
     .toast {
@@ -634,46 +664,200 @@
       .workspace-shell { grid-template-columns: 1fr; }
     }
     
-    /* ── WORKSPACE UI ────────────────────────────────────────────────────────── */
+    /* ── WORKSPACE UI (Research OS) ──────────────────────────────────────────── */
     .workspace-shell {
-      display: grid; grid-template-columns: 240px 1fr; gap: 24px; align-items: start;
+      display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start;
       margin-top: 20px; min-height: calc(100vh - 120px);
     }
-    .workspace-nav { display: flex; flex-direction: column; gap: 4px; }
-    .workspace-nav-item {
-      padding: 10px 16px; border-radius: var(--rad-sm); cursor: pointer;
-      font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 10px;
-      transition: all 0.2s ease;
+    .workspace-nav {
+      display: flex; flex-direction: column; gap: 3px;
+      position: sticky; top: 76px;
+      background: rgba(248,250,252,.94); backdrop-filter: blur(12px);
+      border: 1px solid var(--line); border-radius: var(--rad-md);
+      padding: 10px; box-shadow: var(--shadow-sm);
     }
-    .workspace-nav-item:hover { background: rgba(15,23,42,.04); color: var(--ink); }
-    .workspace-nav-item.active { background: #fff; color: var(--brand); box-shadow: var(--shadow); border: 1px solid var(--line); }
+    .workspace-nav-section {
+      font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--muted-light); padding: 8px 10px 2px; margin-top: 4px;
+    }
+    .workspace-nav-item {
+      padding: 10px 14px; border-radius: var(--rad-sm); cursor: pointer;
+      font-weight: 500; font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 10px;
+      transition: all 0.18s ease; position: relative;
+    }
+    .workspace-nav-item:hover { background: rgba(15,23,42,.05); color: var(--ink); }
+    .workspace-nav-item.active { background: var(--brand); color: #fff; box-shadow: 0 4px 14px rgba(13,79,68,.3); }
+    .workspace-nav-item .nav-badge {
+      margin-left: auto; font-size: 10px; padding: 1px 6px; border-radius: 10px;
+      background: rgba(255,255,255,.2); font-weight: 700;
+    }
     .workspace-main {
       background: #fff; border-radius: var(--rad-md); border: 1px solid var(--line); box-shadow: var(--shadow);
-      display: flex; flex-direction: column; min-height: 75vh; overflow: hidden;
+      display: flex; flex-direction: column; min-height: 80vh; overflow: hidden;
     }
+    /* Agent header */
     .agent-header {
-      padding: 16px 24px; border-bottom: 1px solid var(--line);
-      background: linear-gradient(135deg, rgba(13,79,68,.04), rgba(255,255,255,1));
-      display: flex; flex-direction: column; gap: 16px;
+      padding: 18px 24px 14px; border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(13,79,68,.05) 0%, rgba(255,255,255,1) 60%);
     }
-    .agent-chat { flex: 1; padding: 24px; overflow-y: auto; background: var(--surface-soft); display: flex; flex-direction: column; gap: 16px; }
-    .agent-input-zone { padding: 16px 24px; border-top: 1px solid var(--line); background: #fff; display: flex; gap: 12px; }
-    .agent-input-zone textarea {
-      flex: 1; min-height: 50px; resize: none; padding: 12px; border-radius: var(--rad-sm);
-      border: 1px solid var(--line); font-family: var(--sans); font-size: 14px;
+    .agent-header-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .agent-title-row { display: flex; align-items: center; gap: 10px; }
+    .agent-icon-badge {
+      width: 36px; height: 36px; border-radius: var(--rad-sm); display: grid; place-items: center;
+      font-size: 18px; background: linear-gradient(145deg, #f0f7f5, #e2f0ec); border: 1px solid rgba(13,79,68,.15);
     }
-    .agent-input-zone textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(13,79,68,.1); }
-    .chat-bubble { max-width: 85%; padding: 14px 18px; border-radius: var(--rad-sm); font-size: 14px; line-height: 1.6; }
-    .chat-bubble.user { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
-    .chat-bubble.agent { align-self: flex-start; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); border-bottom-left-radius: 4px; }
-    .notebook-cell { background: #fff; border: 1px solid var(--line); border-radius: var(--rad-sm); overflow: hidden; box-shadow: var(--shadow); }
-    .notebook-cell-header { padding: 8px 12px; background: rgba(15,23,42,.03); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); }
-    .notebook-cell-code { padding: 12px; font-family: var(--mono); font-size: 13px; color: var(--ink); background: #fdfdfd; border: none; width: 100%; min-height: 100px; resize: vertical; }
-    .notebook-cell-code:focus { outline: none; background: #fff; }
-    .notebook-cell-output { padding: 12px; font-family: var(--mono); font-size: 12px; background: #111; color: #0f0; max-height: 300px; overflow-y: auto; border-top: 1px solid var(--line); }
-    .prompt-editor { width: 100%; min-height: 80px; resize: vertical; padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: var(--rad-sm); background: #fbfbfc; }
-    .prompt-editor:focus { outline: none; border-color: var(--brand); background: #fff; color: var(--ink); }
+    /* Model selector — searchable */
+    .model-selector-wrap { display: flex; align-items: center; gap: 8px; }
+    .model-search-container { position: relative; }
+    .model-search-btn {
+      display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+      border: 1px solid var(--line); border-radius: var(--rad-sm); background: #fff;
+      font-size: 13px; font-weight: 500; cursor: pointer; color: var(--ink);
+      transition: all .15s; min-width: 180px; justify-content: space-between;
+    }
+    .model-search-btn:hover { border-color: var(--brand); background: var(--brand-light); }
+    .model-dropdown {
+      position: absolute; right: 0; top: calc(100% + 4px); z-index: 200;
+      background: #fff; border: 1px solid var(--line); border-radius: var(--rad-md);
+      box-shadow: var(--shadow); width: 300px; max-height: 380px; display: none; flex-direction: column;
+    }
+    .model-dropdown.open { display: flex; }
+    .model-search-input {
+      padding: 10px 14px; border: none; border-bottom: 1px solid var(--line);
+      font-size: 13px; outline: none; border-radius: var(--rad-md) var(--rad-md) 0 0;
+    }
+    .model-list { overflow-y: auto; flex: 1; }
+    .model-family-label {
+      padding: 6px 12px 2px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--muted-light); background: var(--surface-soft);
+    }
+    .model-option {
+      padding: 8px 14px; font-size: 13px; cursor: pointer; color: var(--ink);
+      transition: background .1s; display: flex; align-items: center; gap: 8px;
+    }
+    .model-option:hover { background: var(--brand-light); color: var(--brand); }
+    .model-option.selected { background: var(--brand-soft); font-weight: 600; color: var(--brand); }
+    .model-option .model-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-light); flex-shrink: 0; }
+    .model-option.selected .model-dot { background: var(--brand); }
     .model-select { padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); font-size: 13px; font-weight: 500; cursor: pointer; }
+    /* Prompt layers */
+    .prompt-layers { display: flex; flex-direction: column; gap: 8px; }
+    .prompt-layer { border-radius: var(--rad-sm); overflow: hidden; border: 1px solid var(--line); }
+    .prompt-layer-header {
+      padding: 8px 14px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; font-weight: 600; cursor: pointer; user-select: none;
+    }
+    .prompt-layer-header .layer-badge {
+      font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 700; letter-spacing: .05em;
+    }
+    .prompt-layer.locked .prompt-layer-header { background: #fff5f5; color: #b91c1c; }
+    .prompt-layer.locked .layer-badge { background: #fee2e2; color: #b91c1c; }
+    .prompt-layer.role .prompt-layer-header { background: #f8fafc; color: var(--muted); }
+    .prompt-layer.role .layer-badge { background: var(--surface-deep); color: var(--muted); }
+    .prompt-layer.amplifier .prompt-layer-header { background: var(--brand-light); color: var(--brand); }
+    .prompt-layer.amplifier .layer-badge { background: rgba(13,79,68,.12); color: var(--brand); }
+    .prompt-layer-body { display: none; padding: 12px; }
+    .prompt-layer-body.open { display: block; }
+    .prompt-layer-body pre { margin: 0; font-size: 11.5px; font-family: var(--mono); color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+    .prompt-editor {
+      width: 100%; min-height: 80px; resize: vertical; padding: 12px;
+      font-family: var(--mono); font-size: 12.5px; color: var(--ink);
+      border: none; background: transparent; outline: none; display: block;
+    }
+    /* Chat area */
+    .agent-chat { flex: 1; padding: 20px 24px; overflow-y: auto; background: #fafbfd; display: flex; flex-direction: column; gap: 12px; min-height: 300px; }
+    .chat-bubble { max-width: 86%; padding: 13px 17px; border-radius: 14px; font-size: 14px; line-height: 1.65; }
+    .chat-bubble.user { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+    .chat-bubble.agent {
+      align-self: flex-start; background: #fff; border: 1px solid var(--line);
+      box-shadow: 0 2px 8px rgba(15,23,42,.06); border-bottom-left-radius: 4px;
+    }
+    .chat-bubble.agent .agent-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--brand); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+    }
+    .chat-bubble.agent .agent-label .model-chip {
+      font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--brand-light);
+      color: var(--brand); font-weight: 600; text-transform: none; letter-spacing: 0;
+    }
+    .thinking-dots { display: inline-flex; gap: 4px; padding: 6px 0; }
+    .thinking-dots span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--muted-light);
+      animation: blink 1.2s infinite;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: .2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: .4s; }
+    @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+    /* Input zone */
+    .agent-input-zone { padding: 14px 20px; border-top: 1px solid var(--line); background: #fff; display: flex; gap: 10px; align-items: flex-end; }
+    .agent-input-zone textarea {
+      flex: 1; min-height: 44px; max-height: 200px; resize: none; padding: 10px 14px;
+      border-radius: 10px; border: 1px solid var(--line); font-family: var(--sans); font-size: 14px;
+      line-height: 1.5; transition: border-color .15s;
+    }
+    .agent-input-zone textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(13,79,68,.08); }
+    /* Notebook cells */
+    .notebook-cell { background: #fff; border: 1px solid var(--line); border-radius: var(--rad-sm); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 14px; }
+    .notebook-cell-header {
+      padding: 8px 14px; background: #f8fafc; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--mono); font-size: 12px; color: var(--muted); gap: 8px;
+    }
+    .cell-status-badge { font-size: 10px; padding: 2px 8px; border-radius: 8px; font-weight: 700; }
+    .cell-status-badge.idle { background: #f1f5f9; color: var(--muted); }
+    .cell-status-badge.running { background: #fef3c7; color: #92400e; }
+    .cell-status-badge.success { background: var(--ok-bg); color: var(--ok); }
+    .cell-status-badge.error { background: var(--bad-bg); color: var(--bad); }
+    .notebook-cell-code { padding: 14px; font-family: var(--mono); font-size: 13px; color: var(--ink); background: #fdfdfd; border: none; width: 100%; min-height: 100px; resize: vertical; display: block; }
+    .notebook-cell-code:focus { outline: none; background: #fff; }
+    .notebook-cell-output { padding: 14px; font-family: var(--mono); font-size: 12px; background: #0d1117; color: #7ee787; max-height: 320px; overflow-y: auto; border-top: 1px solid rgba(255,255,255,.06); white-space: pre-wrap; }
+    .notebook-cell-stderr { color: #f85149; }
+    .notebook-cell-exec-time { font-size: 11px; color: rgba(126,231,135,.5); margin-top: 4px; }
+    /* Reviewer personas */
+    .reviewer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; padding: 20px 24px; }
+    .reviewer-card {
+      border: 1px solid var(--line); border-radius: var(--rad-sm); overflow: hidden;
+      box-shadow: var(--shadow-sm); transition: box-shadow .2s;
+    }
+    .reviewer-card:hover { box-shadow: var(--shadow-md); }
+    .reviewer-card-head {
+      padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--line); background: var(--surface-soft);
+    }
+    .reviewer-avatar {
+      width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+      font-size: 16px; background: #fff; border: 1px solid var(--line);
+    }
+    .reviewer-card-body { padding: 12px 16px; font-size: 13.5px; line-height: 1.6; color: var(--ink-soft); }
+    .reviewer-objection { padding: 8px 12px; margin-bottom: 8px; border-radius: var(--rad-sm); border-left: 3px solid var(--warn); background: var(--warn-bg); font-size: 13px; line-height: 1.55; }
+    .reviewer-objection.critical { border-left-color: var(--bad); background: var(--bad-bg); }
+    .reviewer-status-open { color: var(--bad); font-size: 11px; font-weight: 700; }
+    .reviewer-status-done { color: var(--ok); font-size: 11px; font-weight: 700; }
+    /* Journal selector */
+    .journal-strip { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    .journal-chip {
+      padding: 6px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 600;
+      border: 1.5px solid var(--line); cursor: pointer; transition: all .15s; background: #fff;
+      color: var(--muted);
+    }
+    .journal-chip:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+    .journal-chip.selected { background: var(--brand); color: #fff; border-color: var(--brand); }
+    /* "View composed prompt" modal */
+    .composed-modal {
+      position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .composed-modal-box {
+      background: #fff; border-radius: var(--rad-md); max-width: 780px; width: 100%;
+      max-height: 80vh; display: flex; flex-direction: column; box-shadow: var(--shadow);
+    }
+    .composed-modal-head {
+      padding: 18px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between;
+    }
+    .composed-modal-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .composed-modal-body pre { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; color: var(--muted); line-height: 1.6; }
+    /* Add-cell bar */
+    .add-cell-bar { padding: 12px 20px; border-top: 1px solid var(--line); background: #f8fafc; display: flex; gap: 8px; align-items: center; }
   </style>
 </head>
 <body>
@@ -794,9 +978,11 @@ let selectedHypotheses = [];
 let latestRunspecBuild = null;
 let latestValidatedPlan = null;
 let latestDataAccessMode = 'builtin';
+let latestResearchIntent = '';
 let latestClarificationAnswers = {};
 let latestArchitectAnswers = {};
 let latestStagedEvidenceFile = null;
+let blueprintRequestInFlight = false;
 const stageState = {
   proposalSelected: false,
   blueprintApproved: false,
@@ -804,7 +990,21 @@ const stageState = {
   dataPreviewComplete: false,
   dataPreviewSha256: null,
   previewRunId: null,
+  previewSummary: null,
 };
+const INTAKE_DRAFT_KEY = 'thrivarc_intake_draft';
+
+function resetWorkspaceCache(){
+  currentResearchId = null;
+  activeCells = [];
+  followupsCache = [];
+  workspaceTopic = '';
+  workspaceStatus = '';
+  agentPrompts = {};
+  agentModels = {};
+  chatHistories = {};
+  reviewerOutputs = {};
+}
 // legacy marker: hypothesis_suggestions
 
 function getConfig(key){ return (PERSONA_CONFIG[PERSONA] || PERSONA_CONFIG.auto)[key]; }
@@ -891,7 +1091,11 @@ function handleSessionEvent(sessionId, event){
     applyFrontendTruthState(payload.session || payload);
   }
   if(['phase_update','gate_result','repair_triggered','writer_unlocked','run_complete','run_failed','approval_required','artifact_ready','followup_classified','sandbox_job_update','export_ready','prompt_updated','cell_started','cell_output','cell_artifact_ready','cell_failed','model_setting_updated','quality_report_ready'].includes(payload.type || event.type)){
-    renderResearch(sessionId).catch(()=>{});
+    if((location.hash || '').slice(1).startsWith('research/')){
+      renderWorkspace(sessionId).catch(()=>{});
+    }else{
+      renderDashboard().catch(()=>{});
+    }
   }
 }
 
@@ -1066,6 +1270,7 @@ const STATUS_HUMAN = {
 let _dashboardBuilt = false;
 
 async function renderDashboard(){
+  resetWorkspaceCache();
   const app = qs('#app');
   // Only show the "Loading" spinner on first build — subsequent polls silently refresh
   if(!_dashboardBuilt) app.innerHTML = `<div class="card" style="padding:32px;text-align:center;color:var(--muted)">Loading your studies…</div>`;
@@ -1205,10 +1410,31 @@ function applyStarterGuideExample(key){
   setValue('#rq-window', example.window);
   setDataAccessMode(example.mode || 'builtin');
   updateDraftReadout();
+  saveIntakeDraft();
   toast(`Loaded example: ${example.label}. Edit anything before building the Blueprint.`);
 }
 
+function renderResearchIntentChips(){
+  const chips = [
+    {key:'', label:'Let Thrivarc infer it', note:'Best when you only have a topic or rough abstract.'},
+    {key:'exploratory', label:'Explore first', note:'Discover the pattern before locking a claim.'},
+    {key:'confirmatory_pap', label:'Test a prediction', note:'You already have a specific claim to lock and test.'},
+  ];
+  return chips.map(chip => `
+    <button
+      class="choice-card ${latestResearchIntent === chip.key ? 'active' : ''}"
+      type="button"
+      data-research-intent="${esc(chip.key || 'auto')}"
+      style="text-align:left;min-width:0"
+    >
+      <h3>${esc(chip.label)}</h3>
+      <p class="mini">${esc(chip.note)}</p>
+    </button>
+  `).join('');
+}
+
 async function renderNew(){
+  resetWorkspaceCache();
   const app=qs('#app');
   app.innerHTML = `
     <div class="app-shell">
@@ -1226,12 +1452,12 @@ async function renderNew(){
               <span class="mini">Topic-only is enough</span>
             </div>
             <textarea id="rq-question" class="command-question" placeholder="Example: Does a rising VIX predict next-week negative SPY returns?"></textarea>
-            <div style="margin-top: 12px; margin-bottom: 12px;">
-              <label style="font-weight: 600; font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px;">Research Stance (Required)</label>
-              <select id="rq-stance" style="width: 100%; padding: 10px; border-radius: var(--rad-sm); border: 1px solid var(--line); font-size: 14px; background: #fff;">
-                <option value="exploratory">Exploratory (Discover patterns before locking claims)</option>
-                <option value="confirmatory_pap">Confirmatory (Pre-register claims before running tests)</option>
-              </select>
+            <div class="mini" id="intake-draft-indicator" style="margin-top:8px;color:var(--muted)">Your draft is saved automatically on this device.</div>
+            <div style="margin-top: 14px; margin-bottom: 12px;">
+              <label style="font-weight: 600; font-size: 13px; color: var(--muted); display: block; margin-bottom: 8px;">What are you trying to do? <span class="mini" style="font-weight:500">Optional — Thrivarc can infer this from the brief.</span></label>
+              <div class="data-mode-grid" id="research-intent-grid">
+                ${renderResearchIntentChips()}
+              </div>
             </div>
             <div id="rq-question-error" class="mini" style="color:var(--warn);margin-top:8px;display:none"></div>
             <div class="command-actions">
@@ -1336,17 +1562,25 @@ async function renderNew(){
   document.querySelectorAll('[data-access-mode]').forEach(btn=>btn.addEventListener('click', ()=>{
     setDataAccessMode(btn.getAttribute('data-access-mode') || 'builtin');
   }));
+  document.querySelectorAll('[data-research-intent]').forEach(btn=>btn.addEventListener('click', ()=>{
+    setResearchIntent(btn.getAttribute('data-research-intent') || 'auto');
+  }));
   document.querySelectorAll('[data-starter-example]').forEach(btn=>btn.addEventListener('click', ()=>{
     applyStarterGuideExample(btn.getAttribute('data-starter-example') || '');
   }));
   setDataAccessMode(latestDataAccessMode || 'builtin');
+  restoreIntakeDraft();
   qs('#rq-stage-file')?.addEventListener('change', (event)=>{
     latestStagedEvidenceFile = event.target?.files?.[0] || null;
     refreshIntakeFilePanel();
     updateDraftReadout();
+    saveIntakeDraft();
   });
   ['#rq-question','#rq-context','#rq-hypothesis','#rq-data-notes','#rq-design-notes','#rq-validation-notes','#rq-instruments','#rq-window'].forEach(selector => {
-    qs(selector)?.addEventListener('input', updateDraftReadout);
+    qs(selector)?.addEventListener('input', ()=>{
+      updateDraftReadout();
+      saveIntakeDraft();
+    });
   });
   qs('#build-blueprint')?.addEventListener('click', submitResearchIntake);
   updateDraftReadout();
@@ -1388,6 +1622,7 @@ function setDataAccessMode(mode){
   }
   refreshIntakeFilePanel();
   updateDraftReadout();
+  saveIntakeDraft();
 }
 
 function bubble(role, msg, opts = {}){
@@ -1512,7 +1747,7 @@ function updateDraftReadout(){
   if(!node) return;
   const draftReadout = currentDraftReadout();
   node.innerHTML = `
-    <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">Live architect read</p>
+    <p class="mini" style="text-transform:uppercase;letter-spacing:.12em;color:var(--brand);font-weight:700;margin:0 0 6px 0">How your study looks so far</p>
     <h3 style="margin:0 0 8px 0">What Thrivarc hears right now</h3>
     <div class="mini" style="margin-bottom:10px">This is a live reading of the working brief before you even ask Thrivarc to formalize the blueprint.</div>
     <div class="signal-list">
@@ -1524,6 +1759,84 @@ function updateDraftReadout(){
       <div class="signal-item"><div class="signal-icon">F</div><div><strong>Where the brief is still fragile</strong><div class="mini">${esc(draftReadout.fragile)}</div></div></div>
     </div>
   `;
+}
+
+function currentIntakeDraft(){
+  return {
+    question: qs('#rq-question')?.value || '',
+    context: qs('#rq-context')?.value || '',
+    hypothesis: qs('#rq-hypothesis')?.value || '',
+    dataNotes: qs('#rq-data-notes')?.value || '',
+    designNotes: qs('#rq-design-notes')?.value || '',
+    validationNotes: qs('#rq-validation-notes')?.value || '',
+    instruments: qs('#rq-instruments')?.value || '',
+    window: qs('#rq-window')?.value || '',
+    dataAccessMode: latestDataAccessMode,
+    researchIntent: latestResearchIntent,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function updateIntakeSavedIndicator(message){
+  const node = qs('#intake-draft-indicator');
+  if(node) node.textContent = message;
+}
+
+function saveIntakeDraft(){
+  try{
+    localStorage.setItem(INTAKE_DRAFT_KEY, JSON.stringify(currentIntakeDraft()));
+    updateIntakeSavedIndicator('Your draft is saved automatically on this device.');
+  }catch(_){
+    updateIntakeSavedIndicator('Draft saving is unavailable in this browser right now.');
+  }
+}
+
+function restoreIntakeDraft(){
+  try{
+    const raw = localStorage.getItem(INTAKE_DRAFT_KEY);
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    const setValue = (selector, value) => {
+      const node = qs(selector);
+      if(node && typeof value === 'string') node.value = value;
+    };
+    setValue('#rq-question', saved.question || '');
+    setValue('#rq-context', saved.context || '');
+    setValue('#rq-hypothesis', saved.hypothesis || '');
+    setValue('#rq-data-notes', saved.dataNotes || '');
+    setValue('#rq-design-notes', saved.designNotes || '');
+    setValue('#rq-validation-notes', saved.validationNotes || '');
+    setValue('#rq-instruments', saved.instruments || '');
+    setValue('#rq-window', saved.window || '');
+    latestResearchIntent = saved.researchIntent || '';
+    setDataAccessMode(saved.dataAccessMode || latestDataAccessMode || 'builtin');
+    document.querySelectorAll('[data-research-intent]').forEach(btn => {
+      btn.classList.toggle('active', (btn.getAttribute('data-research-intent') || 'auto') === (latestResearchIntent || 'auto'));
+    });
+    updateIntakeSavedIndicator(saved.updatedAt ? `Your draft is saved automatically on this device. Last saved ${new Date(saved.updatedAt).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}.` : 'Your draft is saved automatically on this device.');
+  }catch(_){}
+}
+
+function clearIntakeDraft(){
+  try{ localStorage.removeItem(INTAKE_DRAFT_KEY); }catch(_){}
+  updateIntakeSavedIndicator('Your draft is saved automatically on this device.');
+}
+
+function setBlueprintLoading(isLoading){
+  blueprintRequestInFlight = isLoading;
+  const btn = qs('#build-blueprint');
+  if(!btn) return;
+  btn.disabled = isLoading;
+  btn.textContent = isLoading ? 'Analyzing your brief…' : 'Build Blueprint →';
+}
+
+function setResearchIntent(intent){
+  latestResearchIntent = ['exploratory','confirmatory_pap'].includes(intent) ? intent : '';
+  document.querySelectorAll('[data-research-intent]').forEach(btn => {
+    btn.classList.toggle('active', (btn.getAttribute('data-research-intent') || 'auto') === (latestResearchIntent || 'auto'));
+  });
+  saveIntakeDraft();
+  updateDraftReadout();
 }
 
 function renderDataGateMessage(){
@@ -1555,13 +1868,12 @@ function buildResearchPayload(){
   const designNotes = (qs('#rq-design-notes')?.value || '').trim();
   const validationNotes = (qs('#rq-validation-notes')?.value || '').trim();
   const horizon = (qs('#rq-window')?.value || '').trim();
-  const stance = qs('#rq-stance')?.value || 'exploratory';
   const notes = [context, evidenceReality, designNotes, validationNotes, horizon].filter(Boolean).join('\n\n');
   return {
     topic,
     abstract: context,
     notes,
-    stance,
+    stance: latestResearchIntent || null,
     data_instructions: evidenceReality,
     design_instructions: designNotes,
     validation_notes: validationNotes,
@@ -1579,12 +1891,14 @@ function buildResearchPayload(){
 }
 
 async function submitResearchIntake(options = {}){
+  if(blueprintRequestInFlight) return;
   const preserveTranscript = !!options.preserveTranscript;
   const payload = buildResearchPayload();
   const errNode = qs('#rq-question-error');
   const clarifyZone = qs('#clarify-zone');
   const blueprintZone = qs('#blueprint-zone');
   const dataZone = qs('#data-zone');
+  setBlueprintLoading(true);
   if(errNode){ errNode.style.display = 'none'; errNode.textContent = ''; }
   clarifyZone.innerHTML = '';
   blueprintZone.innerHTML = `<div class="card"><h3>Thrivarc blueprint</h3><p class="muted">Reading your question, context, and data reality before any run can start.</p></div>`;
@@ -1625,7 +1939,7 @@ async function submitResearchIntake(options = {}){
         'guide',
         'What Thrivarc currently believes this study is',
         summary.architect_summary || 'Thrivarc has shaped an initial blueprint from your brief.',
-        `Stance: ${summary.research_stance || 'exploratory'} · Evidence: ${summary.evidence_source || 'yfinance'} · Method: ${summary.method_style || 'none'}`
+        `Stance: ${({'exploratory':'Exploratory','confirmatory_pap':'Confirmatory (pre-registered)','confirmatory_no_pap':'Confirmatory'}[summary.research_stance || 'exploratory'] || summary.research_stance || 'Exploratory')} · Source: ${summary.evidence_source || 'market data'} · Method: ${({'text_analysis':'NLP & Sentiment','regression':'Regression','event_study':'Event Study','backtest':'Backtest','none':'Descriptive'}[summary.method_style] || summary.method_style || 'template-matched')}`
       )
     );
     if(summary.evidence_readiness || (summary.reviewer_attack_surface || []).length){
@@ -1684,7 +1998,82 @@ async function submitResearchIntake(options = {}){
     renderDataGateMessage();
   }catch(e){
     blueprintZone.innerHTML = `<div class="card"><h3>Thrivarc could not build the blueprint yet</h3><p class="muted">${esc(e.message)}</p></div>`;
+  }finally{
+    setBlueprintLoading(false);
   }
+}
+
+function buildSessionScopePayload(runspec, specItem){
+  const research = runspec?.research || {};
+  const datapull = runspec?.datapull || {};
+  const compute = runspec?.compute || {};
+  const summary = latestValidatedPlan?.blueprint_summary || {};
+  const researchState = String(research.research_state || summary.research_stance || latestResearchIntent || 'exploratory').toLowerCase();
+  return {
+    research_type: researchState.includes('confirm') ? 'confirmatory' : 'exploratory',
+    focus_question: research.topic || latestCollectedContext?.topic || 'Research topic',
+    hypothesis: research.hypothesis || qs('#rq-hypothesis')?.value || research.topic || latestCollectedContext?.topic || 'Research hypothesis',
+    target_outcome: research.output_format || 'research_report',
+    constraints: {
+      connector: latestDataAccessMode === 'connect' ? 'upload' : (datapull.connector || 'yfinance'),
+      symbols: datapull.symbols || [],
+      start_date: datapull.start_date || qs('#data-from')?.value || '2010-01-01',
+      end_date: datapull.end_date || qs('#data-to')?.value || '2024-12-31',
+      frequency: datapull.frequency || qs('#data-frequency')?.value || summary.recommended_frequency || 'daily',
+      method_style: compute.type || summary.method_style || 'regression',
+      evidence_source: summary.evidence_source || datapull.connector || 'yfinance',
+      runspec,
+      hypothesis_id: specItem?.hypothesis_id || null,
+    },
+  };
+}
+
+async function applyPendingBlueprintEdits(sessionId){
+  const pending = window._pendingBlueprint && typeof window._pendingBlueprint === 'object'
+    ? {...window._pendingBlueprint}
+    : {};
+  if(latestResearchIntent && !pending.research_stance){
+    pending.research_stance = latestResearchIntent;
+  }
+  if(!Object.keys(pending).length) return;
+  await api(`/api/sessions/${sessionId}/blueprint`, {
+    method: 'PATCH',
+    body: JSON.stringify(pending),
+  });
+}
+
+async function launchRunsFromApprovedPreview(runspecItems, payloadBase){
+  const created = [];
+  for(const specItem of runspecItems){
+    const runspec = specItem?.runspec || specItem || null;
+    if(!runspec) continue;
+    const createdSession = await api('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({topic: runspec?.research?.topic || latestCollectedContext?.topic || 'Research topic', domain: 'finance_economics'}),
+    });
+    const sessionId = createdSession.session_id;
+    await api(`/api/sessions/${sessionId}/scope`, {
+      method: 'POST',
+      body: JSON.stringify(buildSessionScopePayload(runspec, specItem)),
+    });
+    await applyPendingBlueprintEdits(sessionId);
+    await api(`/api/sessions/${sessionId}/blueprint/lock`, {
+      method: 'POST',
+      body: JSON.stringify({confirmation: 'CONFIRM'}),
+    });
+    await api(`/api/sessions/${sessionId}/blueprint`, {
+      method: 'PATCH',
+      body: JSON.stringify(payloadBase),
+    });
+    await api(`/api/sessions/${sessionId}/run`, {
+      method: 'POST',
+      body: JSON.stringify({approved: true}),
+    });
+    created.push(sessionId);
+  }
+  window._pendingBlueprint = {};
+  clearIntakeDraft();
+  return created;
 }
 
 function renderDataIntakeStage(){
@@ -1769,6 +2158,7 @@ function renderDataIntakeStage(){
   stageState.dataPreviewComplete = false;
   stageState.dataPreviewSha256 = null;
   stageState.previewRunId = null;
+  stageState.previewSummary = null;
   updateRunButtonState();
   qs('#upload-file')?.addEventListener('change', (event)=>{
     const file = event.target?.files?.[0];
@@ -1784,43 +2174,30 @@ function renderDataIntakeStage(){
   });
   qs('#btn-confirm-run')?.addEventListener('click', async()=>{
     const payloadBase = {
-      proposal_id: 'research_blueprint',
-      data_confirmed: true,
       data_preview_sha256: stageState.dataPreviewSha256,
       preview_run_id: stageState.previewRunId,
-      connector: latestDataAccessMode === 'connect' ? 'upload' : qs('#data-connector').value,
-      symbols: (qs('#data-symbols').value || '').split(',').map(s=>s.trim()).filter(Boolean),
-      date_range: {start: qs('#data-from').value, end: qs('#data-to').value},
-      frequency: qs('#data-frequency').value,
+      connector: latestDataAccessMode === 'connect' ? 'upload' : qs('#data-connector')?.value,
+      symbols: (qs('#data-symbols')?.value || '').split(',').map(s=>s.trim()).filter(Boolean),
+      date_range: {start: qs('#data-from')?.value, end: qs('#data-to')?.value},
+      frequency: qs('#data-frequency')?.value,
+      data_confirmed: true,
+      blueprint_approved: true,
     };
     if(!payloadBase.data_preview_sha256){
       toast('Please preview and confirm your data first.');
       return;
     }
-    const created = [];
-    for(let i = 0; i < runspecItems.length; i += 1){
-      const specItem = runspecItems[i] || {};
-      const runspec = specItem.runspec || null;
-      if(!runspec){
-        toast('Thrivarc could not find the formal research plan for this study.');
-        return;
-      }
-      const resp = await api('/runs/create', {
-        method:'POST',
-        body: JSON.stringify({
-          ...payloadBase,
-          proposal_id: payloadBase.proposal_id,
-          topic: runspec.research?.topic || 'Research topic',
-          persona: PERSONA,
-          approach: String(runspec.research?.research_state || 'exploratory').includes('confirmatory') ? 'confirmatory' : 'exploratory',
-          data_source: payloadBase.connector,
-          compute_type: runspec.compute?.type || 'none',
-          output_format: runspec.research?.output_format || 'research_report',
-          runspec,
-          hypothesis_id: specItem.hypothesis_id || null,
-        })
-      });
-      created.push(resp.run_id);
+    const summary = stageState.previewSummary || {};
+    const proceed = window.confirm(
+      `You are committing to ${summary.rows ?? 'the previewed'} rows across ${summary.columns ?? 'the verified'} columns` +
+      `${summary.dateRange ? ` for ${summary.dateRange}` : ''}. ` +
+      `Fingerprint: ${payloadBase.data_preview_sha256}. Thrivarc will use exactly this evidence. Continue?`
+    );
+    if(!proceed) return;
+    const created = await launchRunsFromApprovedPreview(runspecItems, payloadBase);
+    if(!created.length){
+      toast('Thrivarc could not create a canonical session from this approved blueprint.');
+      return;
     }
     toast(`Started ${created.length} research project(s). Opening the cockpit so you can inspect phase outputs, approve gates, edit prompts, add compute cells, and download the Overleaf ZIP when ready.`);
     location.hash = `#research/${created[0]}`;
@@ -1864,23 +2241,31 @@ function renderDataIntakeStage(){
     const warnings = Array.isArray(p.warnings) ? p.warnings : [];
     stageState.previewRunId = runTemp;
     onDataPreviewSuccess(p);
-    qs('#data-preview-card').innerHTML = `
+    const isWaiting = p.preview_status === 'waiting_for_upload';
+    qs('#data-preview-card').innerHTML = isWaiting ? `
+      <div class="card" style="padding:24px;text-align:center">
+        <div style="font-size:28px;margin-bottom:12px">📂</div>
+        <strong style="font-size:15px">Upload your file to preview it</strong>
+        <p class="muted" style="margin:8px 0 0 0;font-size:13.5px">Your evidence route is <strong>text / uploaded documents</strong>. Use the file chooser above to upload your CSV, Parquet, or Excel file. Once uploaded, Thrivarc will fingerprint it and show you row counts, column names, date coverage, and quality checks before any analysis runs.</p>
+        ${(passport.plain_english_summary || []).map(s => `<p class="mini" style="margin-top:6px">${esc(s)}</p>`).join('')}
+      </div>
+    ` : `
       <div class="card">
         <h4>Data preview ready</h4>
         <p class="muted">This is the dataset Thrivarc will use if you continue. Review it before you approve the study.</p>
         <div class="card" style="padding:12px;margin:10px 0;background:var(--brand-soft)">
           <strong>Approve only after this check</strong>
-          <p class="mini" style="margin:8px 0 0 0">Confirm that the identifiers, date coverage, row count, columns, warnings, and sample rows match the evidence you want analyzed. If anything is wrong, change the evidence route or upload a better file before launching.</p>
+          <p class="mini" style="margin:8px 0 0 0">Confirm that identifiers, date coverage, row count, columns, and sample rows match the evidence you want analyzed. If anything is wrong, change the evidence route or upload a better file before launching.</p>
         </div>
         <div class="kpi">
           <div class="card"><div class="mini">Rows</div><strong>${esc(String(p.rows || 0))}</strong></div>
           <div class="card"><div class="mini">Columns</div><strong>${esc(String((p.columns || []).length))}</strong></div>
           <div class="card"><div class="mini">Coverage</div><strong>${esc(p.date_range || 'N/A')}</strong></div>
         </div>
-        <p class="mini" style="margin-top:8px">${getConfig('showSHA256') ? `SHA-256: ${esc((p.sha256||'').slice(0,16))}... · ` : ''}Quality: ${esc(p.data_quality || 'unknown')} · Status: ${esc(p.preview_status || 'ready')}</p>
-        <p class="mini">Fields: ${esc((p.columns || []).join(', '))}</p>
-        ${blockingIssues.length ? `<div class="card" style="margin-top:8px;background:#fcf4ea;border-color:#e7c9a3"><strong>Blocking data issues</strong>${renderList(blockingIssues, 'No blocking data issues.')}</div>` : ''}
-        ${warnings.length ? `<div class="card" style="margin-top:8px;background:#fcfaf4"><strong>Data warnings</strong>${renderList(warnings, 'No data warnings.')}</div>` : ''}
+        <p class="mini" style="margin-top:8px">Quality: <strong>${esc(p.data_quality || 'unknown')}</strong> · Status: <strong>${esc(p.preview_status || 'ready')}</strong></p>
+        <p class="mini">Fields: ${esc((p.columns || []).join(', ') || 'none detected')}</p>
+        ${blockingIssues.length ? `<div class="card" style="margin-top:8px;background:#fcf4ea;border-color:#e7c9a3"><strong>Blocking data issues</strong>${renderList(blockingIssues, 'No blocking issues.')}</div>` : `<div style="padding:10px 14px;border-radius:var(--rad-sm);border:1px solid var(--ok);background:var(--ok-bg);color:var(--ok);font-size:13px;font-weight:600;margin-top:8px">✓ No blocking issues</div>`}
+        ${warnings.length ? `<div class="card" style="margin-top:8px;background:#fcfaf4"><strong>Data warnings</strong>${renderList(warnings, 'No warnings.')}</div>` : ''}
         <div class="grid g2" style="margin-top:8px">
           <div class="card" style="padding:12px">
             <div class="mini">DataPassport preview</div>
@@ -1906,11 +2291,22 @@ function updateRunButtonState() {
 }
 
 function onDataPreviewSuccess(previewResult) {
-  const blocked = previewResult.preview_status === 'blocked' || (Array.isArray(previewResult.blocking_issues) && previewResult.blocking_issues.length > 0);
-  stageState.dataPreviewComplete = !blocked;
+  const isWaiting = previewResult.preview_status === 'waiting_for_upload';
+  const blocked = !isWaiting && (
+    previewResult.preview_status === 'blocked' ||
+    (Array.isArray(previewResult.blocking_issues) && previewResult.blocking_issues.length > 0)
+  );
+  stageState.dataPreviewComplete = !blocked && !isWaiting;
   stageState.dataPreviewSha256 = previewResult.sha256 || null;
+  stageState.previewSummary = {
+    rows: previewResult.rows,
+    columns: previewResult.columns,
+    dateRange: previewResult.date_range,
+    connector: previewResult.connector,
+  };
   updateRunButtonState();
-  if(blocked) toast('Data preview is blocked. Fix the listed data issues before launching the run.');
+  if(blocked) toast('⚠ Data preview blocked — fix the listed issues before launching.');
+  if(isWaiting) toast('📂 Upload your file above to complete the evidence preview.');
 }
 
 function summarizeRunSpec(spec){
@@ -2004,7 +2400,68 @@ function renderResearchPackage(pkg){
   `;
 }
 
+// ── BLUEPRINT INTERACTIVE CONTROLS ───────────────────────────────────────────
+async function setStance(stance) {
+  const isExp = stance === 'exploratory';
+  const label = isExp ? 'Exploratory — discovering, no locked claim' : 'Confirmatory — hypothesis locked before evidence';
+  const noteText = isExp
+    ? 'You are exploring. Language stays hedged. No claim is locked until evidence survives review.'
+    : 'Your hypothesis is locked before any data runs. The writer cannot draft until after reviewer clearance.';
+
+  // 1. Toggle buttons
+  document.querySelectorAll('.stance-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(isExp ? 'stance-exploratory' : 'stance-confirmatory');
+  if(btn) btn.classList.add('active');
+
+  // 2. Explanatory note below buttons
+  const noteEl = document.getElementById('stance-note');
+  if(noteEl) noteEl.textContent = noteText;
+
+  // 3. The bpf-value card inside "Research stance" card
+  const stanceVal = document.getElementById('bp-stance-value');
+  if(stanceVal) stanceVal.textContent = label;
+
+  // 4. Persist to backend
+  if(currentResearchId) {
+    await api(`/api/sessions/${currentResearchId}/blueprint`, {
+      method: 'PATCH',
+      body: JSON.stringify({ research_stance: stance }),
+    }).catch(() => {});
+  } else {
+    window._pendingBlueprint = window._pendingBlueprint || {};
+    window._pendingBlueprint.research_stance = stance;
+  }
+  toast(`Research path: ${isExp ? '🔍 Exploratory' : '🎯 Confirmatory'}`);
+}
+
+async function confirmBlueprintField(field, value) {
+  if(currentResearchId) {
+    await api(`/api/sessions/${currentResearchId}/blueprint`, {
+      method: 'PATCH',
+      body: JSON.stringify({ [field]: value, [`${field}_confirmed`]: true }),
+    }).catch(() => {});
+  }
+  // Hide the confirm card for this field
+  const cards = document.querySelectorAll('[data-confirm-field]');
+  cards.forEach(c => { if(c.getAttribute('data-confirm-field') === field) c.style.display = 'none'; });
+  toast(`✓ ${field} confirmed`);
+}
+
+async function editBlueprintField(field) {
+  const val = prompt(`Edit "${field}":`, '');
+  if(val === null) return;
+  if(currentResearchId) {
+    await api(`/api/sessions/${currentResearchId}/blueprint`, {
+      method: 'PATCH',
+      body: JSON.stringify({ [field]: val }),
+    }).catch(() => {});
+  }
+  toast(`"${field}" updated. Refreshing blueprint…`);
+  setTimeout(() => renderWorkspace(currentResearchId), 800);
+}
+
 function renderClarificationPolicy(policy){
+
   const rows = Array.isArray(policy) ? policy : [];
   if(!rows.length) return '';
   const badge = decision => decision === 'block' ? 'warn' : decision === 'confirm' ? 'muted' : 'ok';
@@ -2113,7 +2570,56 @@ function renderIntegrityArtifacts(artifacts){
   `;
 }
 
+// Blueprint field helper: clean read-only card with hover-reveal edit
+function bpField(label, value, note, valueId) {
+  const id = 'bpf-' + label.replace(/\s+/g, '-').toLowerCase();
+  const fieldKey = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  return `
+    <div class="blueprint-field">
+      <div class="blueprint-field-label">
+        ${esc(label)}
+        <span class="bpf-edit-btn" onclick="document.getElementById('${id}').classList.toggle('open')">✏ Edit</span>
+      </div>
+      <div class="bpf-value"${valueId ? ` id="${valueId}"` : ''}>${esc(value || '—')}</div>
+      <div class="bpf-textarea-wrap" id="${id}">
+        <textarea class="editable-blueprint-field" id="${id}-ta">${esc(value || '')}</textarea>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn primary" style="font-size:12px;padding:4px 12px" onclick="saveBpField('${id}','${fieldKey}')">✓ Save</button>
+          <button class="btn" style="font-size:12px;padding:4px 12px" onclick="document.getElementById('${id}').classList.remove('open')">Cancel</button>
+        </div>
+      </div>
+      <div class="blueprint-field-note">${esc(note || '')}</div>
+    </div>
+  `;
+}
+
+async function saveBpField(wrapId, fieldKey) {
+  const ta = document.getElementById(wrapId + '-ta');
+  if(!ta) return;
+  const newVal = ta.value.trim();
+  // Update the visible value immediately
+  const wrap = document.getElementById(wrapId);
+  const card = wrap?.closest('.blueprint-field');
+  const valEl = card?.querySelector('.bpf-value');
+  if(valEl) valEl.textContent = newVal || '—';
+  // Hide the textarea
+  wrap?.classList.remove('open');
+  // Persist to backend
+  if(currentResearchId) {
+    await api(`/api/sessions/${currentResearchId}/blueprint`, {
+      method: 'PATCH',
+      body: JSON.stringify({ [fieldKey]: newVal }),
+    }).catch(() => {});
+  } else {
+    window._pendingBlueprint = window._pendingBlueprint || {};
+    window._pendingBlueprint[fieldKey] = newVal;
+  }
+  toast(`✓ "${fieldKey.replace(/_/g,' ')}" updated`);
+}
+
+
 function renderOperationalContracts(summary){
+
   const dataQuality = summary.data_quality_policy || {};
   const leakage = summary.leakage_policy || {};
   const stats = summary.statistical_battery || {};
@@ -2158,188 +2664,147 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
   const reviewerGate = contractSummary.reviewer_gate || {};
   const repairContract = contractSummary.repair_contract_template || {};
   const integrityArtifacts = contractSummary.integrity_artifacts || {};
-  const stateLabel = summary.state === 'confirmatory_pap' ? 'Confirmatory with pre-registration' : summary.state === 'confirmatory_no_pap' ? 'Confirmatory without pre-registration' : 'Exploratory';
-  const cadenceRoleLabel = {
-    design_variable:'Cadence is part of the experiment',
-    robustness_dimension:'Cadence is a robustness check',
-    fixed_by_design:'Cadence is a fixed design choice',
-    event_window:'Timing is driven by event windows',
-    not_primary:'Cadence is not a primary lever',
-    default_market_sampling:'Cadence is a default sampling choice'
-  }[plannerSummary.cadence_role || 'default_market_sampling'];
+  // ── Human-readable translators for internal codes ──────────────────────────
+  const humanSource = v => ({
+    'text_corpus': 'Text / uploaded documents (earnings calls, papers)',
+    'yfinance': 'Public market data (Yahoo Finance)',
+    'wrds': 'WRDS / Wharton research database (CRSP, Compustat)',
+    'uploaded': 'Your uploaded dataset',
+    'api': 'External API feed',
+    'synthetic': 'Synthetic / simulated data',
+  }[v] || v || '—');
+
+  const humanMethod = v => ({
+    'text_analysis': 'Natural language processing & sentiment analysis',
+    'regression': 'Regression analysis (OLS / panel)',
+    'event_study': 'Event study',
+    'backtest': 'Systematic backtest / strategy simulation',
+    'simulation': 'Monte Carlo / simulation',
+    'ml_classification': 'Machine learning classification',
+    'ml_regression': 'Machine learning regression',
+    'difference_in_differences': 'Difference-in-differences',
+    'none': 'No quantitative method — qualitative or descriptive',
+  }[v] || v || '—');
+
+  const humanOutput = v => ({
+    'research_report': 'Full academic paper (LaTeX → PDF)',
+    'research_report_confirmatory': 'Full paper with pre-registration artefacts',
+    'confirmatory_package': 'Full paper with pre-registration artefacts',
+    'exploratory_package': 'Exploratory findings report',
+    'data_report': 'Data provenance & summary report only',
+  }[v] || v || 'Full paper');
+
+  const humanTests = arr => (arr || []).map(t => ({
+    'sentiment_score_distribution': 'Sentiment score distribution',
+    'topic_model_coherence': 'Topic model coherence check',
+    'cross_sectional_sentiment_regression': 'Cross-sectional sentiment regression',
+    'fama_macbeth': 'Fama–MacBeth cross-sectional regression',
+    'newey_west': 'Newey–West autocorrelation correction',
+    'bootstrap': 'Bootstrap robustness check',
+    'placebo': 'Placebo / falsification test',
+  }[t] || t)).join(', ') || 'Template-matched tests';
+
+  const isConfirmatory = summary.state === 'confirmatory_pap' || summary.state === 'confirmatory_no_pap';
+  const stanceDisplay = isConfirmatory ? 'Confirmatory — hypothesis locked before evidence' : 'Exploratory — discover first, claim later';
+  const stanceNote = isConfirmatory
+    ? 'Your hypothesis is locked before any data runs. The writer cannot draft until after reviewer clearance.'
+    : 'You are exploring. Language stays hedged. No claim is locked until evidence survives review.';
+
   const plainSummary = `
     <div class="blueprint-doc">
       <div class="blueprint-header">
-        <div class="kicker">${svgIcon('doc','icon-sm')} Research blueprint</div>
-        <h3>Thrivarc blueprint</h3>
-        <p>This is the formal research plan Thrivarc will execute if you approve the data. It explains the design in researcher language before any pipeline work starts.</p>
+        <div class="kicker">${svgIcon('doc','icon-sm')} Research Blueprint</div>
+        <h3 style="margin:0 0 4px 0">Does this match your intent?</h3>
+        <p style="margin:0;color:var(--muted);font-size:13.5px;line-height:1.5">The system inferred this plan from your research question. <strong>You don't fill this in</strong> — just check it's right, then approve to proceed.</p>
       </div>
       <div class="blueprint-body">
+
+        <!-- ── 1. STANCE TOGGLE — first thing a researcher sees ─────────────── -->
+        <div style="margin-bottom:18px;padding:18px 20px;border-radius:var(--rad-sm);border:2px solid var(--line);background:#fff">
+          <div style="font-size:11px;font-weight:700;color:var(--muted-light);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Research path — is this exploratory or confirmatory?</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <button id="stance-exploratory" onclick="setStance('exploratory')"
+              class="stance-btn ${!isConfirmatory ? 'active' : ''}">
+              🔍 Exploratory — discovering, no locked claim
+            </button>
+            <button id="stance-confirmatory" onclick="setStance('confirmatory_no_pap')"
+              class="stance-btn ${isConfirmatory ? 'active' : ''}">
+              🎯 Confirmatory — I have a specific hypothesis to test
+            </button>
+          </div>
+          <div id="stance-note" style="font-size:13px;color:var(--muted);line-height:1.5">${stanceNote}</div>
+        </div>
+
+        <!-- ── 2. WHAT THE SYSTEM UNDERSTOOD ────────────────────────────────── -->
         <div class="blueprint-section">
-          <div class="blueprint-section-title">${svgIcon('flask','icon-sm')} Research design</div>
+          <div class="blueprint-section-title">${svgIcon('flask','icon-sm')} What the system understood from your brief</div>
           <div class="blueprint-grid">
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Research stance</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(stateLabel)}</textarea>
-              <div class="blueprint-field-note">${esc(plannerSummary.why_this_stance || (summary.state === 'confirmatory_pap' ? 'Thrivarc will lock the claim before analysis begins.' : 'Thrivarc will explore the pattern first and keep the language honest.'))}</div>
-        </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Evidence source</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(summary.connector)}</textarea>
-              <div class="blueprint-field-note">${esc(plannerSummary.why_this_evidence_route || 'This is the source Thrivarc expects to preview and fingerprint before launch.')}</div>
-        </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Method style</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.method_style || summary.method)}</textarea>
-              <div class="blueprint-field-note">${esc(plannerSummary.why_this_method || (summary.method === 'none' ? 'No simulation or backtest is needed for this design.' : 'Thrivarc will only run this method if the data preview is approved.'))}</div>
-        </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Validation plan</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(summary.tests.slice(0,3).join(', ') || 'template-selected tests')}</textarea>
-              <div class="blueprint-field-note">${esc(plannerSummary.reviewer_focus || 'Tests come from the research template, not a hardcoded universal battery.')}</div>
-            </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Cadence logic</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(cadenceRoleLabel)} · ${esc(plannerSummary.recommended_frequency || firstSpec?.datapull?.frequency || 'daily')}</textarea>
-              <div class="blueprint-field-note">${esc(plannerSummary.cadence_explanation || 'Cadence is inferred from the research design and can be treated as either a fixed choice or something the study should compare.')}</div>
-            </div>
+            ${bpField('Your data source', humanSource(summary.connector), 'Where your evidence comes from. If this is wrong, edit it — it controls which data pipeline opens.')}
+            ${bpField('Analysis method', humanMethod(plannerSummary.method_style || summary.method), 'How Thrivarc will analyze your evidence. Inferred from your question.')}
+            ${bpField('Assets / entities studied', (plannerSummary.inferred_identifiers || []).join(', ') || (firstSpec?.datapull?.symbols || []).join(', ') || 'Inferred from brief…', 'Which stocks, ETFs, companies, or entities your question is about.')}
+            ${bpField('Time period', (plannerSummary.inferred_window?.start || firstSpec?.datapull?.start_date || '2010-01-01') + ' → ' + (plannerSummary.inferred_window?.end || firstSpec?.datapull?.end_date || '2024-12-31'), 'Date range inferred from your brief. Named periods (e.g. "post-2008") are folded in automatically.')}
+            ${bpField('Statistical tests planned', humanTests(summary.tests), 'Tests come from the method template. If you need a specific test added, use the Stats & Methods agent.')}
+            ${bpField('Output format', humanOutput(firstSpec?.research?.output_format || 'research_report'), 'What gets produced at the end of the run.')}
           </div>
         </div>
+
+        <!-- ── 3. RESEARCH DESIGN INTENT ─────────────────────────────────────── -->
         <div class="blueprint-section">
-          <div class="blueprint-section-title">${svgIcon('eye','icon-sm')} Research strategy</div>
+          <div class="blueprint-section-title">${svgIcon('eye','icon-sm')} Research design intent</div>
+          <div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">These are inferred from your question. If any of them are wrong, click ✏ to correct them before approving.</div>
           <div class="blueprint-grid">
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Decision problem</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.decision_problem || 'Thrivarc is still inferring what decision this evidence is supposed to change.')}</textarea>
-              <div class="blueprint-field-note">This is the decision the run should sharpen for the eventual reader, investor, policy team, or referee.</div>
-            </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Comparison set</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.comparison_set || 'Thrivarc is still sharpening the benchmark or working universe.')}</textarea>
-              <div class="blueprint-field-note">A serious study needs a concrete comparison frame before evidence and claims can stay honest.</div>
-            </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Burden of proof</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.burden_of_proof || 'Thrivarc is still deciding which reviewer demands matter most for this run.')}</textarea>
-              <div class="blueprint-field-note">This is the first version of what the reviewer layer will push on before the study can feel defensible.</div>
-            </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">If this finding holds</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.if_true || 'Thrivarc is still deciding what decision or claim this study should ultimately move.')}</textarea>
-              <div class="blueprint-field-note">This keeps the study aimed at the decision or claim that actually matters if the evidence survives.</div>
-            </div>
+            ${bpField('Research question focus', plannerSummary.decision_problem || 'What decision or insight does this research sharpen?', 'What your study is ultimately trying to answer or resolve.')}
+            ${bpField('Comparison benchmark', plannerSummary.comparison_set || 'Benchmark or peer group (inferred from brief)', 'What your finding gets compared against. Needs to be real data, not handwaved.')}
+            ${bpField('What success looks like', plannerSummary.if_true || 'If the finding holds, what does it imply?', 'The real-world implication if your result survives review.')}
+            ${bpField('What a reviewer will attack', plannerSummary.burden_of_proof || 'The result must survive validation, audit, and reviewer pressure.', 'The bar your finding needs to clear to be publishable.')}
           </div>
         </div>
-        <div class="blueprint-section">
-          <div class="blueprint-section-title">${svgIcon('data','icon-sm')} Evidence & scope</div>
-          <div class="blueprint-grid">
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Evidence readiness</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.evidence_readiness || 'Thrivarc is still checking whether the evidence route is truly launch-ready.')}</textarea>
-              <div class="blueprint-field-note">Preview gate discipline means the evidence has to be real before any compute is allowed to start.</div>
-            </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Output target</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(firstSpec?.research?.output_format || 'research_report')}</textarea>
-              <div class="blueprint-field-note">${esc(plannerSummary.output_plan || 'Thrivarc will target a research package first, then turn it into paper-ready output after the evidence holds.')}</div>
-            </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Universe hints</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc((plannerSummary.inferred_identifiers || []).join(', ') || (firstSpec?.datapull?.symbols || []).join(', ') || 'Still needs to be sharpened')}</textarea>
-              <div class="blueprint-field-note">Thrivarc now mines the brief itself for identifiers and benchmark hints so you do not have to fill every field manually.</div>
-            </div>
-            <div class="blueprint-field">
-              <div class="blueprint-field-label">Historical window</div>
-              <textarea class="editable-blueprint-field" oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(plannerSummary.inferred_window?.start || firstSpec?.datapull?.start_date || '2010-01-01')} → ${esc(plannerSummary.inferred_window?.end || firstSpec?.datapull?.end_date || '2024-12-31')}</textarea>
-              <div class="blueprint-field-note">If your brief already names a regime or a time span, Thrivarc folds that into the blueprint instead of waiting for a separate date form.</div>
-            </div>
+
+      </div>
+
+      <!-- ── SYSTEM CONTRACTS (collapsed) ──────────────────────────────────── -->
+      <details style="margin:16px 0">
+        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:8px 0;user-select:none">
+          ▸ Show internal pipeline rules (Repair, Integrity, Reviewer Gate, Agent Stack)
+        </summary>
+        <div style="margin-top:10px;padding:16px;border-radius:var(--rad-sm);border:1px solid var(--line);background:#f8fafc">
+          <p class="mini" style="margin-bottom:10px;color:var(--muted)">These are internal pipeline rules. You don't need to read or change them to proceed.</p>
+          ${renderResearchPackage(researchPackage)}
+          ${renderIntegrityArtifacts(integrityArtifacts)}
+          ${renderReviewerGate(reviewerGate)}
+          ${renderRepairContract(repairContract)}
+          ${renderOperationalContracts(contractSummary)}
+          <div class="card" style="padding:12px;margin-top:8px">
+            <h4>Agent stack</h4>
+            ${renderAgentStack(agentStack)}
           </div>
         </div>
-      </div>
-      <div class="grid g2" style="margin-bottom:10px">
-        <div class="card" style="padding:12px">
-          <div class="mini">Working assumptions</div>
-          <ul style="margin:8px 0 0 18px">
-            ${(plannerSummary.working_assumptions || []).map(item=>`<li>${esc(item)}</li>`).join('') || '<li>Thrivarc has not surfaced the current assumptions yet.</li>'}
-          </ul>
-        </div>
-        <div class="card" style="padding:12px">
-          <div class="mini">First reviewer attacks</div>
-          <ul style="margin:8px 0 0 18px">
-            ${(plannerSummary.reviewer_attack_surface || []).map(item=>`<li>${esc(item)}</li>`).join('') || '<li>Thrivarc has not surfaced the initial reviewer attack surface yet.</li>'}
-          </ul>
-        </div>
-      </div>
-      ${renderResearchPackage(researchPackage)}
-      ${renderClarificationPolicy(clarificationPolicy)}
-      ${renderIntegrityArtifacts(integrityArtifacts)}
-      ${renderReviewerGate(reviewerGate)}
-      ${renderRepairContract(repairContract)}
-      ${renderOperationalContracts(contractSummary)}
-      <div class="card" style="margin-bottom:10px">
-        <h4>Who is working on this study</h4>
-        <p class="mini">This is the specialist stack Thrivarc assembled from the blueprint. It is the truthful execution contract for this run, not generic marketing copy.</p>
-        ${renderAgentStack(agentStack)}
-      </div>
-      <div class="card" style="margin-bottom:10px">
-        <h4>What the architect is still pressing on</h4>
-        <p class="mini">These are the study-specific questions Thrivarc uses to keep the design sharp before it opens the evidence gate.</p>
-        <div class="grid g2" style="margin-top:10px">
-          ${(architectQuestions || []).map(item => `
-            <div class="card" style="padding:12px">
-              <div class="mini">${esc(item.dimension || 'Design question')}</div>
-              <strong>${esc(item.question || '')}</strong>
-              <div class="mini" style="margin-top:6px"><strong>Why it matters:</strong> ${esc(item.why_it_matters || '')}</div>
-              <div class="mini" style="margin-top:6px"><strong>Owner:</strong> ${esc(item.owner || 'Research architect')}</div>
-              <label style="margin-top:10px">Your note<textarea data-architect-dimension="${esc(item.dimension || '')}" placeholder="Answer in plain English. Thrivarc will fold this back into the working brief before rebuilding the blueprint.">${esc(latestArchitectAnswers[item.dimension || ''] || '')}</textarea></label>
-            </div>
-          `).join('') || '<p class="muted">Thrivarc has not surfaced the architect question bank for this study yet.</p>'}
-        </div>
-        <div class="row" style="margin-top:10px">
-          <button class="btn" id="apply-architect-notes">Rebuild blueprint from architect notes →</button>
-        </div>
-      </div>
-      <div class="card" style="margin-bottom:10px">
-        <h4>How this run can improve itself</h4>
-        <p class="mini">The system only self-improves through bounded reroutes owned by specific layers. It should never mutate the claim silently.</p>
-        ${renderRevisionPolicy(revisionPolicy)}
-      </div>
-      <div class="card" style="margin-bottom:10px;background:#fcfaf4">
-        <div class="mini">Launch readiness</div>
-        <strong>${esc(launchReadiness.headline || 'Blueprint approval is the last design checkpoint before evidence preview.')}</strong>
-        <div class="mini" style="margin-top:6px">${esc(launchReadiness.detail || 'Review the blueprint and the unresolved questions before opening the evidence stage.')}</div>
-        <div class="mini" style="margin-top:6px">${esc(launchReadiness.next_step || 'Approve the blueprint to continue into evidence preview.')}</div>
-      </div>
-      ${firstClarification ? `<div class="card" style="margin-bottom:10px;background:#f7f2e8"><div class="mini">First thing Thrivarc would still press on</div><strong>${esc(firstClarification.question || '')}</strong><div class="mini" style="margin-top:4px">${esc(firstClarification.reason || '')}</div></div>` : ''}
-      <p><strong>What Thrivarc will do:</strong></p>
-      <ul>
-        <li>Scan literature and map prior evidence</li>
-        <li>Pull and certify data provenance</li>
-        <li>Run only the tests listed in your RunSpec</li>
-        <li>Apply reviewer rubric matched to research type</li>
-        <li>Produce verifiable output package</li>
-      </ul>
-      ${clarifications.length ? `<div class="card" style="margin-top:10px;background:#fcfaf4"><h4>Questions Thrivarc may still press on</h4>${clarifications.map(item=>`<p><strong>${esc(item.question)}</strong><br><span class="mini">${esc(item.reason)}</span></p>`).join('')}</div>` : ''}
-      <p class="mini"><strong>Planned stages:</strong> ${summary.phasePlan.map(esc).join(' → ')}</p>
-      <p class="muted">${runspecs.length} research project(s) · ~${estMin} min · ${money(estCost)}</p>
+      </details>
     </div>
   `;
+
   const showJson = getConfig('showJSONPreview');
   holder.innerHTML = `
     ${plainSummary}
     ${showJson ? `<div class="card" style="margin-top:8px" data-technical="json-preview"><h4>RunSpec preview (editable)</h4><textarea id="runspec-json" style="min-height:220px">${esc(JSON.stringify(runspecs, null, 2))}</textarea></div>` : ''}
-    <div class="card" style="margin-top:8px">
-      <div class="card" style="padding:12px;margin-bottom:10px;background:var(--brand-soft)">
-        <strong>Next action: review this Blueprint</strong>
-        <p class="mini" style="margin:8px 0 0 0">If this plan matches your intent, approve it to open the evidence stage. If it does not, refine the question or answer the architect notes above. Approval here still does not start compute.</p>
+    <div class="card" style="margin-top:8px;padding:20px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <div style="flex:1">
+          <strong style="font-size:15px">Ready to proceed?</strong>
+          <p class="mini" style="margin:4px 0 0 0;color:var(--muted)">If the plan above matches your intent, approve it. Approving does NOT start the compute run — it only opens the evidence preview so you can see the actual dataset before anything expensive runs.</p>
+        </div>
+        <div style="font-size:13px;color:var(--muted);white-space:nowrap">Est. ${money(estCost)} · ~${estMin} min</div>
       </div>
       <div class="row">
-        <button class="btn" id="back-build">← Refine the question</button>
-        <button class="btn primary" id="approve-blueprint" data-truth-source="blueprints.status" data-state-rule="disabled when blueprints.status != draft" ${firstClarification && firstClarification.blocking ? 'disabled' : ''}>Approve blueprint and move to evidence →</button>
+        <button class="btn" id="back-build">← Change research question</button>
+        <button class="btn primary" id="approve-blueprint" ${firstClarification && firstClarification.blocking ? 'disabled' : ''}>
+          Approve & preview evidence →
+        </button>
       </div>
-      <p class="mini" style="margin-top:8px">${firstClarification && firstClarification.blocking ? 'Answer the blocking architect question first. Then approve the blueprint to open the evidence gate.' : 'Approval does not start the run. It only opens the evidence stage so you can inspect the real dataset before launch.'}</p>
+      ${firstClarification && firstClarification.blocking ? `<p class="mini" style="margin-top:8px;color:var(--warn)">⚠ Answer the blocking question above before approving.</p>` : ''}
     </div>
   `;
+
   qs('#back-build')?.addEventListener('click', ()=>renderNew());
   qs('#apply-architect-notes')?.addEventListener('click', async()=>{
     const answers = {};
@@ -2478,36 +2943,17 @@ async function commitRunsFromBuild(){
     toast('Data preview failed; cannot start run.');
     return;
   }
-  const created = [];
-  for(const item of runspecs){
-    const spec = item.runspec || item;
-    const research = spec.research || {};
-    const out = await api('/runs/create', {
-      method:'POST',
-      body: JSON.stringify({
-        topic: research.topic || 'Research topic',
-        persona: research.persona || PERSONA,
-        approach: String(research.research_state || '').includes('confirmatory') ? 'confirmatory' : 'exploratory',
-        data_source: spec.datapull?.connector || 'yfinance',
-        compute_type: spec.compute?.type || 'none',
-        output_format: research.output_format || 'research_report',
-        ui_mode: research.ui_mode || getConfig('ui'),
-        runspec: spec,
-        hypothesis_id: item.hypothesis_id || null,
-        notes: null,
-        proposal_id: item.hypothesis_id || 'expert_direct',
-        data_confirmed: true,
-        data_preview_sha256: previewSha,
-        preview_run_id: tempId,
-        connector: spec.datapull?.connector || 'yfinance',
-        symbols: spec.datapull?.symbols || [],
-        date_range: {start: spec.datapull?.start_date || '2010-01-01', end: spec.datapull?.end_date || '2024-12-31'},
-        frequency: spec.datapull?.frequency || 'daily',
-      })
-    });
-    created.push(out.run_id);
-  }
-    toast(`Started ${created.length} research project(s)`);
+  const created = await launchRunsFromApprovedPreview(runspecs, {
+    data_preview_sha256: previewSha,
+    preview_run_id: tempId,
+    connector: dp.connector || 'yfinance',
+    symbols: dp.symbols || [],
+    date_range: {start: dp.start_date || '2010-01-01', end: dp.end_date || '2024-12-31'},
+    frequency: dp.frequency || 'daily',
+    data_confirmed: true,
+    blueprint_approved: true,
+  });
+  toast(`Started ${created.length} research project(s)`);
   if(created.length===1) location.hash = `#research/${created[0]}`;
   else location.hash = '#dashboard';
 }
@@ -2947,6 +3393,7 @@ function startReplay(){
 }
 
 function renderGuide(){
+  resetWorkspaceCache();
   qs('#app').innerHTML = `<div class="card"><h2>How Thrivarc Helps</h2><p class="muted">This page explains the product in researcher language, not system language.</p><div class="tabs"><button class="tab active" data-tab="b">Before you start</button><button class="tab" data-tab="w">What Thrivarc does for you</button><button class="tab" data-tab="i">Inside the engine</button><button class="tab" data-tab="r">How to read the result</button><button class="tab" data-tab="101">Research basics</button></div><div id="guide-body" style="margin-top:10px"></div></div>`;
   const content={
     b:`
@@ -3087,113 +3534,123 @@ function renderGuide(){
   document.querySelectorAll('[data-tab]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('active'));t.classList.add('active');body.innerHTML=content[t.getAttribute('data-tab')];}));
 }
 
-let activeAgent = 'literature';
+let activeAgent = 'papers';
 let currentResearchId = null;
 
+// ── AGENT DEFINITIONS ────────────────────────────────────────────────────────
 const AGENT_MAP = {
-  literature: 'Literature Agent',
-  data: 'Data Agent',
-  stats: 'Statistics Agent',
-  verifier: 'Code Audit Agent',
-  reviewer: 'Reviewer Agent',
-  writer: 'Writer Agent'
+  papers:    'Literature Agent',
+  architect: 'Research Architect',
+  code:      'Method / Compute Agent',
+  stats:     'Statistics Agent',
+  reviewer:  'Reviewer Agent',
+  writer:    'Writer Agent',
+  auditor:   'Code Audit Agent',
 };
 
 const AGENT_CONFIG = {
-  literature: { name: 'Literature Agent', icon: '🔍', prompt: '', model: 'gpt-4o' },
-  data: { name: 'Data & Compute Environment', icon: '📊', prompt: '', model: 'gpt-4-turbo' },
-  stats: { name: 'Stats & Methods', icon: '📈', prompt: '', model: 'claude-3-opus' },
-  verifier: { name: 'Verifier', icon: '🛡️', prompt: '', model: 'claude-3-5-sonnet' },
-  reviewer: { name: 'Reviewer Gauntlet', icon: '⚖️', prompt: '', model: 'gpt-4o' },
-  writer: { name: 'LaTeX Writer', icon: '✍️', prompt: '', model: 'gpt-4o' }
+  papers:    { name: 'Papers & Resources',    icon: '📚', desc: 'Find literature, citations, and prior evidence', backendAgent: 'Literature Agent' },
+  architect: { name: 'Research Architect',    icon: '🔬', desc: 'Formalize hypothesis, Blueprint, and study design', backendAgent: 'Research Architect' },
+  code:      { name: 'Code Environment',      icon: '💻', desc: 'Write, edit, and run analysis code (Jupyter-style)', backendAgent: 'Method / Compute Agent' },
+  stats:     { name: 'Stats & Methods',       icon: '📊', desc: 'Test battery, robustness checks, economic significance', backendAgent: 'Statistics Agent' },
+  reviewer:  { name: 'Reviewer Gauntlet',     icon: '⚖️', desc: '5 independent reviewers challenge every claim', backendAgent: 'Reviewer Agent' },
+  writer:    { name: 'LaTeX Writer',          icon: '✍️', desc: 'Journal-specific 40-page paper generation', backendAgent: 'Writer Agent' },
+  auditor:   { name: 'Code Auditor',          icon: '🔍', desc: 'Integrity check: look-ahead bias, fingerprints, specs', backendAgent: 'Code Audit Agent' },
 };
 
-// Models available in Azure AI Foundry — sourced from the backend env or this curated list
-const MODELS = [
-  // GPT family
-  'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
-  // o-series reasoning
-  'o1', 'o1-mini', 'o3', 'o3-mini', 'o4-mini',
-  // Claude family
-  'claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-5-haiku',
-  // Gemini
-  'gemini-2.5-pro', 'gemini-2.0-flash',
-  // Llama
-  'llama-3.3-70b-instruct', 'llama-4-scout',
-  // Mistral
-  'mistral-large-2411', 'mistral-small-2503',
+// ── MODEL CATALOG ──────────────────────────────────────────────────────────
+const MODEL_FAMILIES = [
+  { family: 'GPT-4o', models: ['gpt-4o'] },
 ];
+let MODELS = MODEL_FAMILIES.flatMap(f => f.models);
 
+// ── WORKSPACE STATE ─────────────────────────────────────────────────────────
 let activeCells = [];
 let agentPrompts = {};
 let agentModels = {};
 let followupsCache = [];
+let chatHistories = {}; // { agentKey: [{role:'user'|'agent', text, model}] }
 let workspaceTopic = '';
 let workspaceStatus = '';
+let selectedJournal = 'SSRN';
+let reviewerOutputs = {}; // { personaKey: text }
+
+const JOURNALS = ['AER','JF','RFS','QJE','REStat','JFE','Nature','SSRN','Custom'];
+
+const REVIEWER_PERSONAS = [
+  { key: 'econometrician', name: 'Econometrician',    icon: '📐', role: 'challenges identification strategy and causal inference' },
+  { key: 'skeptic',        name: 'Aggressive Skeptic', icon: '🔥', role: 'challenges every number and assumption' },
+  { key: 'methods',        name: 'Methods Expert',    icon: '🔬', role: 'challenges statistical test choice and robustness' },
+  { key: 'integrity',      name: 'Data Integrity',    icon: '🛡️', role: 'challenges data sourcing, look-ahead bias, survivorship' },
+  { key: 'editor',         name: 'Journal Editor',    icon: '📋', role: 'challenges contribution clarity and novelty' },
+];
 
 async function deleteStudy(id) {
   if(!confirm('Delete this study? This cannot be undone.')) return;
   try {
-    await api(`/runs/${id}`, { method: 'DELETE' }).catch(()=>{});
+    const res = await api(`/api/sessions/${id}`, { method: 'DELETE' });
+    if(res?.deleted !== true) throw new Error('Delete request did not complete.');
+    toast('Study deleted.');
+    agentPrompts = {}; agentModels = {}; activeCells = [];
+    followupsCache = []; chatHistories = {}; reviewerOutputs = {};
+    workspaceTopic = ''; workspaceStatus = '';
+    location.hash = 'dashboard'; _dashboardBuilt = false;
+  } catch (e) {
+    toast(`Delete failed: ${e.message || 'Please try again.'}`);
   } finally {
-    agentPrompts = {};
-    agentModels = {};
+  }
+}
+
+// ── MAIN WORKSPACE RENDER ───────────────────────────────────────────────────
+async function renderWorkspace(id) {
+  if(currentResearchId && currentResearchId !== id){
     activeCells = [];
     followupsCache = [];
     workspaceTopic = '';
     workspaceStatus = '';
-    location.hash = 'dashboard';
-    _dashboardBuilt = false;
-    toast('Study deleted.');
+    agentPrompts = {};
+    agentModels = {};
+    chatHistories = {};
+    reviewerOutputs = {};
   }
-}
-
-async function renderWorkspace(id) {
   currentResearchId = id;
   const app = qs('#app');
-  
-  if(!agentPrompts[activeAgent]){
-    app.innerHTML = '<div class="card" style="padding:32px;text-align:center">Loading workspace…</div>';
-    
-    // Load backend data concurrently
-    const [st, cellsRes, followupsRes, ampsRes, modsRes] = await Promise.all([
-      api(`/runs/${id}/status`).catch(()=>({})),
-      api(`/sessions/${id}/compute-cells`).catch(()=>({cells:[]})),
-      api(`/sessions/${id}/followups`).catch(()=>({followups:[]})),
-      api(`/sessions/${id}/prompt-amplifiers`).catch(()=>({amplifiers:[]})),
-      api(`/sessions/${id}/model-settings`).catch(()=>({settings:[]}))
-    ]);
-    
-    activeCells = cellsRes.cells || [];
-    followupsCache = followupsRes.followups || [];
-    workspaceTopic = st.topic || st.hypothesis || 'Untitled Study';
-    workspaceStatus = st.status || 'initializing';
-    
-    // Process backend models — merge with backend allowed_models if returned
-    const backendModels = modsRes.allowed_models;
-    if(Array.isArray(backendModels) && backendModels.length > 0) {
-      MODELS.splice(0, MODELS.length, ...backendModels);
-    }
-    (modsRes.settings || []).forEach(s => {
-      const k = Object.keys(AGENT_MAP).find(key => AGENT_MAP[key] === s.agent);
-      if(k) agentModels[k] = s.model_name;
-    });
+  app.innerHTML = '<div class="card" style="padding:32px;text-align:center">Loading workspace…</div>';
 
-    // Process backend prompts
-    for (const key of Object.keys(AGENT_MAP)) {
-      const backendAgentName = AGENT_MAP[key];
-      const composed = await api(`/sessions/${id}/prompts/composed?agent=${encodeURIComponent(backendAgentName)}`).catch(()=>({prompt:''}));
-      const amp = (ampsRes.amplifiers || []).find(a => a.agent === backendAgentName);
-      agentPrompts[key] = amp ? amp.prompt_amplifier : (composed.prompt || '');
-    }
-  }
+  const [st, cellsRes, followupsRes, ampsRes, modsRes] = await Promise.all([
+    api(`/runs/${id}/status`).catch(()=>({})),
+    api(`/api/sessions/${id}/compute-cells`).catch(()=>({cells:[]})),
+    api(`/api/sessions/${id}/followups`).catch(()=>({followups:[]})),
+    api(`/api/sessions/${id}/prompt-amplifiers`).catch(()=>({amplifiers:[]})),
+    api(`/api/sessions/${id}/model-settings`).catch(()=>({settings:[], allowed_models:[]})),
+  ]);
+
+  activeCells = cellsRes.cells || [];
+  followupsCache = followupsRes.followups || [];
+  workspaceTopic = st.topic || st.hypothesis || 'Untitled Study';
+  workspaceStatus = st.status || 'initializing';
+
+  // Sync backend model list if available
+  const bkModels = modsRes.allowed_models;
+  if(Array.isArray(bkModels) && bkModels.length > 0) MODELS = bkModels;
+
+  agentModels = {};
+  (modsRes.settings || []).forEach(s => {
+    const k = Object.keys(AGENT_MAP).find(key => AGENT_MAP[key] === s.agent || AGENT_MAP[key] === s.phase_name);
+    if(k) agentModels[k] = s.model_name;
+  });
+
+  agentPrompts = {};
+  (ampsRes.amplifiers || []).forEach(a => {
+    const k = Object.keys(AGENT_CONFIG).find(key => AGENT_CONFIG[key].backendAgent === a.agent_name);
+    if(k) agentPrompts[k] = a.amplifier_text || '';
+  });
 
   const statusLabel = STATUS_HUMAN[workspaceStatus] || workspaceStatus;
-
   app.innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:16px">
       <div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
           <button class="btn" onclick="location.hash='dashboard'" style="padding:6px 14px;font-size:13px">← All Studies</button>
           <span class="chip">${esc(statusLabel)}</span>
         </div>
@@ -3203,164 +3660,639 @@ async function renderWorkspace(id) {
     </div>
     <div class="workspace-shell">
       <aside class="workspace-nav">
+        <div class="workspace-nav-section">Research Agents</div>
         ${Object.entries(AGENT_CONFIG).map(([k, v]) => `
-          <div class="workspace-nav-item ${activeAgent === k ? 'active' : ''}" onclick="switchAgent('${k}')">
-            <span>${v.icon}</span> <span>${esc(v.name)}</span>
+          <div id="nav-${k}" class="workspace-nav-item ${activeAgent===k?'active':''}" onclick="switchAgent('${k}')">
+            <span>${v.icon}</span>
+            <span>${esc(v.name)}</span>
           </div>
         `).join('')}
       </aside>
       <div class="workspace-main" id="workspace-main">
-        ${renderActiveAgentWorkspace()}
+        ${renderAgentPanel()}
+      </div>
+    </div>
+  `;
+
+  // Wire up model dropdown after render
+  wireModelDropdown();
+  connectSessionStream(id);
+}
+
+function switchAgent(k) {
+  activeAgent = k;
+  // Just rerender the panel, not the whole workspace
+  const main = document.getElementById('workspace-main');
+  if(main) main.innerHTML = renderAgentPanel();
+  document.querySelectorAll('.workspace-nav-item').forEach(el => {
+    el.classList.toggle('active', el.id === `nav-${k}`);
+  });
+  wireModelDropdown();
+}
+
+// ── AGENT PANEL RENDERER ─────────────────────────────────────────────────────
+function renderAgentPanel() {
+  const cfg = AGENT_CONFIG[activeAgent];
+  const currentModel = agentModels[activeAgent] || 'gpt-4o';
+  const currentPrompt = agentPrompts[activeAgent] || '';
+  const history = chatHistories[activeAgent] || [];
+
+  if(activeAgent === 'code') return renderCodePanel(cfg, currentModel, currentPrompt);
+  if(activeAgent === 'reviewer') return renderReviewerPanel(cfg, currentModel);
+  if(activeAgent === 'writer') return renderWriterPanel(cfg, currentModel, currentPrompt);
+
+  // Generic agent: prompt layers + chat
+  return `
+    <div class="agent-header">
+      <div class="agent-header-top">
+        <div class="agent-title-row">
+          <div class="agent-icon-badge">${cfg.icon}</div>
+          <div>
+            <div style="font-weight:700;font-size:16px">${esc(cfg.name)}</div>
+            <div class="mini">${esc(cfg.desc)}</div>
+          </div>
+        </div>
+        <div class="model-selector-wrap">
+          <div class="model-search-container" id="model-search-wrap">
+            <button class="model-search-btn" id="model-search-btn" onclick="toggleModelDropdown()">
+              <span id="model-btn-label">${esc(currentModel)}</span>
+              <span style="font-size:10px;opacity:.5">▾</span>
+            </button>
+            <div class="model-dropdown" id="model-dropdown">
+              <input class="model-search-input" id="model-search-input" placeholder="Search models…" oninput="filterModels(this.value)" autocomplete="off">
+              <div class="model-list" id="model-list">${renderModelList(currentModel)}</div>
+            </div>
+          </div>
+          <button class="btn" style="font-size:12px;padding:6px 12px" onclick="viewComposedPrompt()">View full prompt</button>
+        </div>
+      </div>
+      ${renderPromptLayers(currentPrompt)}
+    </div>
+    <div class="agent-chat" id="agent-chat">
+      ${history.length === 0 ? `
+        <div class="chat-bubble agent">
+          <div class="agent-label">${cfg.icon} ${esc(cfg.name)}</div>
+          <div>I'm ready. This study is about: <strong>${esc(workspaceTopic.slice(0,100))}</strong>.<br>
+          Ask me anything specific — I'll give you concrete, research-ready answers.</div>
+        </div>
+      ` : history.map(m => renderChatMsg(m, cfg)).join('')}
+    </div>
+    <div class="agent-input-zone">
+      <textarea id="chat-input" placeholder="Message ${esc(cfg.name)}…" onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){sendAgentChat();event.preventDefault()}"></textarea>
+      <button class="btn primary" style="align-self:flex-end;padding:10px 20px" onclick="sendAgentChat()">Send ↵</button>
+    </div>
+  `;
+}
+
+function renderChatMsg(m, cfg) {
+  if(m.role === 'user') return `<div class="chat-bubble user">${esc(m.text)}</div>`;
+  if(m.role === 'thinking') return `<div class="chat-bubble agent"><div class="agent-label">${cfg.icon} ${esc(cfg.name)}</div><div class="thinking-dots"><span></span><span></span><span></span></div></div>`;
+  return `
+    <div class="chat-bubble agent">
+      <div class="agent-label">
+        ${cfg.icon} ${esc(cfg.name)}
+        ${m.model ? `<span class="model-chip">${esc(m.model)}</span>` : ''}
+      </div>
+      <div style="white-space:pre-wrap">${esc(m.text)}</div>
+    </div>
+  `;
+}
+
+// ── PROMPT LAYERS ────────────────────────────────────────────────────────────
+function renderPromptLayers(amplifierText) {
+  return `
+    <div class="prompt-layers">
+      <div class="prompt-layer locked">
+        <div class="prompt-layer-header" onclick="toggleLayer(this)">
+          <span>🔒 Locked Safety Contract</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="layer-badge">LOCKED</span>
+            <span style="font-size:11px;opacity:.6">▸</span>
+          </div>
+        </div>
+        <div class="prompt-layer-body">
+          <pre>- Do not invent numbers, sources, citations, data, or credentials.
+- Use verified PostgreSQL state and Azure Blob as the only durable truth.
+- Keep Writer last; it may write only after review/verifier gates pass.
+- Return machine-readable shapes when agent contract requires it.
+- Never expose secrets, API keys, or storage credentials.</pre>
+        </div>
+      </div>
+      <div class="prompt-layer role">
+        <div class="prompt-layer-header" onclick="toggleLayer(this)">
+          <span>📋 Agent Role Definition</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="layer-badge">READ-ONLY</span>
+            <span style="font-size:11px;opacity:.6">▸</span>
+          </div>
+        </div>
+        <div class="prompt-layer-body">
+          <pre>Base prompt for ${esc(AGENT_CONFIG[activeAgent].name)}: defines the agent's expertise,
+output format expectations, and research phase responsibilities.
+Click "View full prompt" above to see the complete composed prompt.</pre>
+        </div>
+      </div>
+      <div class="prompt-layer amplifier">
+        <div class="prompt-layer-header" onclick="toggleLayer(this)">
+          <span>✏️ Your Custom Instruction</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="layer-badge">EDITABLE</span>
+            <span style="font-size:11px;opacity:.6">▾</span>
+          </div>
+        </div>
+        <div class="prompt-layer-body open">
+          <textarea class="prompt-editor" id="amplifier-input" onblur="saveAmplifier(this.value)"
+            placeholder="e.g. Focus only on papers from 2018–2024. Prefer JF, RFS, REStat. Use Fama-French 3-factor as baseline."
+          >${esc(amplifierText)}</textarea>
+          ${amplifierText ? '<div style="font-size:11px;color:var(--ok);margin-top:4px">✓ Custom instruction active</div>' : '<div style="font-size:11px;color:var(--muted-light);margin-top:4px">No custom instruction — using default agent behaviour</div>'}
+        </div>
       </div>
     </div>
   `;
 }
 
-function switchAgent(agentKey) {
-  activeAgent = agentKey;
-  renderWorkspace(currentResearchId);
+function toggleLayer(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('span:last-child');
+  body.classList.toggle('open');
+  arrow.textContent = body.classList.contains('open') ? '▾' : '▸';
 }
 
-async function updateAgentPrompt(val) {
+// ── MODEL DROPDOWN ────────────────────────────────────────────────────────────
+function renderModelList(selected, filter='') {
+  const fl = filter.toLowerCase();
+  return MODEL_FAMILIES.map(fam => {
+    const opts = fam.models.filter(m => !fl || m.includes(fl));
+    if(!opts.length) return '';
+    return `
+      <div class="model-family-label">${esc(fam.family)}</div>
+      ${opts.map(m => `
+        <div class="model-option ${m===selected?'selected':''}" onclick="selectModel('${esc(m)}')">
+          <div class="model-dot"></div>${esc(m)}
+        </div>
+      `).join('')}
+    `;
+  }).join('');
+}
+
+function toggleModelDropdown() {
+  const dd = document.getElementById('model-dropdown');
+  if(!dd) return;
+  dd.classList.toggle('open');
+  if(dd.classList.contains('open')) document.getElementById('model-search-input')?.focus();
+}
+
+function filterModels(q) {
+  const ml = document.getElementById('model-list');
+  const current = agentModels[activeAgent] || 'gpt-4o';
+  if(ml) ml.innerHTML = renderModelList(current, q);
+}
+
+function selectModel(m) {
+  agentModels[activeAgent] = m;
+  const btn = document.getElementById('model-btn-label');
+  if(btn) btn.textContent = m;
+  document.getElementById('model-dropdown')?.classList.remove('open');
+  // Rerender list with new selection
+  const ml = document.getElementById('model-list');
+  if(ml) ml.innerHTML = renderModelList(m);
+  // Persist to backend
+  const agentName = AGENT_MAP[activeAgent] || AGENT_CONFIG[activeAgent]?.backendAgent;
+  api(`/api/sessions/${currentResearchId}/model-settings`, {
+    method: 'PUT',
+    body: JSON.stringify({ phase_name: agentName, model_name: m }),
+  }).catch(()=>{});
+  toast(`Model set to ${m}`);
+}
+
+function wireModelDropdown() {
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('model-search-wrap');
+    if(wrap && !wrap.contains(e.target)) {
+      document.getElementById('model-dropdown')?.classList.remove('open');
+    }
+  }, { once: true });
+}
+
+// ── SAVE AMPLIFIER ──────────────────────────────────────────────────────────
+async function saveAmplifier(val) {
   agentPrompts[activeAgent] = val;
-  await api(`/sessions/${currentResearchId}/prompt-amplifiers`, {
+  const agentName = AGENT_CONFIG[activeAgent]?.backendAgent || AGENT_MAP[activeAgent];
+  await api(`/api/sessions/${currentResearchId}/prompt-amplifiers`, {
     method: 'PUT',
-    body: JSON.stringify({ agent: AGENT_MAP[activeAgent], prompt_amplifier: val })
-  });
-  toast('Agent prompt saved.');
+    body: JSON.stringify({ agent: agentName, amplifier_text: val, editor: 'admin' }),
+  }).catch(()=>{});
+  toast('Instruction saved.');
 }
 
-async function updateAgentModel(val) {
-  agentModels[activeAgent] = val;
-  await api(`/sessions/${currentResearchId}/model-settings`, {
-    method: 'PUT',
-    body: JSON.stringify({ agent: AGENT_MAP[activeAgent], model_name: val })
-  });
-  toast('Agent model updated.');
+// ── VIEW COMPOSED PROMPT ────────────────────────────────────────────────────
+async function viewComposedPrompt() {
+  const agentName = AGENT_CONFIG[activeAgent]?.backendAgent || AGENT_MAP[activeAgent];
+  const data = await api(`/api/sessions/${currentResearchId}/prompts/composed?agent=${encodeURIComponent(agentName)}`).catch(()=>null);
+  const text = data?.composed_prompt || '[Could not load composed prompt]';
+  const modal = document.createElement('div');
+  modal.className = 'composed-modal';
+  modal.innerHTML = `
+    <div class="composed-modal-box">
+      <div class="composed-modal-head">
+        <h3 style="margin:0">Full Composed Prompt — ${esc(AGENT_CONFIG[activeAgent].name)}</h3>
+        <button class="btn" onclick="this.closest('.composed-modal').remove()">✕ Close</button>
+      </div>
+      <div class="composed-modal-body">
+        <pre>${esc(text)}</pre>
+      </div>
+    </div>
+  `;
+  modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
 }
 
-async function runComputeCell(cellId) {
-  const btn = event.target;
-  btn.textContent = 'Running...';
-  btn.disabled = true;
-  await api(`/sessions/${currentResearchId}/compute-cells/${cellId}/run`, { method: 'POST' });
-  
-  // Simple poll to check completion
+// ── SEND AGENT CHAT ──────────────────────────────────────────────────────────
+async function sendAgentChat() {
+  const input = qs('#chat-input');
+  if(!input) return;
+  const txt = input.value.trim();
+  if(!txt) return;
+  input.value = '';
+  input.disabled = true;
+
+  if(!chatHistories[activeAgent]) chatHistories[activeAgent] = [];
+  chatHistories[activeAgent].push({ role: 'user', text: txt });
+  chatHistories[activeAgent].push({ role: 'thinking' });
+  _refreshChat();
+
+  const agentName = AGENT_CONFIG[activeAgent]?.backendAgent || AGENT_MAP[activeAgent];
+  const model = agentModels[activeAgent] || 'gpt-4o';
+
+  try {
+    const res = await api(`/api/sessions/${currentResearchId}/agent-chat`, {
+      method: 'POST',
+      body: JSON.stringify({ agent: agentName, message: txt }),
+    });
+    // Remove thinking bubble
+    chatHistories[activeAgent] = chatHistories[activeAgent].filter(m => m.role !== 'thinking');
+    chatHistories[activeAgent].push({ role: 'agent', text: res.reply || '[No response]', model: res.model || model });
+  } catch(e) {
+    chatHistories[activeAgent] = chatHistories[activeAgent].filter(m => m.role !== 'thinking');
+    chatHistories[activeAgent].push({ role: 'agent', text: `[Error: ${e.message || 'Request failed'}]`, model });
+  }
+
+  input.disabled = false;
+  input.focus();
+  _refreshChat();
+}
+
+function _refreshChat() {
+  const chatEl = qs('#agent-chat');
+  if(!chatEl) return;
+  const cfg = AGENT_CONFIG[activeAgent];
+  const history = chatHistories[activeAgent] || [];
+  if(history.length === 0) return;
+  chatEl.innerHTML = history.map(m => renderChatMsg(m, cfg)).join('');
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+// ── CODE ENVIRONMENT PANEL ───────────────────────────────────────────────────
+function renderCodePanel(cfg, currentModel, currentPrompt) {
+  const cells = activeCells;
+  const history = chatHistories['code'] || [];
+
+  const cellsHtml = cells.length === 0
+    ? `<div style="text-align:center;padding:32px;color:var(--muted)">
+        <div style="font-size:32px;margin-bottom:8px">💻</div>
+        <div style="font-weight:600;margin-bottom:4px">No cells yet</div>
+        <div class="mini">Ask the Code Environment agent to write analysis code, or add a cell manually.</div>
+       </div>`
+    : cells.map((c, i) => renderCell(c, i)).join('');
+
+  return `
+    <div class="agent-header">
+      <div class="agent-header-top">
+        <div class="agent-title-row">
+          <div class="agent-icon-badge">💻</div>
+          <div>
+            <div style="font-weight:700;font-size:16px">Code Environment</div>
+            <div class="mini">Jupyter-style cells — edit, run, inspect output</div>
+          </div>
+        </div>
+        <div class="model-selector-wrap">
+          <div class="model-search-container" id="model-search-wrap">
+            <button class="model-search-btn" id="model-search-btn" onclick="toggleModelDropdown()">
+              <span id="model-btn-label">${esc(currentModel)}</span>
+              <span style="font-size:10px;opacity:.5">▾</span>
+            </button>
+            <div class="model-dropdown" id="model-dropdown">
+              <input class="model-search-input" id="model-search-input" placeholder="Search models…" oninput="filterModels(this.value)" autocomplete="off">
+              <div class="model-list" id="model-list">${renderModelList(currentModel)}</div>
+            </div>
+          </div>
+          <button class="btn primary" style="font-size:12px;padding:6px 12px" onclick="runAllCells()">▶ Run All</button>
+        </div>
+      </div>
+    </div>
+    <div style="padding:20px 24px;flex:1;overflow-y:auto;background:#fafbfd">
+      ${cellsHtml}
+    </div>
+    <div class="add-cell-bar">
+      <button class="btn" style="font-size:13px" onclick="addNewCell()">＋ Add Cell</button>
+      <span class="mini">${cells.length} cell${cells.length===1?'':'s'} · Ask the agent to write code, or add a cell manually</span>
+    </div>
+    <div style="border-top:1px solid var(--line);padding:14px 20px;background:#fff">
+      <div class="mini" style="margin-bottom:6px;font-weight:600">Ask Code Environment agent</div>
+      <div style="display:flex;gap:8px">
+        <textarea id="chat-input" style="flex:1;min-height:44px;max-height:120px;resize:none;padding:10px 14px;border-radius:10px;border:1px solid var(--line);font-family:var(--sans);font-size:14px" placeholder="e.g. Write a Fama-MacBeth regression using overnight returns…" onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){sendAgentChat();event.preventDefault()}"></textarea>
+        <button class="btn primary" style="align-self:flex-end;padding:10px 20px" onclick="sendAgentChat()">Send ↵</button>
+      </div>
+      ${history.length > 0 ? `<div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto">${history.filter(m=>m.role!=='thinking').map(m=>renderChatMsg(m,cfg)).join('')}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderCell(c, idx) {
+  const status = c.status || 'idle';
+  const statusClass = status === 'running' ? 'running' : status === 'complete' || status === 'success' ? 'success' : status === 'failed' || status === 'error' ? 'error' : 'idle';
+  const statusLabel = status === 'complete' ? 'Done' : status === 'failed' ? 'Error' : status === 'running' ? 'Running…' : 'Idle';
+  const hasOutput = c.output_stdout || c.stdout;
+  const hasErr = c.output_stderr || c.stderr;
+  return `
+    <div class="notebook-cell" id="cell-${esc(c.id)}">
+      <div class="notebook-cell-header">
+        <span style="font-weight:600">In [${idx+1}]: ${esc(c.file_name || c.title || 'Cell')}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="cell-status-badge ${statusClass}">${statusLabel}</span>
+          <button class="btn" style="padding:3px 10px;font-size:11px;min-height:auto" onclick="saveCell('${esc(c.id)}', document.querySelector('#cell-${esc(c.id)} .notebook-cell-code').value)">Save</button>
+          <button class="btn primary" style="padding:3px 10px;font-size:11px;min-height:auto" onclick="runCellById('${esc(c.id)}')" ${status==='running'?'disabled':''}>
+            ${status==='running'?'Running…':'▶ Run'}
+          </button>
+          <button class="btn" style="padding:3px 10px;font-size:11px;min-height:auto;background:#fee2e2;color:#b91c1c;border-color:#fca5a5" onclick="deleteCell('${esc(c.id)}')">✕</button>
+        </div>
+      </div>
+      <textarea class="notebook-cell-code" id="code-${esc(c.id)}" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,500)+'px'">${esc(c.code || '# No code yet')}</textarea>
+      ${hasOutput || hasErr ? `
+        <div class="notebook-cell-output">
+          ${hasOutput ? esc(c.output_stdout || c.stdout || '') : ''}
+          ${hasErr ? `<div class="notebook-cell-stderr">${esc(c.output_stderr || c.stderr || '')}</div>` : ''}
+          ${c.exec_seconds ? `<div class="notebook-cell-exec-time">Execution time: ${c.exec_seconds.toFixed(2)}s</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+async function saveCell(cellId, code) {
+  await api(`/api/sessions/${currentResearchId}/compute-cells/${cellId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ code }),
+  }).catch(()=>{});
+  toast('Cell saved.');
+}
+
+async function runCellById(cellId) {
+  // Optimistically update code from textarea
+  const ta = document.querySelector(`#cell-${cellId} .notebook-cell-code`);
+  if(ta) await saveCell(cellId, ta.value);
+
+  // Mark running
+  const badge = document.querySelector(`#cell-${cellId} .cell-status-badge`);
+  if(badge) { badge.textContent = 'Running…'; badge.className = 'cell-status-badge running'; }
+
+  await api(`/api/sessions/${currentResearchId}/compute-cells/${cellId}/run`, { method: 'POST' }).catch(()=>{});
+
+  // Poll until done
+  let attempts = 0;
   const poll = setInterval(async () => {
-    const res = await api(`/sessions/${currentResearchId}/compute-cells`);
+    attempts++;
+    const res = await api(`/api/sessions/${currentResearchId}/compute-cells`).catch(()=>({cells:[]}));
     activeCells = res.cells || [];
-    const updated = activeCells.find(c => c.id === cellId);
-    if(updated && updated.status !== 'running') {
+    const cell = activeCells.find(c => c.id === cellId);
+    if(cell && (cell.status !== 'running' && cell.status !== 'pending') || attempts > 30) {
       clearInterval(poll);
-      renderWorkspace(currentResearchId);
+      const main = document.getElementById('workspace-main');
+      if(main) { main.innerHTML = renderCodePanel(AGENT_CONFIG['code'], agentModels['code']||'gpt-4o', agentPrompts['code']||''); wireModelDropdown(); }
     }
   }, 2000);
 }
 
-async function sendFollowup() {
-  const input = qs('#chat-input');
-  const txt = input.value.trim();
-  if(!txt) return;
-  
-  input.value = '';
-  input.disabled = true;
-  
-  await api(`/sessions/${currentResearchId}/followups`, {
-    method: 'POST',
-    body: JSON.stringify({
-      action_label: `Message to ${AGENT_CONFIG[activeAgent].name}`,
-      reason: txt,
-      owner_phase: AGENT_MAP[activeAgent],
-      rerun_scope: [AGENT_MAP[activeAgent]],
-      technical: txt,
-      plain: txt
-    })
-  });
-  
-  const followupsRes = await api(`/sessions/${currentResearchId}/followups`);
-  followupsCache = followupsRes.followups || [];
-  renderWorkspace(currentResearchId);
+async function runAllCells() {
+  await api(`/api/sessions/${currentResearchId}/compute-cells/run-all`, { method: 'POST' }).catch(()=>{});
+  toast('Running all cells…');
+  setTimeout(async () => {
+    const res = await api(`/api/sessions/${currentResearchId}/compute-cells`).catch(()=>({cells:[]}));
+    activeCells = res.cells || [];
+    const main = document.getElementById('workspace-main');
+    if(main) { main.innerHTML = renderCodePanel(AGENT_CONFIG['code'], agentModels['code']||'gpt-4o', agentPrompts['code']||''); wireModelDropdown(); }
+  }, 4000);
 }
 
-function renderActiveAgentWorkspace() {
-  const agent = AGENT_CONFIG[activeAgent];
-  const currentModel = agentModels[activeAgent] || agent.model;
-  const currentPrompt = agentPrompts[activeAgent] || '';
-  
-  const modelOptions = MODELS.map(m => `<option value="${m}" ${m === currentModel ? 'selected' : ''}>${m}</option>`).join('');
-
-  
-  let contentArea = '';
-  
-  // Render Chat History
-  const agentFollowups = followupsCache.filter(f => f.owner_phase === AGENT_MAP[activeAgent]);
-  let chatHistoryHtml = agentFollowups.map(f => `
-    <div class="chat-bubble user">
-      <strong>You:</strong> ${esc(f.reason || '')}
-    </div>
-    <div class="chat-bubble agent" style="margin-top: 8px;">
-      <strong>${agent.name} [${esc(f.status || 'pending')}]:</strong> ${f.status === 'done' ? 'I have completed this request.' : 'Working on it...'}
-    </div>
-  `).join('');
-
-  if (activeAgent === 'data' || activeAgent === 'stats') {
-    const agentCells = activeCells.filter(c => activeAgent === 'stats' ? c.phase === 'STATSRUN' : (c.phase !== 'STATSRUN'));
-    let cellsHtml = agentCells.map((c, i) => `
-      <div class="notebook-cell" style="margin-bottom:12px;">
-        <div class="notebook-cell-header">
-          <span>In [${i+1}]: ${esc(c.file_name || 'Compute Cell')}</span>
-          <div>
-            <button class="btn" style="padding: 4px 8px; font-size: 11px; min-height: auto;" onclick="runComputeCell('${c.id}')" ${c.status === 'running' ? 'disabled' : ''}>
-              ${c.status === 'running' ? 'Running...' : 'Run Code'}
-            </button>
-          </div>
-        </div>
-        <textarea class="notebook-cell-code" readonly oninput="this.style.height='';this.style.height=this.scrollHeight+'px'">${esc(c.code || '# No code generated yet')}</textarea>
-        ${c.output_stdout || c.output_stderr ? `<div class="notebook-cell-output">
-${esc(c.output_stdout || '')}
-<span style="color:red">${esc(c.output_stderr || '')}</span>
-        </div>` : ''}
-      </div>
-    `).join('');
-    
-    if(!cellsHtml) {
-      cellsHtml = `<div class="muted">No compute cells generated for this agent yet.</div>`;
-    }
-    
-    contentArea = `
-      ${cellsHtml}
-      ${chatHistoryHtml}
-    `;
-  } else {
-    contentArea = `
-      <div class="chat-bubble agent">
-        <strong>${agent.name}:</strong> Ready. How would you like to proceed with the ${agent.name.toLowerCase()} phase?
-      </div>
-      ${chatHistoryHtml}
-    `;
+async function addNewCell() {
+  const res = await api(`/api/sessions/${currentResearchId}/compute-cells`, {
+    method: 'POST',
+    body: JSON.stringify({ title: 'New Cell', code: '# Write your code here\n', created_by: 'researcher' }),
+  }).catch(()=>null);
+  if(res?.cell) {
+    activeCells.push(res.cell);
+    const main = document.getElementById('workspace-main');
+    if(main) { main.innerHTML = renderCodePanel(AGENT_CONFIG['code'], agentModels['code']||'gpt-4o', agentPrompts['code']||''); wireModelDropdown(); }
   }
+}
 
+async function deleteCell(cellId) {
+  if(!confirm('Delete this cell?')) return;
+  activeCells = activeCells.filter(c => c.id !== cellId);
+  const el = document.getElementById(`cell-${cellId}`);
+  if(el) el.remove();
+}
+
+// ── REVIEWER GAUNTLET ─────────────────────────────────────────────────────────
+function renderReviewerPanel(cfg, currentModel) {
+  const hasOutputs = Object.keys(reviewerOutputs).length > 0;
   return `
     <div class="agent-header">
-      <div class="row" style="justify-content:space-between">
-        <h3 style="margin:0">${agent.icon} ${esc(agent.name)}</h3>
-        <select class="model-select" onchange="updateAgentModel(this.value)">${modelOptions}</select>
-      </div>
-      <div style="margin-top:10px">
-        <div class="mini" style="margin-bottom:6px;font-weight:600;color:var(--muted)">YOUR CUSTOM INSTRUCTION FOR THIS AGENT</div>
-        <div class="mini" style="margin-bottom:8px;color:var(--muted)">Type here to give this agent specific direction — e.g. "Focus only on papers from 2018–2024" or "Use Fama-French 3-factor model". Leave blank to use the default agent behaviour.</div>
-        <textarea class="prompt-editor" onblur="updateAgentPrompt(this.value)" placeholder="e.g. Focus on peer-reviewed finance journals only. Use APA citations.">${esc(currentPrompt)}</textarea>
-        ${currentPrompt ? '<div class="mini" style="color:#16a34a;margin-top:4px">✓ Custom instruction active — this agent will follow your guidance</div>' : '<div class="mini" style="color:var(--muted);margin-top:4px">No custom instruction — running with default behaviour</div>'}
+      <div class="agent-header-top">
+        <div class="agent-title-row">
+          <div class="agent-icon-badge">⚖️</div>
+          <div>
+            <div style="font-weight:700;font-size:16px">Reviewer Gauntlet</div>
+            <div class="mini">5 independent expert reviewers challenge every claim in your study</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="model-search-container" id="model-search-wrap">
+            <button class="model-search-btn" id="model-search-btn" onclick="toggleModelDropdown()">
+              <span id="model-btn-label">${esc(currentModel)}</span>
+              <span style="font-size:10px;opacity:.5">▾</span>
+            </button>
+            <div class="model-dropdown" id="model-dropdown">
+              <input class="model-search-input" id="model-search-input" placeholder="Search models…" oninput="filterModels(this.value)" autocomplete="off">
+              <div class="model-list" id="model-list">${renderModelList(currentModel)}</div>
+            </div>
+          </div>
+          <button class="btn primary" style="padding:8px 16px;font-size:13px" onclick="runAllReviewers()">Run All 5 Reviewers</button>
+        </div>
       </div>
     </div>
-    <div class="agent-chat">
-      ${contentArea}
+    <div class="reviewer-grid">
+      ${REVIEWER_PERSONAS.map(p => renderReviewerCard(p)).join('')}
     </div>
-    <div class="agent-input-zone">
-      <textarea id="chat-input" placeholder="Message ${esc(agent.name)}..."></textarea>
-      <button class="btn primary" style="align-self: flex-end;" onclick="sendFollowup()">Send</button>
+    <div style="padding:14px 20px;border-top:1px solid var(--line);background:#fff;display:flex;gap:8px">
+      <textarea id="chat-input" style="flex:1;min-height:44px;max-height:120px;resize:none;padding:10px 14px;border-radius:10px;border:1px solid var(--line);font-family:var(--sans);font-size:14px" placeholder="Ask the Reviewer Gauntlet to challenge a specific claim…" onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){runGauntletMessage();event.preventDefault()}"></textarea>
+      <button class="btn primary" style="align-self:flex-end;padding:10px 20px" onclick="runGauntletMessage()">Ask Gauntlet</button>
     </div>
   `;
+}
+
+function renderReviewerCard(p) {
+  const output = reviewerOutputs[p.key];
+  return `
+    <div class="reviewer-card">
+      <div class="reviewer-card-head">
+        <div class="reviewer-avatar">${p.icon}</div>
+        <div>
+          <div style="font-weight:700;font-size:13px">${esc(p.name)}</div>
+          <div class="mini">${esc(p.role)}</div>
+        </div>
+        <button class="btn" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="runSingleReviewer('${p.key}')">
+          ${output ? 'Re-run' : 'Run'}
+        </button>
+      </div>
+      <div class="reviewer-card-body" id="reviewer-body-${p.key}">
+        ${output ? formatReviewerOutput(output) : `<div style="color:var(--muted-light);font-size:13px">Click Run to get this reviewer's assessment of your study.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+function formatReviewerOutput(text) {
+  // Format numbered objections as distinct blocks
+  return text.replace(/^(\d+\.\s)/gm, '\n$1').split('\n').filter(Boolean).map((line, i) => {
+    if(/^\d+\.\s/.test(line)) return `<div class="reviewer-objection ${i===0?'critical':''}">${esc(line)}</div>`;
+    return `<p style="margin:4px 0">${esc(line)}</p>`;
+  }).join('');
+}
+
+async function runSingleReviewer(personaKey) {
+  const p = REVIEWER_PERSONAS.find(x => x.key === personaKey);
+  const bodyEl = document.getElementById(`reviewer-body-${personaKey}`);
+  if(bodyEl) bodyEl.innerHTML = `<div class="thinking-dots"><span></span><span></span><span></span></div>`;
+
+  const message = `As a ${p.name} who ${p.role}, critically evaluate this study: "${workspaceTopic}". List your top 3-5 specific objections with concrete evidence requirements. Number each objection.`;
+  const res = await api(`/api/sessions/${currentResearchId}/agent-chat`, {
+    method: 'POST',
+    body: JSON.stringify({ agent: 'Reviewer Agent', message }),
+  }).catch(()=>({ reply: '[Reviewer unavailable — check API connection]' }));
+
+  reviewerOutputs[personaKey] = res.reply || '[No response]';
+  if(bodyEl) bodyEl.innerHTML = formatReviewerOutput(reviewerOutputs[personaKey]);
+}
+
+async function runAllReviewers() {
+  toast('Running all 5 reviewers…');
+  await Promise.all(REVIEWER_PERSONAS.map(p => runSingleReviewer(p.key)));
+  toast('All reviewers complete.');
+}
+
+async function runGauntletMessage() {
+  const input = qs('#chat-input');
+  const txt = input?.value?.trim();
+  if(!txt) return;
+  if(input) { input.value = ''; input.disabled = true; }
+  if(!chatHistories['reviewer']) chatHistories['reviewer'] = [];
+  chatHistories['reviewer'].push({ role: 'user', text: txt });
+
+  const res = await api(`/api/sessions/${currentResearchId}/agent-chat`, {
+    method: 'POST',
+    body: JSON.stringify({ agent: 'Reviewer Agent', message: txt }),
+  }).catch(()=>({ reply: '[Reviewer unavailable]' }));
+  chatHistories['reviewer'].push({ role: 'agent', text: res.reply, model: res.model });
+  if(input) input.disabled = false;
+  toast('Gauntlet responded.');
+}
+
+// ── LATEX WRITER PANEL ───────────────────────────────────────────────────────
+function renderWriterPanel(cfg, currentModel, currentPrompt) {
+  const history = chatHistories['writer'] || [];
+  return `
+    <div class="agent-header">
+      <div class="agent-header-top">
+        <div class="agent-title-row">
+          <div class="agent-icon-badge">✍️</div>
+          <div>
+            <div style="font-weight:700;font-size:16px">LaTeX Writer</div>
+            <div class="mini">Journal-specific paper generation — choose target, get publication-ready LaTeX</div>
+          </div>
+        </div>
+        <div class="model-search-container" id="model-search-wrap">
+          <button class="model-search-btn" id="model-search-btn" onclick="toggleModelDropdown()">
+            <span id="model-btn-label">${esc(currentModel)}</span>
+            <span style="font-size:10px;opacity:.5">▾</span>
+          </button>
+          <div class="model-dropdown" id="model-dropdown">
+            <input class="model-search-input" id="model-search-input" placeholder="Search models…" oninput="filterModels(this.value)" autocomplete="off">
+            <div class="model-list" id="model-list">${renderModelList(currentModel)}</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="mini" style="font-weight:600;margin-bottom:8px">Target Journal / Format</div>
+        <div class="journal-strip">
+          ${JOURNALS.map(j => `<div class="journal-chip ${selectedJournal===j?'selected':''}" onclick="selectJournal('${j}')">${j}</div>`).join('')}
+        </div>
+      </div>
+      ${renderPromptLayers(currentPrompt)}
+    </div>
+    <div class="agent-chat" id="agent-chat">
+      ${history.length === 0 ? `
+        <div class="chat-bubble agent">
+          <div class="agent-label">✍️ LaTeX Writer</div>
+          <div>I'm ready to write your paper. Select a journal format above, then tell me which section to write first — or ask me to write the full paper.<br><br>
+          I'll produce proper LaTeX with correct section structure, bibliography style, and length requirements for <strong>${esc(selectedJournal)}</strong> format.<br><br>
+          Current study: <em>${esc(workspaceTopic.slice(0,100))}</em></div>
+        </div>
+      ` : history.map(m => renderChatMsg(m, cfg)).join('')}
+    </div>
+    <div class="agent-input-zone">
+      <textarea id="chat-input" placeholder="e.g. Write the abstract and introduction for ${esc(selectedJournal)} format…" onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){sendWriterChat();event.preventDefault()}"></textarea>
+      <button class="btn primary" style="align-self:flex-end;padding:10px 20px" onclick="sendWriterChat()">Send ↵</button>
+    </div>
+  `;
+}
+
+function selectJournal(j) {
+  selectedJournal = j;
+  // Rerender just the writer panel
+  const main = document.getElementById('workspace-main');
+  if(main && activeAgent==='writer') {
+    main.innerHTML = renderWriterPanel(AGENT_CONFIG['writer'], agentModels['writer']||'gpt-4o', agentPrompts['writer']||'');
+    wireModelDropdown();
+  }
+}
+
+async function sendWriterChat() {
+  const input = qs('#chat-input');
+  if(!input) return;
+  const raw = input.value.trim();
+  if(!raw) return;
+  input.value = '';
+  input.disabled = true;
+
+  // Inject journal context into message
+  const txt = `[Target journal: ${selectedJournal}] ${raw}`;
+  if(!chatHistories['writer']) chatHistories['writer'] = [];
+  chatHistories['writer'].push({ role: 'user', text: raw });
+  chatHistories['writer'].push({ role: 'thinking' });
+  _refreshChat();
+
+  const res = await api(`/api/sessions/${currentResearchId}/agent-chat`, {
+    method: 'POST',
+    body: JSON.stringify({ agent: 'Writer Agent', message: txt }),
+  }).catch(()=>({ reply: '[Writer unavailable]', model: 'fallback' }));
+
+  chatHistories['writer'] = chatHistories['writer'].filter(m => m.role !== 'thinking');
+  chatHistories['writer'].push({ role: 'agent', text: res.reply, model: res.model });
+  input.disabled = false;
+  input.focus();
+  _refreshChat();
 }
 
 function route(){ stopAllPolling(); const h=(location.hash||'').slice(1); if(h.startsWith('research/')) return renderWorkspace(h.split('/')[1]); if(h==='new') return renderNew(); if(h==='guide') return renderGuide(); return renderDashboard(); }

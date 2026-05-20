@@ -30,7 +30,16 @@ def _client(tmp_path: Path, monkeypatch):
 
 
 def _launch(client: TestClient, topic: str) -> str:
-    created = client.post("/runs/create", json={"topic": topic, "approach": "confirmatory", "output_format": "paper"})
+    created = client.post(
+        "/runs/create",
+        json={
+            "topic": topic,
+            "approach": "confirmatory",
+            "output_format": "paper",
+            "data_confirmed": True,
+            "data_preview_sha256": "preview-sha-general",
+        },
+    )
     assert created.status_code == 200
     return created.json()["run_id"]
 

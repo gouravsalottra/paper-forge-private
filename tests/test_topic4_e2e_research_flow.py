@@ -98,6 +98,12 @@ def test_topic4_website_to_backend_to_publishable_package(tmp_path: Path, monkey
     assert locked.status_code == 200
     assert locked.json()["blueprint_hash"]
 
+    preview_patch = client.patch(
+        f"/api/sessions/{session_id}/blueprint",
+        json={"data_preview_sha256": "preview-sha-topic4", "preview_run_id": "preview-run-topic4"},
+    )
+    assert preview_patch.status_code == 200
+
     launched = client.post(f"/api/sessions/{session_id}/run", json={"approved": True})
     assert launched.status_code == 200
     assert launched.json()["run_started"] is True
@@ -168,6 +174,7 @@ def test_legacy_website_run_urls_delegate_to_canonical_session_pipeline(tmp_path
             "output_format": "paper",
             "connector": "simulation_generated",
             "data_confirmed": True,
+            "data_preview_sha256": "preview-sha-legacy",
         },
     )
     assert created.status_code == 200
