@@ -101,6 +101,12 @@ def launch_or_resume_workspace(
     accounts = modal_compute.load_modal_accounts()
     account, routing = modal_compute.select_modal_account(accounts)
     client = modal.Client.from_credentials(account.token_id, account.token_secret)
+    app = modal.App.lookup(
+        os.getenv("MODAL_APP_NAME", getattr(modal_compute, "MODAL_APP_NAME", "thrivarc-compute")),
+        create_if_missing=True,
+        environment_name=os.getenv("MODAL_ENVIRONMENT") or None,
+        client=client,
+    )
     image = (
         modal.Image.debian_slim(python_version="3.12")
         .pip_install(
@@ -123,6 +129,7 @@ def launch_or_resume_workspace(
         "-lc",
         _workspace_seed_script(payload_url, access_token),
         image=image,
+        app=app,
         timeout=int(os.getenv("THRIVARC_NOTEBOOK_TIMEOUT_SECONDS", "14400")),
         idle_timeout=int(os.getenv("THRIVARC_NOTEBOOK_IDLE_TIMEOUT_SECONDS", "3600")),
         encrypted_ports=[8888],

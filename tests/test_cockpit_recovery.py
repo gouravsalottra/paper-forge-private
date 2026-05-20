@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -246,6 +248,83 @@ def test_notebook_bootstrap_uses_blob_payload_instead_of_large_command(tmp_path:
     assert len(script) < 65536
     assert "urllib.request.urlopen" in script
     assert "token-123" in script
+
+
+def test_live_notebook_launch_attaches_modal_app(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("THRIVARC_STORAGE_BACKEND", "mock")
+    from storage import blob
+
+    blob.reset_mock_storage()
+
+    import api.modal_compute as modal_compute
+    import api.notebook_runtime as notebook_runtime
+
+    monkeypatch.setattr(notebook_runtime, "_is_test_mode", lambda: False)
+    monkeypatch.setattr(notebook_runtime, "_bootstrap_payload_url", lambda *args, **kwargs: "https://example.test/bootstrap.json")
+
+    account = SimpleNamespace(alias="primary", token_id="token-id", token_secret="token-secret")
+    monkeypatch.setattr(modal_compute, "load_modal_accounts", lambda: [account])
+    monkeypatch.setattr(modal_compute, "select_modal_account", lambda accounts: (account, {"alias": "primary"}))
+
+    captured: dict[str, object] = {}
+
+    class _FakeImage:
+        @staticmethod
+        def debian_slim(*args, **kwargs):
+            return _FakeImage()
+
+        def pip_install(self, *args, **kwargs):
+            captured["pip_install"] = args
+            return self
+
+    class _FakeClient:
+        @staticmethod
+        def from_credentials(token_id, token_secret):
+            captured["credentials"] = (token_id, token_secret)
+            return "client-obj"
+
+    class _FakeApp:
+        @staticmethod
+        def lookup(name, **kwargs):
+            captured["app_lookup"] = {"name": name, **kwargs}
+            return "app-obj"
+
+    class _FakeTunnel:
+        url = "https://sandbox.example"
+
+    class _FakeSandboxHandle:
+        object_id = "sb-123"
+
+        def wait_until_ready(self, timeout):
+            captured["ready_timeout"] = timeout
+
+        def tunnels(self, timeout):
+            captured["tunnel_timeout"] = timeout
+            return {8888: _FakeTunnel()}
+
+    class _FakeSandbox:
+        @staticmethod
+        def create(*args, **kwargs):
+            captured["sandbox_args"] = args
+            captured["sandbox_kwargs"] = kwargs
+            return _FakeSandboxHandle()
+
+    fake_modal = SimpleNamespace(
+        Client=_FakeClient,
+        App=_FakeApp,
+        Image=_FakeImage,
+        Sandbox=_FakeSandbox,
+        sandbox=SimpleNamespace(Probe=SimpleNamespace(with_tcp=lambda port: ("probe", port))),
+    )
+    monkeypatch.setitem(sys.modules, "modal", fake_modal)
+
+    workspace = notebook_runtime.launch_or_resume_workspace("session-2", "{\"cells\": []}", seed_files={"seed.csv": "a,b\n1,2\n"})
+
+    assert workspace["backend"] == "modal"
+    assert workspace["access_url"].startswith("https://sandbox.example/lab/tree/analysis.ipynb")
+    assert captured["sandbox_kwargs"]["app"] == "app-obj"
+    assert captured["app_lookup"]["name"] == "thrivarc-compute"
 
 
 def test_bulk_delete_completed_sessions(tmp_path: Path, monkeypatch) -> None:
