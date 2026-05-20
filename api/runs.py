@@ -77,6 +77,50 @@ def _canonical_session_exists(run_id: str) -> bool:
         return sessions._session_row(conn, run_id) is not None
 
 
+def _dashboard_runtime_fields(sessions, conn, row: Any, current_phase: str | None = None) -> dict[str, Any]:
+    """Lean dashboard truth: no Blob scans, no artifact counts."""
+    run_id = sessions._row_get(row, "id")
+    status = str(sessions._row_get(row, "status") or "")
+    if status == "running":
+        backend_activity = sessions._session_runtime_truth(conn, run_id)
+    elif status == "stale_needs_attention":
+        backend_activity = {
+            "state": "stale",
+            "label": "Stale / needs cleanup",
+            "last_event_at": sessions._row_get(row, "updated_at"),
+            "stale": True,
+            "details": {"reason": "Session was marked running, but no live backend activity was found."},
+        }
+    else:
+        terminal = status in {"done", "paper_unlocked", "paper_locked"}
+        backend_activity = {
+            "state": "complete" if terminal else "idle",
+            "label": "Complete" if terminal else "SSE idle",
+            "last_event_at": sessions._row_get(row, "updated_at"),
+            "stale": False,
+            "details": {},
+        }
+    next_action = {
+        "draft": "Resume draft",
+        "initializing": "Resume draft",
+        "needs_clarification": "Answer clarification",
+        "evidence_blocked": "Review data preview",
+        "scope_confirmed": "Approve Blueprint",
+        "blueprint_locked": "Review data preview",
+        "running": f"Running: {current_phase or 'Pipeline'}",
+        "stale_needs_attention": "Clean stale running state",
+        "failed_resumable": "Review failure",
+        "failed_terminal": "Download or fork package",
+        "paper_unlocked": "Download paper",
+    }.get(status, "Review results")
+    return {
+        "backend_activity": backend_activity,
+        "is_stale": bool(backend_activity.get("stale")),
+        "last_activity_at": sessions._row_get(row, "updated_at"),
+        "next_action": next_action,
+    }
+
+
 def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[str, Any] | None:
     from api import sessions
 
@@ -95,7 +139,6 @@ def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[st
             "SELECT * FROM reviewer_scores WHERE session_id=? ORDER BY cycle DESC LIMIT 1",
             (run_id,),
         )
-        session_summary = sessions._session_summary(conn, row)
     data_passport: dict[str, Any] = {}
     if include_passport:
         try:
@@ -126,6 +169,8 @@ def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[st
             None,
         )
     status = sessions._row_get(row, "status")
+    with sessions._with_conn() as runtime_conn:
+        runtime_fields = _dashboard_runtime_fields(sessions, runtime_conn, row, current)
     gate_passed = bool(sessions._row_get(score, "gate_passed")) if score else False
     data_sha = (
         blueprint.get("uploaded_event_sha256")
@@ -152,10 +197,7 @@ def _canonical_run_object(run_id: str, include_passport: bool = True) -> dict[st
         "hypothesis_id": None,
         "plan": blueprint,
         "reviewer_gate": {"passed": gate_passed, "average_score": sessions._row_get(score, "average_score")},
-        "backend_activity": session_summary.get("backend_activity"),
-        "is_stale": session_summary.get("is_stale"),
-        "last_activity_at": session_summary.get("last_activity_at"),
-        "next_action": session_summary.get("next_action"),
+        **runtime_fields,
     }
 
 
@@ -186,7 +228,6 @@ def _canonical_runs() -> list[dict[str, Any]]:
             sid = sessions._row_get(s, "session_id")
             if sid not in scores_by_session:
                 scores_by_session[sid] = s
-        summaries_by_session = {sessions._row_get(row, "id"): sessions._session_summary(conn, row) for row in rows}
 
     runs: list[dict[str, Any]] = []
     for row in rows:
@@ -221,6 +262,8 @@ def _canonical_runs() -> list[dict[str, Any]]:
             )
             
         status = sessions._row_get(row, "status")
+        with sessions._with_conn() as runtime_conn:
+            runtime_fields = _dashboard_runtime_fields(sessions, runtime_conn, row, current)
         gate_passed = bool(sessions._row_get(score, "gate_passed")) if score else False
         data_sha = (
             blueprint.get("uploaded_event_sha256")
@@ -247,10 +290,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
             "hypothesis_id": None,
             "plan": {},
             "reviewer_gate": {"passed": gate_passed, "average_score": sessions._row_get(score, "average_score") if score else None},
-            "backend_activity": summaries_by_session.get(run_id, {}).get("backend_activity"),
-            "is_stale": summaries_by_session.get(run_id, {}).get("is_stale"),
-            "last_activity_at": summaries_by_session.get(run_id, {}).get("last_activity_at"),
-            "next_action": summaries_by_session.get(run_id, {}).get("next_action"),
+            **runtime_fields,
         }
         runs.append(run_obj)
         
