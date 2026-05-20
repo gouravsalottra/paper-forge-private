@@ -166,7 +166,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
         placeholders = ",".join("?" * len(session_ids))
         
         # Fetch blueprints
-        blueprint_rows = sessions._fetchall(conn, f"SELECT session_id, payload FROM blueprint_events WHERE session_id IN ({placeholders}) ORDER BY created_at ASC", tuple(session_ids))
+        blueprint_rows = sessions._fetchall(conn, f"SELECT session_id, content FROM blueprints WHERE session_id IN ({placeholders}) ORDER BY created_at ASC", tuple(session_ids))
         blueprints = {}
         for b in blueprint_rows:
             blueprints[sessions._row_get(b, "session_id")] = sessions._blueprint_content(b)
