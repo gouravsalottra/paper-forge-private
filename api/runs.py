@@ -158,7 +158,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
     from api import sessions
 
     with sessions._with_conn() as conn:
-        rows = sessions._fetchall(conn, "SELECT * FROM sessions ORDER BY updated_at DESC")
+        rows = sessions._fetchall(conn, "SELECT * FROM sessions ORDER BY updated_at DESC LIMIT 50")
         if not rows:
             return []
             
@@ -245,7 +245,7 @@ def _canonical_runs() -> list[dict[str, Any]]:
             "data_passport": {},
             "parent_run_id": sessions._row_get(row, "parent_run_id"),
             "hypothesis_id": None,
-            "plan": blueprint,
+            "plan": {},
             "reviewer_gate": {"passed": gate_passed, "average_score": sessions._row_get(score, "average_score") if score else None},
         }
         runs.append(run_obj)
