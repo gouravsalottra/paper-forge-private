@@ -3,16 +3,41 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_blueprint_screen_exposes_product_truth_contracts() -> None:
+def test_blueprint_screen_uses_researcher_facing_guardrails_by_default() -> None:
     html = Path("frontend/app.html").read_text(encoding="utf-8")
     required = [
-        "Research Architect clarification policy",
+        "Study Guardrails",
+        "Blueprint locks the research intent before compute",
+        "Evidence preview must be approved before analysis",
+        "Writer runs only after compute, audit, and review",
+        "Any post-lock change creates a visible deviation",
+        "Data provenance receipt + change log",
+        "View technical guardrails",
+        "optional, not required to proceed",
+        "Hypothesis-generating language",
+        "Pre-registration certificate enabled",
+    ]
+    for phrase in required:
+        assert phrase in html
+    removed_default_copy = [
+        "Show internal pipeline rules",
+        "These are internal pipeline rules",
         "Conditional paper gate",
-        "Repair Contract",
         "Integrity artifacts",
         "Execution truth contract",
+    ]
+    for phrase in removed_default_copy:
+        assert phrase not in html
+
+
+def test_blueprint_technical_guardrails_keep_internal_contracts_available() -> None:
+    html = Path("frontend/app.html").read_text(encoding="utf-8")
+    required = [
+        "renderTechnicalGuardrails",
+        "Review gate before writing",
+        "What Thrivarc can fix automatically vs what needs your approval",
         "Writer is last and never invents numbers",
-        "DataPassport",
+        "Data provenance receipt",
         "Pre-registration certificate",
         "Paper-Code Verifier",
     ]
@@ -146,6 +171,10 @@ def test_frontend_uses_real_model_registry_and_prompt_layers() -> None:
 
 def test_cockpit_makes_jupyter_primary_and_export_readiness_explicit() -> None:
     html = _html()
+    assert "What to do now" in html
+    assert "researcher-command" in html
+    assert "Approval queue" in html
+    assert "Approval gates" not in html
     assert "Notebook workspace" in html
     assert "Open full screen" in html
     assert "window.open(res.workspace.access_url" not in html
@@ -158,6 +187,10 @@ def test_cockpit_makes_jupyter_primary_and_export_readiness_explicit() -> None:
 def test_specialist_and_prompt_panels_explain_backend_effects() -> None:
     html = _html()
     assert "Used by next run of this agent" in html
+    assert "You do not need this for normal approvals" in html
+    assert "Open prompt controls" in html
+    assert "View specialist threads" in html
+    assert "Open model settings" in html
     assert "last saved" in html
     assert "data-specialist-thread" in html
     assert "Create notebook cell" in html

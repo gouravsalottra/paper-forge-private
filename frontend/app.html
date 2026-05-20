@@ -2471,6 +2471,78 @@ function renderRevisionPolicy(policy){
   `;
 }
 
+function humanizeTechnicalLabel(value){
+  return String(value || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, ch => ch.toUpperCase());
+}
+
+function renderHumanList(items, fallback){
+  const arr = Array.isArray(items) ? items : [];
+  return `<ul style="margin:8px 0 0 18px">${arr.map(item => `<li>${esc(humanizeTechnicalLabel(item))}</li>`).join('') || `<li>${esc(fallback)}</li>`}</ul>`;
+}
+
+function renderStudyGuardrails({isConfirmatory, reviewerGate, integrityArtifacts}){
+  const prereg = integrityArtifacts?.preregistration_certificate || {};
+  const trackTitle = isConfirmatory ? 'Confirmatory track' : 'Exploratory track';
+  const trackCopy = isConfirmatory
+    ? 'Claim locked before evidence. Pre-registration certificate enabled. Writer stays gated until review clears the evidence.'
+    : 'Hypothesis-generating language. No pre-registration certificate. You can upgrade later by locking a follow-up confirmatory design.';
+  const preregCopy = isConfirmatory || prereg.enabled
+    ? 'Pre-registration certificate will be included for the locked claim.'
+    : 'No pre-registration certificate for this exploratory run.';
+  return `
+    <div class="blueprint-section study-guardrails" data-default-guardrails="researcher-facing">
+      <div class="blueprint-section-title">${svgIcon('gate','icon-sm')} Study Guardrails</div>
+      <p class="mini" style="margin:0 0 12px;color:var(--muted)">These are the few rules that matter before you continue. Technical pipeline details are optional.</p>
+      <div class="grid g2">
+        <div class="blueprint-field">
+          <div class="blueprint-field-label">Current research path</div>
+          <div class="bpf-value">${esc(trackTitle)}</div>
+          <div class="blueprint-field-note">${esc(trackCopy)} Blueprint locks the research intent before compute.</div>
+        </div>
+        <div class="blueprint-field">
+          <div class="blueprint-field-label">What Thrivarc will block</div>
+          <div class="bpf-value">Compute and writing stay gated</div>
+          <div class="blueprint-field-note">Evidence preview must be approved before analysis. Writer runs only after compute, audit, and review.</div>
+        </div>
+        <div class="blueprint-field">
+          <div class="blueprint-field-label">What you can still change</div>
+          <div class="bpf-value">Design, evidence, method, or prompt</div>
+          <div class="blueprint-field-note">Before approval, edits are normal. Any post-lock change creates a visible deviation in the study log.</div>
+        </div>
+        <div class="blueprint-field">
+          <div class="blueprint-field-label">What gets remembered</div>
+          <div class="bpf-value">Data provenance receipt + change log</div>
+          <div class="blueprint-field-note">${esc(preregCopy)} Every approved dataset receives a fingerprint; post-approval changes are tracked.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTechnicalGuardrails({researchPackage, integrityArtifacts, reviewerGate, repairContract, contractSummary, agentStack}){
+  return `
+    <details class="technical-guardrails" style="margin:16px 0">
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:8px 0;user-select:none">
+        View technical guardrails <span class="mini">optional, not required to proceed</span>
+      </summary>
+      <div style="margin-top:10px;padding:16px;border-radius:var(--rad-sm);border:1px solid var(--line);background:#f8fafc">
+        <p class="mini" style="margin-bottom:10px;color:var(--muted)">Optional technical view for reviewers and power users. These rules explain how Thrivarc keeps evidence, repairs, review, and writing separated.</p>
+        ${renderResearchPackage(researchPackage)}
+        ${renderIntegrityArtifacts(integrityArtifacts)}
+        ${renderReviewerGate(reviewerGate)}
+        ${renderRepairContract(repairContract)}
+        ${renderOperationalContracts(contractSummary)}
+        <div class="card" style="padding:12px;margin-top:8px">
+          <h4>Agent stack</h4>
+          ${renderAgentStack(agentStack)}
+        </div>
+      </div>
+    </details>
+  `;
+}
+
 function renderList(items, fallback){
   const arr = Array.isArray(items) ? items : [];
   return `<ul style="margin:8px 0 0 18px">${arr.map(item => `<li>${esc(String(item))}</li>`).join('') || `<li>${esc(fallback)}</li>`}</ul>`;
@@ -2593,8 +2665,8 @@ function renderReviewerGate(gate){
       <div class="gate-header">
         ${svgIcon('gate', 'icon-lg')}
         <div>
-          <div class="mini" style="opacity:0.7">Conditional paper gate</div>
-          <h4>${esc(gate.name || 'Reviewer gate')}</h4>
+          <div class="mini" style="opacity:0.7">Review gate before writing</div>
+          <h4>Review gate before writing</h4>
         </div>
       </div>
       <div class="gate-body">
@@ -2638,7 +2710,7 @@ function renderRepairContract(contract){
   if(!contract || typeof contract !== 'object') return '';
   return `
     <div class="card" style="margin-bottom:10px">
-      <h4>${esc(contract.name || 'Repair Contract')}</h4>
+      <h4>What Thrivarc can fix automatically vs what needs your approval</h4>
       <p class="mini">Repairs are issue-scoped. They can fix evidence, code, stats, or prose mismatches, but they cannot mutate the study silently.</p>
       <div class="grid g2" style="margin-top:10px">
         <div class="card" style="padding:12px"><div class="mini">Automatic scope</div>${renderList(contract.automatic_scope, 'No automatic repair scope surfaced yet.')}</div>
@@ -2657,12 +2729,12 @@ function renderIntegrityArtifacts(artifacts){
   const prereg = artifacts.preregistration_certificate || {};
   return `
     <div class="card" style="margin-bottom:10px">
-      <h4>Integrity artifacts</h4>
+      <h4>Study evidence receipts</h4>
       <p class="mini">These are product objects, not backend trivia. They are what make a run reviewable by a mentor, co-author, journal editor, or investment committee.</p>
       <div class="grid g3" style="margin-top:10px">
-        <div class="card" style="padding:12px"><div class="mini">${esc(passport.visible_name || 'DataPassport')}</div>${renderList(passport.plain_english_summary, 'Data source, coverage, hash, and limits.')}</div>
-        <div class="card" style="padding:12px"><div class="mini">${esc(deviation.visible_name || 'Deviation Register')}</div>${renderList(deviation.entry_fields, 'Deviation entries will appear when a post-lock change happens.')}<div class="mini" style="margin-top:6px">${esc(deviation.paper_treatment || '')}</div></div>
-        <div class="card" style="padding:12px"><div class="mini">${esc(prereg.visible_name || 'Pre-registration certificate')}</div><strong>${prereg.enabled ? 'Enabled for this run' : 'Not issued for exploratory runs'}</strong>${renderList(prereg.fields, 'Certificate fields appear for confirmatory runs.')}<div class="mini" style="margin-top:6px">${esc(prereg.compatibility_target || '')}</div></div>
+        <div class="card" style="padding:12px"><div class="mini">Data provenance receipt</div>${renderHumanList(passport.plain_english_summary, 'Data source, coverage, hash, and limits.')}</div>
+        <div class="card" style="padding:12px"><div class="mini">Change log after approval</div>${renderHumanList(deviation.entry_fields, 'Deviation entries will appear when a post-lock change happens.')}<div class="mini" style="margin-top:6px">${esc(deviation.paper_treatment || '')}</div></div>
+        <div class="card" style="padding:12px"><div class="mini">${esc(prereg.visible_name || 'Pre-registration certificate')}</div><strong>${prereg.enabled ? 'Enabled for this run' : 'Not issued for exploratory runs'}</strong>${renderHumanList(prereg.fields, 'Certificate fields appear for confirmatory runs.')}<div class="mini" style="margin-top:6px">${esc(prereg.compatibility_target || '')}</div></div>
       </div>
     </div>
   `;
@@ -2727,8 +2799,8 @@ function renderOperationalContracts(summary){
   const verifier = summary.paper_code_verifier || {};
   return `
     <div class="card" style="margin-bottom:10px">
-      <h4>Execution truth contract</h4>
-      <p class="mini">This is the backend promise behind the screen: what gets checked, what can fail, and what blocks the Writer.</p>
+      <h4>Technical execution checks</h4>
+      <p class="mini">Optional technical view: what gets checked, what can fail, and what blocks the Writer.</p>
       <div class="grid g2" style="margin-top:10px">
         <div class="card" style="padding:12px"><div class="mini">Data and schema handling</div>${renderList(Object.entries(dataQuality.schema_mismatch || {}).map(([k,v]) => `${k}: ${v}`), 'Data preview must pass before compute.')}</div>
         <div class="card" style="padding:12px"><div class="mini">Leakage rule</div><strong>${esc(leakage.primary_rule || 'Timing must match the Blueprint.')}</strong><div class="mini" style="margin-top:6px">${esc(leakage.failure_action || '')}</div></div>
@@ -2860,24 +2932,8 @@ function renderRunspecCommit(buildResult, chosenProposals, mode){
 
       </div>
 
-      <!-- ── SYSTEM CONTRACTS (collapsed) ──────────────────────────────────── -->
-      <details style="margin:16px 0">
-        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:8px 0;user-select:none">
-          ▸ Show internal pipeline rules (Repair, Integrity, Reviewer Gate, Agent Stack)
-        </summary>
-        <div style="margin-top:10px;padding:16px;border-radius:var(--rad-sm);border:1px solid var(--line);background:#f8fafc">
-          <p class="mini" style="margin-bottom:10px;color:var(--muted)">These are internal pipeline rules. You don't need to read or change them to proceed.</p>
-          ${renderResearchPackage(researchPackage)}
-          ${renderIntegrityArtifacts(integrityArtifacts)}
-          ${renderReviewerGate(reviewerGate)}
-          ${renderRepairContract(repairContract)}
-          ${renderOperationalContracts(contractSummary)}
-          <div class="card" style="padding:12px;margin-top:8px">
-            <h4>Agent stack</h4>
-            ${renderAgentStack(agentStack)}
-          </div>
-        </div>
-      </details>
+      ${renderStudyGuardrails({isConfirmatory, reviewerGate, integrityArtifacts})}
+      ${renderTechnicalGuardrails({researchPackage, integrityArtifacts, reviewerGate, repairContract, contractSummary, agentStack})}
     </div>
   `;
 
@@ -3141,6 +3197,83 @@ function renderExportReadiness(exportState, sessionId){
   return `<button class="btn" data-export-ready="false" id="cockpit-export-not-ready" disabled>ZIP not ready</button><div class="mini" style="margin-top:8px">Missing: ${esc(missing.join(', ') || 'Writer export')}</div>`;
 }
 
+function gateNeedsResearcher(gate){
+  const status = String(gate?.status || '').toLowerCase();
+  return !['approved','auto_approved','stopped','complete','completed'].includes(status);
+}
+
+function renderApprovalGateCard(g){
+  return `
+    <article class="approval-card">
+      <div class="row" style="align-items:flex-start">
+        <div><strong>${esc(g.phase_name || 'Phase gate')}</strong><div class="mini">${esc(g.required_action || 'Approve / Revise / Stop')} · ${g.autopilot_eligible ? 'autopilot eligible' : 'manual gate'}</div></div>
+        <span class="pill ${g.status==='approved'||g.status==='auto_approved'?'ok':g.status==='stopped'?'bad':'warn'}">${esc(g.status || 'pending')}</span>
+      </div>
+      <p class="mini" style="margin:8px 0 0">Why this matters: approving this gate lets Thrivarc continue from this exact study state. Revise if the plan, data, or output is not what you intended.</p>
+      <div class="approval-actions">
+        <button class="btn primary" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="approve">Approve this step</button>
+        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="revise">Request revision</button>
+        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="stop">Stop study</button>
+      </div>
+    </article>`;
+}
+
+function renderResearcherNextAction(cockpit, sessionId){
+  const gates = cockpit.approval_gates || [];
+  const openGate = gates.find(gateNeedsResearcher);
+  const current = cockpit.current_phase || {};
+  const exportState = cockpit.export || {};
+  const notebookWorkspace = cockpit.notebook_workspace || {};
+  const jobs = cockpit.sandbox_jobs || [];
+  const runningJob = jobs.find(j => ['queued','starting','running','retrying'].includes(String(j.status || '').toLowerCase()));
+  if(exportState.ready){
+    return `
+      <section class="workspace-panel hero researcher-command" data-user-task-panel="true">
+        <p class="section-label">What to do now</p>
+        <h3 style="margin:0;font-size:30px">Export is ready</h3>
+        <p class="mini" style="margin-top:8px">The Writer and export gates are complete. Download the Overleaf package, then inspect the included provenance before sharing.</p>
+        <div class="approval-actions">${renderExportReadiness(exportState, sessionId)}</div>
+      </section>`;
+  }
+  if(runningJob){
+    return `
+      <section class="workspace-panel hero researcher-command" data-user-task-panel="true">
+        <p class="section-label">What to do now</p>
+        <h3 style="margin:0;font-size:30px">Let the current backend job finish</h3>
+        <p class="mini" style="margin-top:8px">Thrivarc is running ${esc(runningJob.phase_name || 'the pipeline')} in ${esc(runningJob.backend || 'Modal')}. Watch artifacts and logs here; intervene only if the job fails or the output is wrong.</p>
+        <div class="approval-actions"><button class="btn" disabled>Waiting for backend result</button></div>
+      </section>`;
+  }
+  if(openGate){
+    return `
+      <section class="workspace-panel hero researcher-command" data-user-task-panel="true">
+        <p class="section-label">What to do now</p>
+        <h3 style="margin:0;font-size:30px">Review and approve ${esc(openGate.phase_name || 'the next step')}</h3>
+        <p class="mini" style="margin-top:8px">This is the next researcher decision. Approve only if this phase matches your intent; revise if something is unclear or wrong.</p>
+        <div class="approval-actions">
+          <button class="btn primary" data-cockpit-approval="${esc(openGate.id)}" data-cockpit-decision="approve">Approve ${esc(openGate.phase_name || 'step')}</button>
+          <button class="btn" data-cockpit-approval="${esc(openGate.id)}" data-cockpit-decision="revise">Ask for revision</button>
+          <button class="btn" data-cockpit-approval="${esc(openGate.id)}" data-cockpit-decision="stop">Stop</button>
+        </div>
+      </section>`;
+  }
+  if(String(notebookWorkspace.status || 'not_started') !== 'running'){
+    return `
+      <section class="workspace-panel hero researcher-command" data-user-task-panel="true">
+        <p class="section-label">What to do now</p>
+        <h3 style="margin:0;font-size:30px">Open the notebook if you want hands-on analysis</h3>
+        <p class="mini" style="margin-top:8px">The pipeline can proceed through approvals, but quant work happens in the Modal-backed JupyterLab workspace below.</p>
+        <div class="approval-actions"><button class="btn primary" id="cockpit-launch-notebook-command">Launch JupyterLab</button></div>
+      </section>`;
+  }
+  return `
+    <section class="workspace-panel hero researcher-command" data-user-task-panel="true">
+      <p class="section-label">What to do now</p>
+      <h3 style="margin:0;font-size:30px">Inspect outputs and decide the next instruction</h3>
+      <p class="mini" style="margin-top:8px">Current phase: ${esc(current.agent_name || current.phase_name || 'waiting')}. Use artifacts, notebook, or specialist chat when you need to challenge or extend the work.</p>
+    </section>`;
+}
+
 function renderCockpitPanel(cockpit, sessionId){
   if(!cockpit) return '';
   const gates = cockpit.approval_gates || [];
@@ -3160,18 +3293,9 @@ function renderCockpitPanel(cockpit, sessionId){
   const quality = cockpit.quality_report || {};
   const exportState = cockpit.export || {};
   const resourcePolicy = cockpit.compute_resource_policy || {};
-  const gateRows = gates.map(g=>`
-    <article class="approval-card">
-      <div class="row" style="align-items:flex-start">
-        <div><strong>${esc(g.phase_name || 'Phase gate')}</strong><div class="mini">${esc(g.required_action || 'Approve / Revise / Stop')} · ${g.autopilot_eligible ? 'autopilot eligible' : 'manual gate'}</div></div>
-        <span class="pill ${g.status==='approved'||g.status==='auto_approved'?'ok':g.status==='stopped'?'bad':'warn'}">${esc(g.status || 'pending')}</span>
-      </div>
-      <div class="approval-actions">
-        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="approve">Approve</button>
-        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="revise">Revise</button>
-        <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="stop">Stop</button>
-      </div>
-    </article>`).join('');
+  const openGates = gates.filter(gateNeedsResearcher);
+  const gateRows = openGates.slice(0, 2).map(renderApprovalGateCard).join('');
+  const allGateRows = gates.map(renderApprovalGateCard).join('');
   const followupRows = followups.slice(-5).map(f=>`
     <li><strong>${esc(f.classification || 'queued')}</strong><span>${esc(f.approval_status || '')}</span><div>${esc(f.raw_instruction || '')}</div></li>`).join('');
   const jobRows = jobs.slice(-5).map(j=>`<li><strong>${esc(j.phase_name || 'Compute')}</strong><span>${esc(j.status || 'queued')}</span></li>`).join('');
@@ -3218,18 +3342,24 @@ function renderCockpitPanel(cockpit, sessionId){
           <strong>${esc(current.agent_name || current.phase_name || 'Waiting')}</strong>
           <p class="mini" style="margin:8px 0 0">${esc(current.summary_text || 'No active phase summary yet.')}</p>
         </div>
-        <h4 style="margin:0 0 10px">Approval gates</h4>
+        <h4 style="margin:0 0 10px">Approval queue</h4>
+        <p class="mini" style="margin-top:0">${openGates.length ? `${openGates.length} researcher decision${openGates.length === 1 ? '' : 's'} waiting.` : 'No researcher approvals are waiting right now.'}</p>
         <div class="grid" style="gap:10px">${gateRows || '<p class="mini">No approval gates yet.</p>'}</div>
+        <details class="technical-guardrails" style="margin-top:12px">
+          <summary class="mini" style="cursor:pointer">View all phase gates</summary>
+          <div class="grid" style="gap:10px;margin-top:10px">${allGateRows || '<p class="mini">No gates recorded.</p>'}</div>
+        </details>
         <h4 style="margin:18px 0 10px">Sandbox jobs</h4>
         <ul class="log-stream">${jobRows || '<li>No sandbox jobs queued.</li>'}</ul>
       </aside>
 
       <main class="cockpit-center">
-        <section class="workspace-panel hero">
+        ${renderResearcherNextAction(cockpit, sessionId)}
+        <section class="workspace-panel">
           <div class="row" style="align-items:flex-start">
             <div>
               <p class="section-label">Live workspace</p>
-              <h3 style="margin:0;font-size:30px">Outputs arrive here as the run works</h3>
+              <h3 style="margin:0;font-size:24px">Evidence and outputs</h3>
               <p class="mini" style="margin-top:8px">Workflow: ${esc(phaseModel.join(' → ') || 'Waiting for phase model')}</p>
             </div>
             <div>${renderExportReadiness(exportState, sessionId)}</div>
@@ -3263,12 +3393,20 @@ function renderCockpitPanel(cockpit, sessionId){
         </section>
         <section class="inspector-panel">
           <h4>Prompt Studio</h4>
-          <p class="mini">${esc(promptStudio.locked_contract_summary || 'Locked safety contract remains enforced; edit the working prompt and study notes under it.')}</p>
-          <div class="grid" style="gap:10px">${promptRows || '<p class="mini">Prompt amplifiers will appear here.</p>'}</div>
+          <p class="mini">Used when you want the next agent call to behave differently. You do not need this for normal approvals.</p>
+          <details class="technical-guardrails">
+            <summary class="mini" style="cursor:pointer">Open prompt controls</summary>
+            <p class="mini" style="margin-top:10px">${esc(promptStudio.locked_contract_summary || 'Locked safety contract remains enforced; edit the working prompt and study notes under it.')}</p>
+            <div class="grid" style="gap:10px">${promptRows || '<p class="mini">Prompt amplifiers will appear here.</p>'}</div>
+          </details>
         </section>
         <section class="inspector-panel">
           <h4>Specialist conversations</h4>
-          <div class="grid" style="gap:10px">${specialistRows}</div>
+          <p class="mini">Use this when you want a critique, interpretation, prompt revision, or notebook cell. It is not required to continue the pipeline.</p>
+          <details class="technical-guardrails">
+            <summary class="mini" style="cursor:pointer">View specialist threads</summary>
+            <div class="grid" style="gap:10px;margin-top:10px">${specialistRows}</div>
+          </details>
           <div class="mini" style="font-weight:600;margin-top:12px">Ask a specialist</div>
           <select id="cockpit-specialist-agent" style="margin-top:8px">${SPECIALIST_AGENT_ORDER.map(agent => `<option value="${esc(agent)}">${esc(agent)}</option>`).join('')}</select>
           <select id="cockpit-specialist-mode" style="margin-top:8px">${SPECIALIST_MODES.map(mode => `<option value="${esc(mode.value)}">${esc(mode.label)}</option>`).join('')}</select>
@@ -3283,8 +3421,12 @@ function renderCockpitPanel(cockpit, sessionId){
         </section>
         <section class="inspector-panel">
           <h4>Models and quality</h4>
-          ${modelSettings.catalog && modelSettings.catalog.length <= 3 ? '<p class="mini">Admin note: only configured chat-capable deployments are shown. Add more Azure Foundry deployments to the backend registry to expose them here.</p>' : ''}
-          <div class="grid" style="gap:8px">${phaseModelRows || '<p class="mini">Model settings will appear here.</p>'}</div>
+          <p class="mini">Quality is scored only after Writer produces a paper draft. Model choices affect future phase calls.</p>
+          <details class="technical-guardrails">
+            <summary class="mini" style="cursor:pointer">Open model settings</summary>
+            ${modelSettings.catalog && modelSettings.catalog.length <= 3 ? '<p class="mini" style="margin-top:10px">Admin note: only configured chat-capable deployments are shown. Add more Azure Foundry deployments to the backend registry to expose them here.</p>' : ''}
+            <div class="grid" style="gap:8px;margin-top:10px">${phaseModelRows || '<p class="mini">Model settings will appear here.</p>'}</div>
+          </details>
           <div class="mini" style="margin-top:12px"><strong>Compute resources:</strong> ${esc(resourcePolicy.default_tier || 'cpu-small')} on ${esc(resourcePolicy.backend || 'modal')}. CPU is default; GPU is only selected for validated GPU-eligible analysis plans.</div>
           <p style="margin-top:10px"><span class="pill ${quality.status==='pass'?'ok':quality.status==='not_ready'?'muted':'warn'}">${esc(quality.status || 'not checked')}</span> <span class="mini">${quality.status==='not_ready' ? 'Quality score appears after Writer produces final.tex.' : `Score ${esc(String(quality.score ?? '—'))}/10`}</span></p>
           <button class="btn" id="cockpit-quality-refresh">Run quality check</button>
@@ -3589,7 +3731,7 @@ async function renderResearch(id){
       toast('Quality report refreshed');
       renderResearch(id);
     });
-    qs('#cockpit-launch-notebook')?.addEventListener('click', async()=>{
+    qs('#cockpit-launch-notebook, #cockpit-launch-notebook-command')?.addEventListener('click', async()=>{
       toast('Launching JupyterLab in Modal…');
       await api(`/api/sessions/${id}/notebook/launch`, {method:'POST'});
       renderResearch(id);
