@@ -146,7 +146,7 @@ def test_research_route_is_study_first_cockpit_and_not_agent_shell() -> None:
     html = _html()
     assert "if(h.startsWith('research/')) return renderResearch(h.split('/')[1]);" in html
     assert "Specialist conversations" in html
-    assert "Open JupyterLab" in html
+    assert "Inline JupyterLab" in html
     assert "/api/sessions/${id}/specialists/" in html
     assert "/api/sessions/${id}/notebook" in html
 
@@ -175,10 +175,10 @@ def test_cockpit_makes_jupyter_primary_and_export_readiness_explicit() -> None:
     assert "researcher-command" in html
     assert "Approval queue" in html
     assert "Approval gates" not in html
-    assert "Notebook workspace" in html
+    assert "Inline JupyterLab" in html
     assert "Open full screen" in html
     assert "window.open(res.workspace.access_url" not in html
-    assert "Notebook bootstrap cells" in html
+    assert "Notebook source and bootstrap cells" in html
     assert "Cockpit Cells" not in html
     assert "ZIP not ready" in html
     assert "data-export-ready" in html
@@ -197,3 +197,24 @@ def test_specialist_and_prompt_panels_explain_backend_effects() -> None:
     assert "Insert into prompt" in html
     assert "data-specialist-action" in html
     assert "Where this model is used" in html
+
+
+def test_cockpit_does_not_present_pipeline_lock_or_bootstrap_cells_as_user_work() -> None:
+    html = _html()
+    assert "Writer blocked" in html
+    assert "paper_locked: 'Paper locked'" not in html
+    assert "This is not a researcher approval" in html
+    assert "Notebook bootstrap cells" not in html
+    assert "Notebook source bundle" in html
+    assert "These files have not necessarily been executed in Jupyter" in html
+    assert "Starting Modal workspace" in html
+    assert "JupyterLab failed to launch" in html
+    assert "Approved by" in html
+    assert "approval came from the backend gate record" in html
+
+
+def test_research_page_explains_review_findings_are_actionable_not_final() -> None:
+    html = _html()
+    assert "Reviewer findings are not a verdict" in html
+    assert "Use the repair actions below" in html
+    assert "Writer is blocked until the finding is repaired or explicitly accepted" in html

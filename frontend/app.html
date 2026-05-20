@@ -1260,12 +1260,42 @@ const STATUS_HUMAN = {
   running: '⚡ Running',
   queued: 'Queued',
   paper_unlocked: '✅ Paper ready',
-  paper_locked: 'Paper locked',
+  paper_locked: 'Writer blocked',
   done: '✅ Complete',
   failed_resumable: '⚠ Paused — needs attention',
   failed_terminal: '✗ Stopped',
   repair_required: '🔧 Repair needed',
 };
+
+function researchStatusCopy(status){
+  const raw = String(status || '').toLowerCase();
+  if(raw === 'paper_locked'){
+    return {
+      label: 'Writer blocked',
+      tone: 'warn',
+      body: 'This is not a researcher approval and not a finished paper. The reviewer or audit gate blocked Writer, so the next task is to repair or explicitly accept the finding before any final paper is produced.'
+    };
+  }
+  if(raw === 'paper_unlocked'){
+    return {
+      label: 'Paper ready',
+      tone: 'ok',
+      body: 'Writer completed after the required evidence, audit, and review gates. Download the package and inspect provenance before sharing.'
+    };
+  }
+  if(raw === 'running' || raw === 'queued'){
+    return {
+      label: STATUS_HUMAN[raw] || raw,
+      tone: 'warn',
+      body: 'A backend phase is still active or queued. The cockpit should show the active Modal job, notebook, or stale-state warning.'
+    };
+  }
+  return {
+    label: STATUS_HUMAN[raw] || raw || 'Unknown',
+    tone: 'muted',
+    body: 'Open the cockpit task panel below to see the next researcher action from backend state.'
+  };
+}
 
 let _dashboardBuilt = false;
 let dashboardSelection = new Set();
@@ -3156,21 +3186,31 @@ function renderNotebookWorkspace(workspace, sessionId){
   const status = workspace?.status || 'not_started';
   const artifactPaths = workspace?.artifact_paths || [];
   const errorCard = workspace?.last_error
-    ? `<div class="repair-card" style="margin-top:12px"><strong>Notebook startup failed</strong><p class="mini">${esc(workspace.last_error)}</p></div>`
+    ? `<div class="repair-card" style="margin-top:12px"><strong>JupyterLab failed to launch</strong><p class="mini">${esc(workspace.last_error)}</p><p class="mini">No notebook code has run. Try launching again, open full screen if the iframe is blocked, or stop this workspace and restart it.</p></div>`
+    : '';
+  const startingCard = ['starting','launching'].includes(String(status).toLowerCase())
+    ? `<div class="repair-card" style="margin-top:12px"><strong>Starting Modal workspace</strong><p class="mini">Modal is creating an isolated JupyterLab sandbox. This can take a minute. Do not treat notebook artifacts as executed output until Jupyter is visible and the notebook shows cell outputs.</p></div>`
     : '';
   const iframe = workspace?.access_url && workspace?.can_embed
     ? `<iframe src="${esc(workspace.access_url)}" title="JupyterLab workspace" style="width:100%;min-height:720px;border:1px solid var(--line);border-radius:18px;background:#fff;margin-top:14px"></iframe>`
     : '';
+  const artifactNote = artifactPaths.length ? `
+    <details class="technical-guardrails" style="margin-top:14px">
+      <summary class="mini" style="cursor:pointer">Notebook source bundle</summary>
+      <p class="mini" style="margin-top:8px">These files have not necessarily been executed in Jupyter. They are the saved bootstrap notebook/script or the last synced workspace files. Executed output is visible inside JupyterLab and only becomes durable after you click Sync notebook artifacts.</p>
+      <div class="artifact-grid" style="margin-top:10px">${artifactPaths.slice(-6).map(path => `<div class="artifact-tile"><strong>${esc(String(path).split('/').pop())}</strong><span class="mini">${esc(path)}</span></div>`).join('')}</div>
+    </details>` : '';
   return `
     <section class="workspace-panel notebook-primary">
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
         <div>
-          <h4 style="margin:0 0 8px">Notebook workspace</h4>
-          <p class="mini" style="margin:0">Open JupyterLab inside this cockpit. Real JupyterLab runs in Modal; run cells here, see outputs inline, then sync notebook artifacts back into the study.</p>
+          <p class="section-label">Code workspace</p>
+          <h4 style="margin:0 0 8px">Inline JupyterLab</h4>
+          <p class="mini" style="margin:0">This is the real code surface. JupyterLab runs in an isolated Modal sandbox; cells execute inside that notebook and outputs appear directly under those cells. Thrivarc only stores synced copies after you click Sync. Use Open JupyterLab here, not the source bundle below.</p>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button class="btn primary" id="cockpit-launch-notebook">${status==='running' ? 'Refresh JupyterLab' : 'Launch JupyterLab'}</button>
-          <button class="btn" id="cockpit-sync-notebook">Sync notebook artifacts</button>
+          <button class="btn primary" id="cockpit-launch-notebook">${status==='running' ? 'Refresh JupyterLab' : status==='starting' ? 'Starting…' : 'Launch inline JupyterLab'}</button>
+          <button class="btn" id="cockpit-sync-notebook" ${status==='running'?'':'disabled'}>Sync notebook artifacts</button>
         </div>
       </div>
       <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
@@ -3179,10 +3219,11 @@ function renderNotebookWorkspace(workspace, sessionId){
         <span class="tag">${esc(workspace?.modal_account_alias || 'router')}</span>
         <span class="tag">${esc(workspace?.sync_status || 'not_synced')}</span>
       </div>
+      ${startingCard}
       ${errorCard}
-      ${workspace?.access_url ? `<div style="margin-top:12px"><a class="btn" href="${esc(workspace.access_url)}" target="_blank" rel="noopener">Open full screen</a></div>` : ''}
+      ${workspace?.access_url ? `<div style="margin-top:12px"><a class="btn" href="${esc(workspace.access_url)}" target="_blank" rel="noopener">Open full screen if inline frame is blocked</a></div>` : ''}
       ${iframe}
-      ${artifactPaths.length ? `<div class="artifact-grid" style="margin-top:14px">${artifactPaths.slice(-6).map(path => `<div class="artifact-tile"><strong>${esc(String(path).split('/').pop())}</strong><span class="mini">${esc(path)}</span></div>`).join('')}</div>` : ''}
+      ${artifactNote}
     </section>
   `;
 }
@@ -3203,6 +3244,10 @@ function gateNeedsResearcher(gate){
 }
 
 function renderApprovalGateCard(g){
+  const status = String(g.status || '').toLowerCase();
+  const approvedMeta = ['approved','auto_approved','complete','completed'].includes(status)
+    ? `<p class="mini" style="margin:8px 0 0">Approved by ${esc(g.approver || (status === 'auto_approved' ? 'autopilot' : 'you'))}${g.approved_at ? ` at ${esc(fmtDate(g.approved_at))}` : ''}. This approval came from the backend gate record, not the browser.</p>`
+    : '';
   return `
     <article class="approval-card">
       <div class="row" style="align-items:flex-start">
@@ -3210,6 +3255,7 @@ function renderApprovalGateCard(g){
         <span class="pill ${g.status==='approved'||g.status==='auto_approved'?'ok':g.status==='stopped'?'bad':'warn'}">${esc(g.status || 'pending')}</span>
       </div>
       <p class="mini" style="margin:8px 0 0">Why this matters: approving this gate lets Thrivarc continue from this exact study state. Revise if the plan, data, or output is not what you intended.</p>
+      ${approvedMeta}
       <div class="approval-actions">
         <button class="btn primary" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="approve">Approve this step</button>
         <button class="btn" data-cockpit-approval="${esc(g.id)}" data-cockpit-decision="revise">Request revision</button>
@@ -3233,6 +3279,18 @@ function renderResearcherNextAction(cockpit, sessionId){
         <h3 style="margin:0;font-size:30px">Export is ready</h3>
         <p class="mini" style="margin-top:8px">The Writer and export gates are complete. Download the Overleaf package, then inspect the included provenance before sharing.</p>
         <div class="approval-actions">${renderExportReadiness(exportState, sessionId)}</div>
+      </section>`;
+  }
+  if(String(cockpit.session?.status || '').toLowerCase() === 'paper_locked'){
+    return `
+      <section class="workspace-panel hero researcher-command" data-user-task-panel="true">
+        <p class="section-label">What to do now</p>
+        <h3 style="margin:0;font-size:30px">Reviewer findings are not a verdict</h3>
+        <p class="mini" style="margin-top:8px">Writer is blocked until the finding is repaired or explicitly accepted. Use the repair actions below, ask a specialist to challenge the finding, or create a notebook cell to test the reviewer concern.</p>
+        <div class="approval-actions">
+          <button class="btn primary" id="cockpit-specialist-focus">Ask a specialist about the finding</button>
+          <button class="btn" id="cockpit-add-cell-command">Create repair notebook cell</button>
+        </div>
       </section>`;
   }
   if(runningJob){
@@ -3313,7 +3371,7 @@ function renderCockpitPanel(cockpit, sessionId){
         <textarea data-cell-code="${esc(c.id)}">${esc(c.code || '')}</textarea>
         <div class="approval-actions">
           <button class="btn" data-save-cell="${esc(c.id)}">Save cell</button>
-          <button class="btn primary" data-run-cell="${esc(c.id)}">Run through this cell</button>
+        <button class="btn primary" data-run-cell="${esc(c.id)}">Run bootstrap through Modal</button>
         </div>
         ${c.stdout ? `<pre>${esc(c.stdout)}</pre>` : ''}
         ${c.stderr ? `<pre style="color:#fecaca">${esc(c.stderr)}</pre>` : ''}
@@ -3371,13 +3429,15 @@ function renderCockpitPanel(cockpit, sessionId){
         </section>
         ${renderNotebookWorkspace(notebookWorkspace, sessionId)}
         <section class="workspace-panel">
-          <h4 style="margin:0 0 12px">Notebook bootstrap cells</h4>
-          <p class="mini">These seed the Jupyter notebook. Use the embedded notebook above for actual code execution and visible cell output.</p>
-          <div class="grid" style="gap:10px">${cellRows || '<p class="mini">No cells yet.</p>'}</div>
-          <div class="approval-actions">
-            <button class="btn" id="cockpit-add-cell">Add cell</button>
-            <button class="btn" id="cockpit-run-all-cells">Rebuild notebook from bootstrap cells</button>
-          </div>
+          <details class="technical-guardrails">
+            <summary style="cursor:pointer"><strong>Notebook source and bootstrap cells</strong> <span class="mini">advanced, not the execution surface</span></summary>
+            <p class="mini" style="margin-top:10px">These cells seed the Jupyter notebook. They are not proof that code executed. Run and inspect actual outputs in the inline JupyterLab workspace above.</p>
+            <div class="grid" style="gap:10px">${cellRows || '<p class="mini">No cells yet.</p>'}</div>
+            <div class="approval-actions">
+              <button class="btn" id="cockpit-add-cell">Add bootstrap cell</button>
+              <button class="btn" id="cockpit-run-all-cells">Rebuild notebook source from bootstrap cells</button>
+            </div>
+          </details>
         </section>
       </main>
 
@@ -3535,6 +3595,7 @@ async function renderResearch(id){
       </div>` : '';
     const reviewerCard = researchReviewed ? `
       <div class="card" style="margin-bottom:12px" data-truth-source="reviewer_scores"><h3>What the reviewer says</h3>
+      <div class="repair-card" style="margin-bottom:12px"><strong>Reviewer findings are not a verdict</strong><p class="mini">Use the repair actions below to fix findings in evidence, code, stats, or prose. Writer is blocked until the finding is repaired or explicitly accepted.</p></div>
       <p class="muted">${esc(reviewerPayload.reviewer_narrative || 'Reviewer summary will appear here.')}</p>
       <p><strong>Score:</strong> ${esc(String(reviewerPayload.score || '—'))} / 10 · <strong>Gate passed:</strong> ${reviewerPayload.gate_passed === true ? 'Yes' : 'No'} · <strong>Target:</strong> ${esc(reviewerPayload.target_standard || 'Finance standard')}</p>
       ${reviewerDimensionGrid}
@@ -3614,8 +3675,9 @@ async function renderResearch(id){
           <button class="btn primary" id="upgrade-confirmatory">Upgrade to confirmatory test →</button>
         </div>
       </div>` : '';
+    const statusCopy = researchStatusCopy(st.status);
     app.innerHTML = `<div class="row" style="margin-bottom:10px"><a href="#dashboard">← Back</a>${getConfig('showRunId')?`<span class="muted" data-technical="run-id">Research ID: ${esc(id)}</span>`:''}${st.status==='running'?`<button class="btn" id="cancel">Cancel</button>`:''}</div>
-      <div class="card" style="margin-bottom:12px" data-truth-source="sessions.status"><h2 title="${esc(st.topic||'')}">${esc((st.topic||'Research').slice(0,80))}</h2><p class="muted">Status: ${esc(st.status)}</p></div>
+      <div class="card" style="margin-bottom:12px" data-truth-source="sessions.status"><h2 title="${esc(st.topic||'')}">${esc((st.topic||'Research').slice(0,80))}</h2><p><span class="pill ${esc(statusCopy.tone)}">${esc(statusCopy.label)}</span></p><p class="muted">${esc(statusCopy.body)}</p></div>
       ${runTabs}
       ${engagingNow}
       ${cockpitCard}
@@ -3731,9 +3793,35 @@ async function renderResearch(id){
       toast('Quality report refreshed');
       renderResearch(id);
     });
+    qs('#cockpit-specialist-focus')?.addEventListener('click', ()=>{
+      qs('#cockpit-specialist-agent')?.scrollIntoView({behavior:'smooth', block:'center'});
+      const selector = qs('#cockpit-specialist-agent');
+      if(selector) selector.value = 'Reviewer Agent';
+      const mode = qs('#cockpit-specialist-mode');
+      if(mode) mode.value = 'critique';
+      const box = qs('#cockpit-specialist-text');
+      if(box){
+        box.value = 'Explain the reviewer finding, identify the exact repair needed, and propose the smallest evidence/code change that would unblock Writer.';
+        box.focus();
+      }
+    });
+    qs('#cockpit-add-cell-command')?.addEventListener('click', async()=>{
+      await api(`/api/sessions/${id}/compute-cells`, {method:'POST', body:JSON.stringify({
+        title:'Repair reviewer finding',
+        code:'# Add the smallest diagnostic or robustness check needed to address the reviewer finding.\\n# Run this inside inline JupyterLab, then sync artifacts back to Thrivarc.\\n'
+      })});
+      toast('Repair bootstrap cell added. Open inline JupyterLab to execute it.');
+      renderResearch(id);
+    });
     qs('#cockpit-launch-notebook, #cockpit-launch-notebook-command')?.addEventListener('click', async()=>{
-      toast('Launching JupyterLab in Modal…');
-      await api(`/api/sessions/${id}/notebook/launch`, {method:'POST'});
+      const buttons = document.querySelectorAll('#cockpit-launch-notebook, #cockpit-launch-notebook-command');
+      buttons.forEach(btn => { btn.disabled = true; btn.textContent = 'Starting Modal workspace…'; });
+      toast('Starting Modal workspace for inline JupyterLab…');
+      try{
+        await api(`/api/sessions/${id}/notebook/launch`, {method:'POST'});
+      }catch(err){
+        toast(`JupyterLab failed to launch: ${err.message}`);
+      }
       renderResearch(id);
     });
     qs('#cockpit-sync-notebook')?.addEventListener('click', async()=>{
